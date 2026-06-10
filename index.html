@@ -1279,13 +1279,13 @@ function renderClients(){
 }
 function filterClientList(){
   const q=(document.getElementById('clientSearchInput')?.value||'').toLowerCase();
-  inner('clientList',clients.filter(c=>c.name.toLowerCase().includes(q)).map(c=>'<div class="to" onclick="openClientDetail(\''+c.name+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><span style="font-weight:600">'+c.name+'</span><span style="font-size:11px;color:var(--tl)">'+fmt(c.debt)+'</span></div></div>').join('')||'<div class="ec"><p>Sin resultados</p></div>');
+  inner('clientList',clients.filter(c=>c.name.toLowerCase().includes(q)).map(c=>'<div class="to" onclick="openClientDetail(\''+c.name+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><span style="font-weight:600">'+c.name+'</span><span style="font-size:11px;color:var(--tl)">'+fmt(c.debt)+'</span></div></div>').join('')||'<div class="ec"><p>Sin resultados</p></div>';
 }
 function openClientDetail(name){
   const c=clients.find(x=>x.name===name);if(!c)return;
   const _cdn=$$('clientDetailName');if(_cdn)_cdn.textContent=c.name;
   const _cd=$$('clientDebt');if(_cd)_cd.textContent=fmt(c.debt);
-  inner('clientDetailActions','<button class="bsm" style="background:var(--bm)" onclick="addPayment(\''+c.name+'\')">Registrar pago</button><button class="bsm" style="background:transparent;border:1px solid var(--er);color:var(--er)" onclick="deleteClient(\''+c.name+'\')">Eliminar cliente</button>');
+  inner('clientDetailActions','<button class="bsm" style="background:var(--bm)" onclick="addPayment(\''+c.name+'\')">Registrar pago</button><button class="bsm" style="background:transparent;border:1px solid var(--er);color:var(--er)" onclick="deleteClient(\''+c.name+'\')">Eliminar cliente</button>';
   openMod('clientDetailModal');
 }
 function addPayment(name){
@@ -1909,10 +1909,6 @@ function initApp(){
 
 document.addEventListener('DOMContentLoaded',initApp);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadFromLocalStorage();renderTables();updateOCBadge();}});
-
-window.selRole = selRole;
-window.doLogin = doLogin;
-window.openSecModal = openSecModal;
 
 </script>
 </body>
