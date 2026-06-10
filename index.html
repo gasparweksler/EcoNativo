@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabaseClientInstance/supabaseClientInstance-js@2/dist/umd/supabaseClientInstance.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -449,7 +449,7 @@ button:active{transform:scale(.97)}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Recetas &amp; Costeo</div>
           <div style="display:flex;gap:6px">
-            <button onclick="pushFullRecipesToSupabase()" style="display:flex;align-items:center;gap:5px;padding:7px 14px;background:var(--ol);color:var(--wh);border:none;border-radius:20px;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-cloud-upload" style="font-size:13px" aria-hidden="true"></i> Aplicar cambios</button>
+            <button onclick="pushFullRecipesTosupabaseClientInstance()" style="display:flex;align-items:center;gap:5px;padding:7px 14px;background:var(--ol);color:var(--wh);border:none;border-radius:20px;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-cloud-upload" style="font-size:13px" aria-hidden="true"></i> Aplicar cambios</button>
           </div>
         </div>
         <div class="cat-pills" id="recipesCatPills"></div>
@@ -510,7 +510,7 @@ button:active{transform:scale(.97)}
   <div class="ppi"><strong id="sandwichTotal"></strong></div>
   <div class="ma"><button class="bs2" onclick="closeMod('sandwichModal')">Cancelar</button><button class="bc2" onclick="confirmSandwich()">Agregar</button></div>
 </div></div>
-<div class="ov" id="odModal"><div class="mb" id="odContent"></div></div>
+<div class="ov" id="orderDetailModal"><div class="mb" id="odContent"></div></div>
 <div class="ov" id="toastModal"><div class="mb">
   <h3>Armar Tostadas</h3><p class="sub" id="toastSub">Base incluida: Huevo Revuelto + Pan</p>
   <div style="margin-bottom:.6rem"><h4 style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600">Extras / Modificadores</h4>
@@ -612,6 +612,8 @@ button:active{transform:scale(.97)}
 
 <div class="bell-popup" id="bellPopup" aria-live="polite"><i class="ti ti-bell" style="font-size:18px" aria-hidden="true"></i><span id="bellText"></span></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="toastContainer"></div>
+<div id="bellContainer"></div>
 <script>
 /* ── UTILS ── */
 const $$ = id => document.getElementById(id);
@@ -650,7 +652,7 @@ function playBell(){
 }
 function showBell(msg){
   $$('bellText').textContent=msg;
-  const b=('bellPopup');
+  const b=$$('bellPopup');
   b.classList.add('show');
   playBell();
   if(bellTm)clearTimeout(bellTm);
@@ -676,6 +678,8 @@ let _undoTimerInterval=null;
 let _undoSecondsLeft=0;
 /* Inventory change tracking - only modified items */
 let _modifiedInvItemIds=new Set();
+
+let cajaMovements=[];
 
 /* ── CREDENTIALS ── */
 const SYSTEM_USERS=[
@@ -722,7 +726,7 @@ function addCajaMov(amount,pago,desc){
 }
 
 /* ── MENU DATA ── */
-const menuData={
+let menuData={
   'Cafetería Caliente':{'Clásicos':[{name:'Espresso',price:2000,active:true},{name:'Macchiato',price:2200,active:true},{name:'Cortado',price:2500,active:true},{name:'Doble Espresso',price:2700,active:true},{name:'Americano',price:2700,active:true},{name:'Americano Cortado',price:2900,active:true},{name:'Café con Leche',price:3200,active:true},{name:'Bombón',price:3800,active:true},{name:'Irish Coffee',price:4200,active:true}],'Cappuccino':[{name:'Cappuccino Clásico',price:2900,active:true},{name:'Cappuccino Vainilla',price:3500,active:true},{name:'Cappuccino Caramelo',price:3500,active:true},{name:'Cappuccino Vienés',price:3800,active:true}],'Latte':[{name:'Latte Clásico',price:3200,active:true},{name:'Latte Macchiato',price:3200,active:true},{name:'Nutelatte',price:3500,active:true},{name:'Nutella Moka',price:3800,active:true}],'Con Chocolate':[{name:'Mocaccino',price:3500,active:true},{name:'Chocolate Caliente',price:3900,active:true},{name:'Cacao Amargo',price:3900,active:true},{name:'Chocolate Vienés',price:4500,active:true}],'Con Té':[{name:'Infusión',price:2200,active:true},{name:'Té con Leche',price:2900,active:true},{name:'Té Mimoso',price:3500,active:true}],'Hierbas':[{name:'Chai Latte',price:3500,active:true},{name:'Matcha Latte',price:3800,active:true},{name:'Latte Dorado',price:3500,active:true},{name:'Rooibos Latte',price:3500,active:true}]},
   'Bebidas Frías':{'Base café':[{name:'Tónica de Azahar',price:4500,active:true},{name:'Latte en el Jardín',price:4200,active:true},{name:'Caramelo de Gatsby',price:4800,active:true},{name:'Bombón de Macondo',price:4800,active:true},{name:'Affogato de Verona',price:5200,active:true},{name:'El Glacé de Madame',price:5500,active:true}],'Base té':[{name:'Té del Faro',price:3900,active:true},{name:'Mango del Horizonte',price:4800,active:true},{name:'Susurro de Verano',price:5200,active:true},{name:'Sombras de Delhi',price:4900,active:true}],'Matcha':[{name:'Bosque Esmeralda',price:5500,active:true},{name:'Jardín de Kioto',price:5200,active:true},{name:'Cielos de Osaka',price:5500,active:true}],'Frutas':[{name:'Limonada Clásica',price:3900,active:true},{name:'Limonada Jengibre',price:4200,active:true},{name:'Jamaica Berries',price:4800,active:true},{name:'Smoothies del Alba',price:4800,active:true},{name:'Malteadas de Ensueño',price:5500,active:true}],'Otros':[{name:'Ginger Beer 330cc',price:3900,active:true},{name:'Bebidas 330cc',price:2200,active:true},{name:'Agua Mineral',price:1200,active:true}]},
   'Platos':{'Tostadas':[{name:'Tostadas',price:3500,active:true,isToast:true,toastBase:'Tostadas con Huevo Revuelto',toastExtras:[{name:'Jamón',price:700},{name:'Tocino',price:1000},{name:'Queso Mantecoso',price:700},{name:'Champiñones',price:1000},{name:'Palta',price:800},{name:'Tomate',price:300}]}],'Sándwich':[{name:'Sándwich 2 ingredientes',price:4900,active:true,isSandwich:true,sandwichMax:2},{name:'Sándwich 3 ingredientes',price:5900,active:true,isSandwich:true,sandwichMax:3},{name:'Sándwich 4 ingredientes',price:6900,active:true,isSandwich:true,sandwichMax:4}],'Pastelería':[{name:'Pastelería del día',price:2500,active:true}]},
@@ -777,8 +781,8 @@ function checkSecurity(){
 function selRole(r){
   cRole=r;
   document.querySelectorAll('.rb').forEach(b=>{b.style.borderColor='var(--br)';b.style.background='var(--cr)';b.style.color='var(--tm)'});
-  const el=('role-'+r);el.style.borderColor='var(--bm)';el.style.background='var(--bm)';el.style.color='var(--wh)';
-  const lu=('lu'),lp=('lp');
+  const el=$$('role-'+r);el.style.borderColor='var(--bm)';el.style.background='var(--bm)';el.style.color='var(--wh)';
+  const lu=$$('lu'),lp=$$('lp');
   if(lu)lu.value='';if(lp)lp.value='';
 }
 selRole('admin');
@@ -796,7 +800,6 @@ function doLogin(){
   else if(cRole==='admin'){renderDashboard();goPage('dashboard');}
   else{renderKitchen();goPage('kitchen');}
   updateOCBadge();
-  postLoginInit();
 }
 function logout(){$$('app').style.display='none';$$('loginScreen').style.display='flex';cart=[];cTable=null;isMC=false;currentAccountId=null;}
 
@@ -825,15 +828,15 @@ function navTo(id){
     stats:()=>{renderStats();goPage('stats')},
     recipes:()=>{renderRecipes();goPage('recipes')},
     carta:()=>{renderCarta();goPage('carta')},
-    inventory:()=>{renderInv();goPage('inventory')},
+    inventory:()=>{renderInventory();goPage('inventory')},
     staff:()=>{renderStaff();goPage('staff')},
     kitchen:()=>{renderKitchen();goPage('kitchen')},
   })[id]?.();
 }
 function goPage(id){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));('page-'+id).classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$$('page-'+id).classList.add('active');
   document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('active'));
-  [('bnt-'+id),('mbnt-'+id)].forEach(b=>{if(b)b.classList.add('active');});
+  [$$('bnt-'+id),$$('mbnt-'+id)].forEach(b=>{if(b)b.classList.add('active');});
 }
 function updateOCBadge(){const a=orders.filter(o=>o.status!=='closed').length;$$('ocBadge').textContent=a>0?'#'+totalOrdsIn+' órd.':'';}
 /* ── TABLE MANAGEMENT (Admin) ── */
@@ -1190,7 +1193,20 @@ function paySplitPerson(pi){
 }
 /* ── DASHBOARD ── */
 let dashtab='recibidos';
-function navTo(t){if(t==='dashboard'){closeMod();renderDashboard();}goPage(t);}
+function navTo(id){
+  if(id==='dashboard'){closeMod();renderDashboard();goPage(id);return;}
+  if(id==='tables'){renderTables();goPage(id);return;}
+  if(id==='order'){goPage(id);return;}
+  if(id==='clients'){renderClients();goPage(id);return;}
+  if(id==='caja'){renderCaja();goPage(id);return;}
+  if(id==='stats'){renderStats();goPage(id);return;}
+  if(id==='recipes'){renderRecipes();goPage(id);return;}
+  if(id==='carta'){renderCarta();goPage(id);return;}
+  if(id==='inventory'){renderInventory();goPage(id);return;}
+  if(id==='staff'){renderStaff();goPage(id);return;}
+  if(id==='kitchen'){renderKitchen();goPage(id);return;}
+  goPage(id);
+}
 function renderDashboard(){
   const rec=orders.filter(o=>o.status==='pending');
   const enPrep=orders.filter(o=>o.status==='prep');
@@ -1527,17 +1543,17 @@ function executeUndo(){
   recipes.length=0;undoSnapshot.recipes.forEach(r=>recipes.push(r));
   menuData=JSON.parse(JSON.stringify(undoSnapshot.menuData));
   undoSnapshot=null;showToast('Cambios deshechos','ok');
-  if($$('undoControls'))$$('undoControls').style.display='none';
+  if($$('undoBtnWrap'))$$('undoBtnWrap').style.display='none';
   renderAll();
 }
 function showUndoControls(){
   if(undoTimeout)clearTimeout(undoTimeout);
-  const el=('undoControls');
+  const el=$$('undoBtnWrap');
   if(el){el.style.display='flex';undoTimeout=setTimeout(()=>{if(el)el.style.display='none';undoSnapshot=null;},8000);}
 }
 function hideUndoControls(){
   if(undoTimeout)clearTimeout(undoTimeout);
-  if($$('undoControls'))$$('undoControls').style.display='none';
+  if($$('undoBtnWrap'))$$('undoBtnWrap').style.display='none';
   undoSnapshot=null;
 }
 function renderAll(){
@@ -1562,26 +1578,26 @@ function withUndo(fn){
     return result;
   };
 }
-/* ── SUPABASE INIT ── */
+/* ── supabaseClientInstance INIT ── */
 const SUPABASE_URL='https://xtprxnfvvynbakgonoau.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzMjIxNTcsImV4cCI6MjA2MDg5ODE1N30.FJpJ5PE3F5g0t3_pOUMhk71t0b0E95x-hXnxKF4GsX4';
-let supabase=null;
+let supabaseClientInstance=null;
 let realtimeChannel=null;
 let bc=null;
 
-function initSupabase(){
+function initsupabaseClientInstance(){
   if(typeof supabaseClient==='undefined'){
     try{
       const script=document.createElement('script');
-      script.src='https://unpkg.com/@supabase/supabase-js@2';
+      script.src='https://unpkg.com/@supabaseClientInstance/supabaseClientInstance-js@2';
       script.onload=()=>{
-        supabase=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+        supabaseClientInstance=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
         setupRealtime();
       };
       document.head.appendChild(script);
-    }catch(e){console.error('Supabase init error:',e);}
+    }catch(e){console.error('supabaseClientInstance init error:',e);}
   }else{
-    try{supabase=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);setupRealtime();}catch(e){console.error('Supabase init error:',e);}
+    try{supabaseClientInstance=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);setupRealtime();}catch(e){console.error('supabaseClientInstance init error:',e);}
   }
   try{bc=new BroadcastChannel('econativo_sync');bc.onmessage=(e)=>{if(e.data&&e.data.type==='state_update')applyRemoteState(e.data.payload);};}catch(e){}
   startPolling();
@@ -1590,44 +1606,44 @@ function initSupabase(){
 function setupRealtime(){
   try{
     if(realtimeChannel)realtimeChannel.unsubscribe();
-    realtimeChannel=supabase.channel('econativo_changes');
+    realtimeChannel=supabaseClientInstance.channel('econativo_changes');
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_state'},(payload)=>{
       if(payload.new&&payload.new.data)applyRemoteState(payload.new.data);
     });
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_menu'},(payload)=>{
-      if(payload.new&&payload.new.data)loadMenuFromSupabase();
+      if(payload.new&&payload.new.data)loadMenuFromsupabaseClientInstance();
     });
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_inv'},(payload)=>{
-      if(payload.new&&payload.new.data)loadInvFromSupabase();
+      if(payload.new&&payload.new.data)loadInvFromsupabaseClientInstance();
     });
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_staff'},(payload)=>{
-      if(payload.new&&payload.new.data)loadStaffFromSupabase();
+      if(payload.new&&payload.new.data)loadStaffFromsupabaseClientInstance();
     });
     realtimeChannel.subscribe();
   }catch(e){console.error('Realtime setup error:',e);}
 }
 
-/* ── SUPABASE LOAD ── */
-async function loadMenuFromSupabase(){
-  if(!supabase)return;
+/* ── supabaseClientInstance LOAD ── */
+async function loadMenuFromsupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {data,error}=await supabase.from('econativo_menu').select('data').eq('id',1).single();
+    const {data,error}=await supabaseClientInstance.from('econativo_menu').select('data').eq('id',1).single();
     if(!error&&data&&data.data)menuData=JSON.parse(JSON.stringify(data.data));
     renderCarta();
   }catch(e){console.log('Menu load error:',e);}
 }
-async function loadInvFromSupabase(){
-  if(!supabase)return;
+async function loadInvFromsupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {data,error}=await supabase.from('econativo_inv').select('data').eq('id',1).single();
+    const {data,error}=await supabaseClientInstance.from('econativo_inv').select('data').eq('id',1).single();
     if(!error&&data&&data.data)inventoryItems=JSON.parse(JSON.stringify(data.data));
     renderInventory();
   }catch(e){console.log('Inv load error:',e);}
 }
-async function loadStaffFromSupabase(){
-  if(!supabase)return;
+async function loadStaffFromsupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {data,error}=await supabase.from('econativo_staff').select('data').eq('id',1).single();
+    const {data,error}=await supabaseClientInstance.from('econativo_staff').select('data').eq('id',1).single();
     if(!error&&data&&data.data){
       const remoteStaff=JSON.parse(JSON.stringify(data.data));
       remoteStaff.forEach(rs=>{
@@ -1637,68 +1653,68 @@ async function loadStaffFromSupabase(){
     renderStaff();
   }catch(e){console.log('Staff load error:',e);}
 }
-async function loadRecipesFromSupabase(){
-  if(!supabase)return;
+async function loadRecipesFromsupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {data,error}=await supabase.from('econativo_recipes').select('data').eq('id',1).single();
+    const {data,error}=await supabaseClientInstance.from('econativo_recipes').select('data').eq('id',1).single();
     if(!error&&data&&data.data)recipes=JSON.parse(JSON.stringify(data.data));
     renderRecipes();
   }catch(e){console.log('Recipes load error:',e);}
 }
 
-/* ── SUPABASE PUSH ── */
-async function pushStateToSupabase(){
-  if(!supabase)return;
+/* ── supabaseClientInstance PUSH ── */
+async function pushStateTosupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   const state={orders,closedSales,cajaMovements,clients,tables,nextTableId,totalOrdsIn,ordCnt};
   try{
-    const {error}=await supabase.from('econativo_state').upsert({id:1,data:state,updated_at:new Date().toISOString()});
+    const {error}=await supabaseClientInstance.from('econativo_state').upsert({id:1,data:state,updated_at:new Date().toISOString()});
     if(error)console.log('State push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushFullMenuToSupabase(){
-  if(!supabase)return;
+async function pushFullMenuTosupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {error}=await supabase.from('econativo_menu').upsert({id:1,data:menuData,updated_at:new Date().toISOString()});
+    const {error}=await supabaseClientInstance.from('econativo_menu').upsert({id:1,data:menuData,updated_at:new Date().toISOString()});
     if(error)console.log('Menu push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushFullInvToSupabase(){
-  if(!supabase)return;
+async function pushFullInvTosupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {error}=await supabase.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
+    const {error}=await supabaseClientInstance.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
     if(error)console.log('Inv push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushModifiedInvToSupabase(modifiedNames){
-  if(!supabase||!modifiedNames||!modifiedNames.size)return;
+async function pushModifiedInvTosupabaseClientInstance(modifiedNames){
+  if(!supabaseClientInstance||!modifiedNames||!modifiedNames.size)return;
   try{
     const modifiedData=inventoryItems.filter(i=>modifiedNames.has(i.name));
-    const {data}=await supabase.from('econativo_inv').select('data').eq('id',1).single();
+    const {data}=await supabaseClientInstance.from('econativo_inv').select('data').eq('id',1).single();
     if(data&&data.data){
       const remote=JSON.parse(JSON.stringify(data.data));
       modifiedData.forEach(md=>{
         const idx=remote.findIndex(r=>r.name===md.name);
         if(idx>=0)remote[idx]=md;else remote.push(md);
       });
-      await supabase.from('econativo_inv').upsert({id:1,data:remote,updated_at:new Date().toISOString()});
+      await supabaseClientInstance.from('econativo_inv').upsert({id:1,data:remote,updated_at:new Date().toISOString()});
     }else{
-      await supabase.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
+      await supabaseClientInstance.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
     }
   }catch(e){console.log('Modified inv push error:',e);}
   _modifiedInvItemIds.clear();
 }
-async function pushFullStaffToSupabase(){
-  if(!supabase)return;
+async function pushFullStaffTosupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
     const staffData=waiters.filter(w=>w.role==='waiter');
-    const {error}=await supabase.from('econativo_staff').upsert({id:1,data:staffData,updated_at:new Date().toISOString()});
+    const {error}=await supabaseClientInstance.from('econativo_staff').upsert({id:1,data:staffData,updated_at:new Date().toISOString()});
     if(error)console.log('Staff push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushFullRecipesToSupabase(){
-  if(!supabase)return;
+async function pushFullRecipesTosupabaseClientInstance(){
+  if(!supabaseClientInstance)return;
   try{
-    const {error}=await supabase.from('econativo_recipes').upsert({id:1,data:recipes,updated_at:new Date().toISOString()});
+    const {error}=await supabaseClientInstance.from('econativo_recipes').upsert({id:1,data:recipes,updated_at:new Date().toISOString()});
     if(error)console.log('Recipes push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
@@ -1707,7 +1723,7 @@ function broadcastState(){
   const state={orders,closedSales,cajaMovements,clients,tables,nextTableId,totalOrdsIn,ordCnt,menuData,inventoryItems,waiters,recipes};
   const msg={type:'state_update',payload:state};
   try{if(bc)bc.postMessage(msg);}catch(e){}
-  pushStateToSupabase();
+  pushStateTosupabaseClientInstance();
 }
 let _lastRemoteState=null;
 function applyRemoteState(state){
@@ -1735,9 +1751,9 @@ let pollInterval=null;
 function startPolling(){
   if(pollInterval)clearInterval(pollInterval);
   pollInterval=setInterval(async()=>{
-    if(!supabase)return;
+    if(!supabaseClientInstance)return;
     try{
-      const {data,error}=await supabase.from('econativo_state').select('data').eq('id',1).single();
+      const {data,error}=await supabaseClientInstance.from('econativo_state').select('data').eq('id',1).single();
       if(!error&&data&&data.data)applyRemoteState(data.data);
     }catch(e){}
     try{
@@ -1796,21 +1812,21 @@ function goPage(p){
 }
 function openMod(id){const el=document.getElementById(id);if(el)el.classList.add('open');}
 function closeMod(id){const el=document.getElementById(id);if(el)el.classList.remove('open');}
-function closeAllModals(){document.querySelectorAll('.modal-overlay').forEach(el=>el.classList.remove('open'));}
+function closeAllModals(){document.querySelectorAll('.ov').forEach(el=>el.classList.remove('open'));}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAllModals();});
 function togglePw(id){const inp=document.getElementById(id);if(inp)inp.type=inp.type==='password'?'text':'password';}
 function updateOCBadge(){
   const pending=orders.filter(o=>o.status==='pending').length;
   const prep=orders.filter(o=>o.status==='prep').length;
   const total=orders.filter(o=>o.status!=='closed').length;
-  const el=('orderCountBadge');
+  const el=$$('orderCountBadge');
   if(el){el.textContent=total;el.style.display=total>0?'flex':'none';}
 }
 function formatDate(d){const dt=new Date(d);return dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
 let toastTimer=null;
 function showToast(msg,type){
-  const el=('toastContainer');
+  const el=$$('toastContainer');
   if(!el)return;
   const bg=type==='ok'?'var(--ok)':type==='del'?'var(--er)':'var(--bm)';
   const t=document.createElement('div');
@@ -1822,7 +1838,7 @@ function showToast(msg,type){
 
 let bellTimer=null;
 function showBell(msg){
-  const el=('bellContainer');
+  const el=$$('bellContainer');
   if(!el)return;
   el.textContent=msg;el.style.display='flex';el.style.animation='none';void el.offsetHeight;el.style.animation='';
   if(bellTimer)clearTimeout(bellTimer);
@@ -1874,12 +1890,12 @@ function saveRecipeWithUndo(){withUndo(saveRecipe)();}
 function initApp(){
   loadFromLocalStorage();
   renderTables();renderMenu();renderPaySection();updateOCBadge();
-  initSupabase();
+  initsupabaseClientInstance();
   if(cRole==='admin'){renderDashboard();navTo('dashboard');}
   else if(cRole==='kitchen'){renderKitchen();goPage('kitchen');}
   else{goPage('tables');}
-  if(cRole==='admin'){setTimeout(loadMenuFromSupabase,1000);setTimeout(loadInvFromSupabase,1500);setTimeout(loadStaffFromSupabase,2000);setTimeout(loadRecipesFromSupabase,2500);}
-  if($$('undoControls'))$$('undoControls').style.display='none';
+  if(cRole==='admin'){setTimeout(loadMenuFromsupabaseClientInstance,1000);setTimeout(loadInvFromsupabaseClientInstance,1500);setTimeout(loadStaffFromsupabaseClientInstance,2000);setTimeout(loadRecipesFromsupabaseClientInstance,2500);}
+  if($$('undoBtnWrap'))$$('undoBtnWrap').style.display='none';
   document.querySelectorAll('.undo-btn').forEach(btn=>btn.addEventListener('click',executeUndo));
   document.querySelectorAll('.undo-close').forEach(btn=>btn.addEventListener('click',hideUndoControls));
 }
@@ -1890,6 +1906,8 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadFromL
 </script>
 </body>
 </html>
+
+
 
 
 
