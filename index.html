@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabaseClientInstance/supabaseClientInstance-js@2/dist/umd/supabaseClientInstance.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -407,8 +407,9 @@ button:active{transform:scale(.97)}
 
       <!-- DASHBOARD -->
       <div class="page" id="page-dashboard">
-        <div class="sg" id="adminStats"></div>
-        <div class="ol-wrap"><div class="ol-hdr"><h3>Pedidos activos</h3><span id="actCount" style="font-size:11px;color:var(--ts)"></span></div><div id="adminOrdersList"></div></div>
+        <div class="pt">Dashboard</div>
+        <div id="dashTabs" style="display:flex;gap:5px;margin-bottom:.5rem"></div>
+        <div id="dashList"></div>
       </div>
 
       <!-- CLIENTES -->
@@ -449,7 +450,7 @@ button:active{transform:scale(.97)}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Recetas &amp; Costeo</div>
           <div style="display:flex;gap:6px">
-            <button onclick="pushFullRecipesTosupabaseClientInstance()" style="display:flex;align-items:center;gap:5px;padding:7px 14px;background:var(--ol);color:var(--wh);border:none;border-radius:20px;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-cloud-upload" style="font-size:13px" aria-hidden="true"></i> Aplicar cambios</button>
+            <button onclick="pushFullRecipesToSupabase()" style="display:flex;align-items:center;gap:5px;padding:7px 14px;background:var(--ol);color:var(--wh);border:none;border-radius:20px;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-cloud-upload" style="font-size:13px" aria-hidden="true"></i> Aplicar cambios</button>
           </div>
         </div>
         <div class="cat-pills" id="recipesCatPills"></div>
@@ -617,6 +618,11 @@ button:active{transform:scale(.97)}
 <script>
 /* ── UTILS ── */
 const $$ = id => document.getElementById(id);
+function qs(sel, ctx){return (ctx||document).querySelector(sel);}
+function qsa(sel, ctx){return (ctx||document).querySelectorAll(sel);}
+function inner(id, html){const el=$$(id);if(el)el.innerHTML=html;}
+function show(id){const el=$$(id);if(el)el.style.display='';}
+function hide(id){const el=$$(id);if(el)el.style.display='none';}
 function fmt(n){return '$'+Math.round(n).toLocaleString('es-CL')}
 function elapsed(ts){const m=Math.floor((Date.now()-ts)/60000);return m<60?m+'min':Math.floor(m/60)+'h '+(m%60)+'min'}
 function ftime(ts){return new Date(ts).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}
@@ -1212,8 +1218,8 @@ function renderDashboard(){
   const enPrep=orders.filter(o=>o.status==='prep');
   const lists={recibidos:rec,prep:enPrep};
   const ords=lists[dashtab]||[];
-  $$('dashTabs').innerHTML='<button class="cb '+(dashtab==='recibidos'?'active':'')+'" onclick="dashtab=\'recibidos\';renderDashboard()">Recibidos ('+rec.length+')</button><button class="cb '+(dashtab==='prep'?'active':'')+'" onclick="dashtab=\'prep\';renderDashboard()">Preparación ('+enPrep.length+')</button>';
-  $$('dashList').innerHTML=ords.length?ords.map(o=>{
+  const dt=$$('dashTabs');if(dt)dt.innerHTML='<button class="cb '+(dashtab==='recibidos'?'active':'')+'" onclick="dashtab=\'recibidos\';renderDashboard()">Recibidos ('+rec.length+')</button><button class="cb '+(dashtab==='prep'?'active':'')+'" onclick="dashtab=\'prep\';renderDashboard()">Preparación ('+enPrep.length+')</button>';
+  const dl=$$('dashList');if(dl)dl.innerHTML=ords.length?ords.map(o=>{
     const t=getTable(o.tableId);
     return '<div class="do"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-weight:700;font-size:16px">'+(o.type==='mostrador'?'Mostrador ':'Mesa ')+(t?t.id:o.tableId||'—')+'</span><span style="font-size:11px;color:var(--ts)">'+elapsed(o.time)+'</span></div>'+
       o.items.map((item,ii)=>'<div class="doi"><div class="doi-info"><span class="doi-name">'+item.name+'</span>'+(item.detail?'<div class="doi-det">'+item.detail+'</div>':'')+(item.note?'<div class="doi-det"><i class="ti ti-pencil" style="font-size:10px"></i> '+item.note+'</div>':'')+'<span class="doi-qty">x'+item.qty+'</span></div></div>').join('')+
@@ -1236,8 +1242,8 @@ function cancelOrderByAdmin(oid){
 function renderKitchen(){
   const p=orders.filter(o=>o.status==='pending');
   const pp=orders.filter(o=>o.status==='prep');
-  $$('kPending').innerHTML=p.length?p.map(o=>kItem(o)).join(''):'<div class="k-empty">Esperando pedidos...</div>';
-  $$('kPrep').innerHTML=pp.length?pp.map(o=>kItem(o)).join(''):'<div class="k-empty">Sin pedidos en preparación</div>';
+  inner('kPending',p.length?p.map(o=>kItem(o)).join(''):'<div class="k-empty">Esperando pedidos...</div>');
+  inner('kPrep',pp.length?pp.map(o=>kItem(o)).join(''):'<div class="k-empty">Sin pedidos en preparación</div>');
   document.querySelectorAll('.k-order').forEach(el=>{const kt=el.dataset.kitchenTime;if(kt){const sec=Math.floor((Date.now()-parseInt(kt))/1000);el.querySelector('.k-elapsed').textContent=sec+'s';}});
   if(kTimer)clearInterval(kTimer);kTimer=setInterval(()=>{document.querySelectorAll('.k-order').forEach(el=>{const kt=el.dataset.kitchenTime;if(kt){const sec=Math.floor((Date.now()-parseInt(kt))/1000);el.querySelector('.k-elapsed').textContent=sec+'s';}});},1000);
 }
@@ -1259,8 +1265,8 @@ let kTimer=null;
 function renderAdminKitchen(){
   const p=orders.filter(o=>o.status==='pending');
   const pp=orders.filter(o=>o.status==='prep');
-  $$('adminKitchenPending').innerHTML=p.length?p.map(o=>kItem(o)).join(''):'<div class="k-empty">Sin pedidos pendientes</div>';
-  $$('adminKitchenPrep').innerHTML=pp.length?pp.map(o=>kItem(o)).join(''):'<div class="k-empty">Sin pedidos en preparación</div>';
+  inner('adminKitchenPending',p.length?p.map(o=>kItem(o)).join(''):'<div class="k-empty">Sin pedidos pendientes</div>');
+  inner('adminKitchenPrep',pp.length?pp.map(o=>kItem(o)).join(''):'<div class="k-empty">Sin pedidos en preparación</div>');
   if(kTimer)clearInterval(kTimer);kTimer=setInterval(()=>{
     document.querySelectorAll('.k-order').forEach(el=>{const kt=el.dataset.kitchenTime;if(kt){const sec=Math.floor((Date.now()-parseInt(kt))/1000);el.querySelector('.k-elapsed').textContent=sec+'s';}});
   },1000);
@@ -1272,13 +1278,13 @@ function renderClients(){
 }
 function filterClientList(){
   const q=(document.getElementById('clientSearchInput')?.value||'').toLowerCase();
-  $$('clientList').innerHTML=clients.filter(c=>c.name.toLowerCase().includes(q)).map(c=>'<div class="to" onclick="openClientDetail(\''+c.name+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><span style="font-weight:600">'+c.name+'</span><span style="font-size:11px;color:var(--tl)">'+fmt(c.debt)+'</span></div></div>').join('')||'<div class="ec"><p>Sin resultados</p></div>';
+  inner('clientList',clients.filter(c=>c.name.toLowerCase().includes(q)).map(c=>'<div class="to" onclick="openClientDetail(\''+c.name+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><span style="font-weight:600">'+c.name+'</span><span style="font-size:11px;color:var(--tl)">'+fmt(c.debt)+'</span></div></div>').join('')||'<div class="ec"><p>Sin resultados</p></div>';
 }
 function openClientDetail(name){
   const c=clients.find(x=>x.name===name);if(!c)return;
-  $$('clientDetailName').textContent=c.name;
-  $$('clientDebt').textContent=fmt(c.debt);
-  $$('clientDetailActions').innerHTML='<button class="bsm" style="background:var(--bm)" onclick="addPayment(\''+c.name+'\')">Registrar pago</button><button class="bsm" style="background:transparent;border:1px solid var(--er);color:var(--er)" onclick="deleteClient(\''+c.name+'\')">Eliminar cliente</button>';
+  const _cdn=$$('clientDetailName');if(_cdn)_cdn.textContent=c.name;
+  const _cd=$$('clientDebt');if(_cd)_cd.textContent=fmt(c.debt);
+  inner('clientDetailActions','<button class="bsm" style="background:var(--bm)" onclick="addPayment(\''+c.name+'\')">Registrar pago</button><button class="bsm" style="background:transparent;border:1px solid var(--er);color:var(--er)" onclick="deleteClient(\''+c.name+'\')">Eliminar cliente</button>';
   openMod('clientDetailModal');
 }
 function addPayment(name){
@@ -1314,9 +1320,9 @@ function renderCaja(){
   const movs=cajaMovements.slice().reverse();
   const ing=movs.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.mont,0);
   const eg=movs.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.mont,0);
-  $$('cajaResumen').innerHTML='<div style="display:flex;gap:1rem;margin-bottom:1rem"><div style="flex:1;background:var(--cr2);padding:.7rem;border-radius:var(--r)"><div style="font-size:11px;color:var(--ts)">Ingresos</div><div style="font-size:18px;font-weight:700;color:var(--ok)">'+fmt(ing)+'</div></div><div style="flex:1;background:var(--cr2);padding:.7rem;border-radius:var(--r)"><div style="font-size:11px;color:var(--ts)">Egresos</div><div style="font-size:18px;font-weight:700;color:var(--er)">'+fmt(eg)+'</div></div><div style="flex:1;background:var(--cr2);padding:.7rem;border-radius:var(--r)"><div style="font-size:11px;color:var(--ts)">Saldo</div><div style="font-size:18px;font-weight:700;color:var(--wn)">'+fmt(ing-eg)+'</div></div></div>';
-  $$('cajaMovs').innerHTML=movs.length?movs.map(m=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--br)"><div><div style="font-weight:600;font-size:13px">'+m.det+'</div><div style="font-size:10px;color:var(--ts)">'+m.date+'</div></div><div style="font-weight:700;color:'+(m.tipo==='ingreso'?'var(--ok)':'var(--er)')+'">'+(m.tipo==='ingreso'?'+':'-')+fmt(m.mont)+'</div></div>').join(''):'<div class="ec"><p>Sin movimientos</p></div>';
-  $$('cajaAgregar').innerHTML='<button class="bsm" style="background:var(--ok)" onclick="openCajaIngreso()">Agregar ingreso</button><button class="bsm" style="background:var(--er)" onclick="openCajaEgreso()">Agregar egreso</button><button class="bsm" style="background:transparent;border:1px solid var(--tl);color:var(--wn)" onclick="resetCaja()">Resetear</button>';
+  inner('cajaResumen','<div style="display:flex;gap:1rem;margin-bottom:1rem"><div style="flex:1;background:var(--cr2);padding:.7rem;border-radius:var(--r)"><div style="font-size:11px;color:var(--ts)">Ingresos</div><div style="font-size:18px;font-weight:700;color:var(--ok)">'+fmt(ing)+'</div></div><div style="flex:1;background:var(--cr2);padding:.7rem;border-radius:var(--r)"><div style="font-size:11px;color:var(--ts)">Egresos</div><div style="font-size:18px;font-weight:700;color:var(--er)">'+fmt(eg)+'</div></div><div style="flex:1;background:var(--cr2);padding:.7rem;border-radius:var(--r)"><div style="font-size:11px;color:var(--ts)">Saldo</div><div style="font-size:18px;font-weight:700;color:var(--wn)">'+fmt(ing-eg)+'</div></div></div>';
+  inner('cajaMovs',movs.length?movs.map(m=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--br)"><div><div style="font-weight:600;font-size:13px">'+m.det+'</div><div style="font-size:10px;color:var(--ts)">'+m.date+'</div></div><div style="font-weight:700;color:'+(m.tipo==='ingreso'?'var(--ok)':'var(--er)')+'">'+(m.tipo==='ingreso'?'+':'-')+fmt(m.mont)+'</div></div>').join(''):'<div class="ec"><p>Sin movimientos</p></div>';
+  inner('cajaAgregar','<button class="bsm" style="background:var(--ok)" onclick="openCajaIngreso()">Agregar ingreso</button><button class="bsm" style="background:var(--er)" onclick="openCajaEgreso()">Agregar egreso</button><button class="bsm" style="background:transparent;border:1px solid var(--tl);color:var(--wn)" onclick="resetCaja()">Resetear</button>';
 }
 function openCajaIngreso(){$$('cajaTipo').value='ingreso';$$('cajaModalTitle').textContent='Agregar ingreso';openMod('cajaModal');}
 function openCajaEgreso(){$$('cajaTipo').value='egreso';$$('cajaModalTitle').textContent='Agregar egreso';openMod('cajaModal');}
@@ -1343,20 +1349,20 @@ function renderStats(){
   const todayCount=todayOrds.length;
   const pendingDebt=clients.reduce((s,c)=>s+c.debt,0);
   const avgTicket=todayCount?Math.round(todayTotal/todayCount):0;
-  $$('statsCards').innerHTML='<div class="statc"><div class="stat-val">'+todayCount+'</div><div class="stat-lbl">Ventas hoy</div></div><div class="statc"><div class="stat-val">'+fmt(todayTotal)+'</div><div class="stat-lbl">Total ventas</div></div><div class="statc"><div class="stat-val">'+fmt(avgTicket)+'</div><div class="stat-lbl">Ticket promedio</div></div><div class="statc"><div class="stat-val">'+fmt(pendingDebt)+'</div><div class="stat-lbl">Pendiente clientes</div></div>';
+  inner('statsCards','<div class="statc"><div class="stat-val">'+todayCount+'</div><div class="stat-lbl">Ventas hoy</div></div><div class="statc"><div class="stat-val">'+fmt(todayTotal)+'</div><div class="stat-lbl">Total ventas</div></div><div class="statc"><div class="stat-val">'+fmt(avgTicket)+'</div><div class="stat-lbl">Ticket promedio</div></div><div class="statc"><div class="stat-val">'+fmt(pendingDebt)+'</div><div class="stat-lbl">Pendiente clientes</div></div>';
   const allS=closedSales.reduce((m,o)=>{const k=o.waiter||'—';if(!m[k])m[k]={sales:0,count:0};m[k].sales+=oTotal(o);m[k].count++;return m;},{});
-  $$('waiterStats').innerHTML=Object.entries(allS).map(([w,s])=>'<div class="to"><div style="display:flex;justify-content:space-between;width:100%"><span>'+w+'</span><span>'+fmt(s.sales)+' ('+s.count+' ords)</span></div></div>').join('');
+  inner('waiterStats',Object.entries(allS).map(([w,s])=>'<div class="to"><div style="display:flex;justify-content:space-between;width:100%"><span>'+w+'</span><span>'+fmt(s.sales)+' ('+s.count+' ords)</span></div></div>').join('');
 }
 
 /* ── RECIPES UI ── */
 function renderRecipes(){
-  $$('recipesList').innerHTML=recipes.length?recipes.map(r=>'<div class="to" onclick="editRecipe(\''+r.id+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><div><div style="font-weight:600;font-size:13px">'+r.name+'</div><div style="font-size:10px;color:var(--ts)">'+r.ingredients.length+' ingredientes</div></div><div style="font-size:11px;color:var(--tl)">'+fmt(r.cost)+'</div></div></div>').join(''):'<div class="ec"><p>Sin recetas</p></div>';
+  inner('recipesList',recipes.length?recipes.map(r=>'<div class="to" onclick="editRecipe(\''+r.id+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><div><div style="font-weight:600;font-size:13px">'+r.name+'</div><div style="font-size:10px;color:var(--ts)">'+r.ingredients.length+' ingredientes</div></div><div style="font-size:11px;color:var(--tl)">'+fmt(r.cost)+'</div></div></div>').join(''):'<div class="ec"><p>Sin recetas</p></div>';
 }
 function openNewRecipe(){
-  $$('recipeEditorTitle').textContent='Nueva receta';
-  $$('recipeEditorName').value='';
-  $$('recipeEditorYield').value=1;
-  $$('recipeEditorList').innerHTML='<div class="ec"><p>Agrega ingredientes</p></div>';
+  const _ret=$$('recipeEditorTitle');if(_ret)_ret.textContent='Nueva receta';
+  const _ren=$$('recipeEditorName');if(_ren)_ren.value='';
+  const _rey=$$('recipeEditorYield');if(_rey)_rey.value=1;
+  inner('recipeEditorList','<div class="ec"><p>Agrega ingredientes</p></div>');
   currentRecipeId=null;openMod('recipeEditorModal');
 }
 function addRecipeIngredient(){
@@ -1390,16 +1396,16 @@ function saveRecipe(){
 function editRecipe(id){
   const r=recipes.find(x=>x.id===id);if(!r)return;
   currentRecipeId=r.id;
-  $$('recipeEditorTitle').textContent='Editar: '+r.name;
+  const _ret=$$('recipeEditorTitle');if(_ret)_ret.textContent='Editar: '+r.name;
   $$('recipeEditorName').value=r.name;
-  $$('recipeEditorYield').value=r.yield;
-  $$('recipeEditorList').innerHTML=r.ingredients.map(ing=>'<div class="ri-row"><select class="ri-select">'+inventoryItems.map(i=>'<option value="'+i.name+'"'+(i.name===ing.name?' selected':'')+'>'+i.name+'</option>').join('')+'</select><input type="number" class="ri-qty" value="'+ing.qty+'" min="0.1" step="0.1"><span style="font-size:11px;color:var(--ts)">'+(inventoryItems.find(i=>i.name===ing.name)?.unit||'unid')+'</span><button class="icon-btn" style="width:24px;height:24px;border-color:var(--er);color:var(--er)" onclick="this.parentElement.remove()"><i class="ti ti-x" style="font-size:10px"></i></button></div>').join('');
+  const _rey=$$('recipeEditorYield');if(_rey)_rey.value=r.yield;
+  inner('recipeEditorList',r.ingredients.map(ing=>'<div class="ri-row"><select class="ri-select">'+inventoryItems.map(i=>'<option value="'+i.name+'"'+(i.name===ing.name?' selected':'')+'>'+i.name+'</option>').join('')+'</select><input type="number" class="ri-qty" value="'+ing.qty+'" min="0.1" step="0.1"><span style="font-size:11px;color:var(--ts)">'+(inventoryItems.find(i=>i.name===ing.name)?.unit||'unid')+'</span><button class="icon-btn" style="width:24px;height:24px;border-color:var(--er);color:var(--er)" onclick="this.parentElement.remove()"><i class="ti ti-x" style="font-size:10px"></i></button></div>').join('');
   openMod('recipeEditorModal');
 }
 let currentRecipeId=null;
 /* ── CARTA UI ── */
 function renderCarta(){
-  $$('staffMenuEditor').innerHTML=Object.entries(menuData).map(([cat,subs])=>'<div style="margin-bottom:.5rem"><h4 style="margin-bottom:4px;font-size:13px">'+cat+'</h4>'+Object.entries(subs).map(([sec,items])=>'<details style="margin:2px 0;background:var(--cr2);border-radius:var(--r);padding:3px"><summary style="cursor:pointer;font-weight:600;font-size:12px;padding:4px">'+sec+' ('+items.length+')</summary>'+
+  inner('staffMenuEditor',Object.entries(menuData).map(([cat,subs])=>'<div style="margin-bottom:.5rem"><h4 style="margin-bottom:4px;font-size:13px">'+cat+'</h4>'+Object.entries(subs).map(([sec,items])=>'<details style="margin:2px 0;background:var(--cr2);border-radius:var(--r);padding:3px"><summary style="cursor:pointer;font-weight:600;font-size:12px;padding:4px">'+sec+' ('+items.length+')</summary>'+
     items.map((item,i)=>'<div class="to" style="padding:6px"><div style="display:flex;justify-content:space-between;align-items:center;width:100%"><div><span style="font-weight:600;font-size:13px">'+item.name+'</span><span style="font-size:11px;color:var(--tl);margin-left:8px">'+fmt(item.price)+'</span>'+(item.active?'':'<span style="font-size:10px;color:var(--er);margin-left:6px">(inactivo)</span>')+'</div><div><button class="icon-btn" style="width:24px;height:24px;border-color:var(--bm);color:var(--bm)" onclick="editCartaItem(\''+cat+'\',\''+sec+'\','+i+')"><i class="ti ti-edit" style="font-size:10px"></i></button><button class="icon-btn" style="width:24px;height:24px;border-color:var(--er);color:var(--er)" onclick="deleteCartaItem(\''+cat+'\',\''+sec+'\','+i+')"><i class="ti ti-trash" style="font-size:10px"></i></button></div></div></div>').join('')+
   '</details>').join('')+'</div>').join('');
 }
@@ -1452,8 +1458,8 @@ let currentCartaKey=null;
 
 /* ── INVENTORY UI ── */
 function renderInventory(){
-  $$('invStats').innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><div class="statc"><div class="stat-val">'+inventoryItems.length+'</div><div class="stat-lbl">Total items</div></div><div class="statc"><div class="stat-val">'+inventoryItems.filter(i=>i.stock<=i.minStock).length+'</div><div class="stat-lbl">Bajo stock</div></div></div>';
-  $$('invList').innerHTML=inventoryItems.map(i=>{
+  inner('invStats','<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><div class="statc"><div class="stat-val">'+inventoryItems.length+'</div><div class="stat-lbl">Total items</div></div><div class="statc"><div class="stat-val">'+inventoryItems.filter(i=>i.stock<=i.minStock).length+'</div><div class="stat-lbl">Bajo stock</div></div></div>';
+  inner('invList',inventoryItems.map(i=>{
     const low=i.stock<=i.minStock?'<span style="color:var(--er);font-size:10px">¡Bajo stock!</span>':'';
     return '<div class="to" onclick="editInvItem(\''+i.name+'\')"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><div><div style="font-weight:600;font-size:13px">'+i.name+'</div><div style="font-size:10px;color:var(--ts)">'+i.unit+' · Stock: '+i.stock+' / '+i.minStock+' min '+low+'</div></div><div style="font-size:11px;color:var(--tl)">'+fmt(i.price)+'</div></div></div>';
   }).join('');
@@ -1498,7 +1504,7 @@ let currentInvKey=null;
 /* ── STAFF UI ── */
 function renderStaff(){
   const ws=waiters.filter(w=>w.active!==false);
-  $$('staffList').innerHTML=SYSTEM_USERS.concat(ws).map(u=>{
+  inner('staffList',SYSTEM_USERS.concat(ws).map(u=>{
     const role=u.role||'waiter';
     const isSystem=SYSTEM_USERS.find(s=>s.creds.username===u.creds?.username);
     return '<div class="to"><div style="display:flex;justify-content:space-between;width:100%;align-items:center"><div><div style="font-weight:600;font-size:13px">'+(u.creds?.username||u.username)+'</div><div style="font-size:10px;color:var(--ts)">'+(role==='admin'?'Administrador':role==='kitchen'?'Cocina':'Mesero')+(isSystem?' · Sistema':'')+'</div></div><div>'+(role==='waiter'&&!isSystem?'<button class="icon-btn" style="width:24px;height:24px;border-color:var(--er);color:var(--er)" onclick="deleteStaff(\''+(u.creds?.username||u.username)+'\')"><i class="ti ti-trash" style="font-size:10px"></i></button>':'')+'</div></div></div>';
@@ -1578,26 +1584,26 @@ function withUndo(fn){
     return result;
   };
 }
-/* ── supabaseClientInstance INIT ── */
+/* ── SUPABASE INIT ── */
 const SUPABASE_URL='https://xtprxnfvvynbakgonoau.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzMjIxNTcsImV4cCI6MjA2MDg5ODE1N30.FJpJ5PE3F5g0t3_pOUMhk71t0b0E95x-hXnxKF4GsX4';
-let supabaseClientInstance=null;
+let supabase=null;
 let realtimeChannel=null;
 let bc=null;
 
-function initsupabaseClientInstance(){
+function initSupabase(){
   if(typeof supabaseClient==='undefined'){
     try{
       const script=document.createElement('script');
-      script.src='https://unpkg.com/@supabaseClientInstance/supabaseClientInstance-js@2';
+      script.src='https://unpkg.com/@supabase/supabase-js@2';
       script.onload=()=>{
-        supabaseClientInstance=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+        supabase=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
         setupRealtime();
       };
       document.head.appendChild(script);
-    }catch(e){console.error('supabaseClientInstance init error:',e);}
+    }catch(e){console.error('Supabase init error:',e);}
   }else{
-    try{supabaseClientInstance=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);setupRealtime();}catch(e){console.error('supabaseClientInstance init error:',e);}
+    try{supabase=supabaseClient.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);setupRealtime();}catch(e){console.error('Supabase init error:',e);}
   }
   try{bc=new BroadcastChannel('econativo_sync');bc.onmessage=(e)=>{if(e.data&&e.data.type==='state_update')applyRemoteState(e.data.payload);};}catch(e){}
   startPolling();
@@ -1606,44 +1612,44 @@ function initsupabaseClientInstance(){
 function setupRealtime(){
   try{
     if(realtimeChannel)realtimeChannel.unsubscribe();
-    realtimeChannel=supabaseClientInstance.channel('econativo_changes');
+    realtimeChannel=supabase.channel('econativo_changes');
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_state'},(payload)=>{
       if(payload.new&&payload.new.data)applyRemoteState(payload.new.data);
     });
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_menu'},(payload)=>{
-      if(payload.new&&payload.new.data)loadMenuFromsupabaseClientInstance();
+      if(payload.new&&payload.new.data)loadMenuFromSupabase();
     });
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_inv'},(payload)=>{
-      if(payload.new&&payload.new.data)loadInvFromsupabaseClientInstance();
+      if(payload.new&&payload.new.data)loadInvFromSupabase();
     });
     realtimeChannel.on('postgres_changes',{event:'*',schema:'public',table:'econativo_staff'},(payload)=>{
-      if(payload.new&&payload.new.data)loadStaffFromsupabaseClientInstance();
+      if(payload.new&&payload.new.data)loadStaffFromSupabase();
     });
     realtimeChannel.subscribe();
   }catch(e){console.error('Realtime setup error:',e);}
 }
 
-/* ── supabaseClientInstance LOAD ── */
-async function loadMenuFromsupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+/* ── SUPABASE LOAD ── */
+async function loadMenuFromSupabase(){
+  if(!supabase)return;
   try{
-    const {data,error}=await supabaseClientInstance.from('econativo_menu').select('data').eq('id',1).single();
+    const {data,error}=await supabase.from('econativo_menu').select('data').eq('id',1).single();
     if(!error&&data&&data.data)menuData=JSON.parse(JSON.stringify(data.data));
     renderCarta();
   }catch(e){console.log('Menu load error:',e);}
 }
-async function loadInvFromsupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function loadInvFromSupabase(){
+  if(!supabase)return;
   try{
-    const {data,error}=await supabaseClientInstance.from('econativo_inv').select('data').eq('id',1).single();
+    const {data,error}=await supabase.from('econativo_inv').select('data').eq('id',1).single();
     if(!error&&data&&data.data)inventoryItems=JSON.parse(JSON.stringify(data.data));
     renderInventory();
   }catch(e){console.log('Inv load error:',e);}
 }
-async function loadStaffFromsupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function loadStaffFromSupabase(){
+  if(!supabase)return;
   try{
-    const {data,error}=await supabaseClientInstance.from('econativo_staff').select('data').eq('id',1).single();
+    const {data,error}=await supabase.from('econativo_staff').select('data').eq('id',1).single();
     if(!error&&data&&data.data){
       const remoteStaff=JSON.parse(JSON.stringify(data.data));
       remoteStaff.forEach(rs=>{
@@ -1653,68 +1659,68 @@ async function loadStaffFromsupabaseClientInstance(){
     renderStaff();
   }catch(e){console.log('Staff load error:',e);}
 }
-async function loadRecipesFromsupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function loadRecipesFromSupabase(){
+  if(!supabase)return;
   try{
-    const {data,error}=await supabaseClientInstance.from('econativo_recipes').select('data').eq('id',1).single();
+    const {data,error}=await supabase.from('econativo_recipes').select('data').eq('id',1).single();
     if(!error&&data&&data.data)recipes=JSON.parse(JSON.stringify(data.data));
     renderRecipes();
   }catch(e){console.log('Recipes load error:',e);}
 }
 
-/* ── supabaseClientInstance PUSH ── */
-async function pushStateTosupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+/* ── SUPABASE PUSH ── */
+async function pushStateToSupabase(){
+  if(!supabase)return;
   const state={orders,closedSales,cajaMovements,clients,tables,nextTableId,totalOrdsIn,ordCnt};
   try{
-    const {error}=await supabaseClientInstance.from('econativo_state').upsert({id:1,data:state,updated_at:new Date().toISOString()});
+    const {error}=await supabase.from('econativo_state').upsert({id:1,data:state,updated_at:new Date().toISOString()});
     if(error)console.log('State push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushFullMenuTosupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function pushFullMenuToSupabase(){
+  if(!supabase)return;
   try{
-    const {error}=await supabaseClientInstance.from('econativo_menu').upsert({id:1,data:menuData,updated_at:new Date().toISOString()});
+    const {error}=await supabase.from('econativo_menu').upsert({id:1,data:menuData,updated_at:new Date().toISOString()});
     if(error)console.log('Menu push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushFullInvTosupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function pushFullInvToSupabase(){
+  if(!supabase)return;
   try{
-    const {error}=await supabaseClientInstance.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
+    const {error}=await supabase.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
     if(error)console.log('Inv push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushModifiedInvTosupabaseClientInstance(modifiedNames){
-  if(!supabaseClientInstance||!modifiedNames||!modifiedNames.size)return;
+async function pushModifiedInvToSupabase(modifiedNames){
+  if(!supabase||!modifiedNames||!modifiedNames.size)return;
   try{
     const modifiedData=inventoryItems.filter(i=>modifiedNames.has(i.name));
-    const {data}=await supabaseClientInstance.from('econativo_inv').select('data').eq('id',1).single();
+    const {data}=await supabase.from('econativo_inv').select('data').eq('id',1).single();
     if(data&&data.data){
       const remote=JSON.parse(JSON.stringify(data.data));
       modifiedData.forEach(md=>{
         const idx=remote.findIndex(r=>r.name===md.name);
         if(idx>=0)remote[idx]=md;else remote.push(md);
       });
-      await supabaseClientInstance.from('econativo_inv').upsert({id:1,data:remote,updated_at:new Date().toISOString()});
+      await supabase.from('econativo_inv').upsert({id:1,data:remote,updated_at:new Date().toISOString()});
     }else{
-      await supabaseClientInstance.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
+      await supabase.from('econativo_inv').upsert({id:1,data:inventoryItems,updated_at:new Date().toISOString()});
     }
   }catch(e){console.log('Modified inv push error:',e);}
   _modifiedInvItemIds.clear();
 }
-async function pushFullStaffTosupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function pushFullStaffToSupabase(){
+  if(!supabase)return;
   try{
     const staffData=waiters.filter(w=>w.role==='waiter');
-    const {error}=await supabaseClientInstance.from('econativo_staff').upsert({id:1,data:staffData,updated_at:new Date().toISOString()});
+    const {error}=await supabase.from('econativo_staff').upsert({id:1,data:staffData,updated_at:new Date().toISOString()});
     if(error)console.log('Staff push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
-async function pushFullRecipesTosupabaseClientInstance(){
-  if(!supabaseClientInstance)return;
+async function pushFullRecipesToSupabase(){
+  if(!supabase)return;
   try{
-    const {error}=await supabaseClientInstance.from('econativo_recipes').upsert({id:1,data:recipes,updated_at:new Date().toISOString()});
+    const {error}=await supabase.from('econativo_recipes').upsert({id:1,data:recipes,updated_at:new Date().toISOString()});
     if(error)console.log('Recipes push error:',error);
   }catch(e){console.log('Push error:',e);}
 }
@@ -1723,7 +1729,7 @@ function broadcastState(){
   const state={orders,closedSales,cajaMovements,clients,tables,nextTableId,totalOrdsIn,ordCnt,menuData,inventoryItems,waiters,recipes};
   const msg={type:'state_update',payload:state};
   try{if(bc)bc.postMessage(msg);}catch(e){}
-  pushStateTosupabaseClientInstance();
+  pushStateToSupabase();
 }
 let _lastRemoteState=null;
 function applyRemoteState(state){
@@ -1751,9 +1757,9 @@ let pollInterval=null;
 function startPolling(){
   if(pollInterval)clearInterval(pollInterval);
   pollInterval=setInterval(async()=>{
-    if(!supabaseClientInstance)return;
+    if(!supabase)return;
     try{
-      const {data,error}=await supabaseClientInstance.from('econativo_state').select('data').eq('id',1).single();
+      const {data,error}=await supabase.from('econativo_state').select('data').eq('id',1).single();
       if(!error&&data&&data.data)applyRemoteState(data.data);
     }catch(e){}
     try{
@@ -1851,16 +1857,16 @@ function addCajaMov(mont,tipo,det){
 /* ── ORDER DETAIL MODAL ── */
 function openOD(oid){
   const o=getOrder(oid);if(!o)return;
-  $$('odTitle').textContent=(o.type==='mostrador'?'Mostrador':'Mesa '+(getTable(o.tableId)?.id||o.tableId))+' · '+(o.clientName||o.waiter);
-  $$('odItems').innerHTML=(o.items||[]).map(i=>'<div class="doi"><div class="doi-info"><span class="doi-name">'+i.name+'</span>'+(i.detail?'<div class="doi-det">'+i.detail+'</div>':'')+(i.note?'<div class="doi-det"><i class="ti ti-pencil" style="font-size:10px"></i> '+i.note+'</div>':'')+'<span class="doi-qty">x'+i.qty+'</span></div><span>'+fmt(i.price*i.qty)+'</span></div>').join('');
+  const _ot=$$('odTitle');if(_ot)_ot.textContent=(o.type==='mostrador'?'Mostrador':'Mesa '+(getTable(o.tableId)?.id||o.tableId))+' · '+(o.clientName||o.waiter);
+  inner('odItems',(o.items||[]).map(i=>'<div class="doi"><div class="doi-info"><span class="doi-name">'+i.name+'</span>'+(i.detail?'<div class="doi-det">'+i.detail+'</div>':'')+(i.note?'<div class="doi-det"><i class="ti ti-pencil" style="font-size:10px"></i> '+i.note+'</div>':'')+'<span class="doi-qty">x'+i.qty+'</span></div><span>'+fmt(i.price*i.qty)+'</span></div>').join('');
   const total=oTotal(o);
-  $$('odTotal').textContent=fmt(total);
-  $$('odStatus').textContent=o.status;
-  $$('odTime').textContent=formatDate(o.time);
-  $$('odWaiter').textContent=o.waiter||'—';
-  $$('odPago').textContent=o.pago||'—';
+  const _odt=$$('odTotal');if(_odt)_odt.textContent=fmt(total);
+  const _ods=$$('odStatus');if(_ods)_ods.textContent=o.status;
+  const _odtm=$$('odTime');if(_odtm)_odtm.textContent=formatDate(o.time);
+  const _odw=$$('odWaiter');if(_odw)_odw.textContent=o.waiter||'—';
+  const _odp=$$('odPago');if(_odp)_odp.textContent=o.pago||'—';
   const isClosed=o.status==='closed';
-  $$('odActions').innerHTML=!isClosed?'<button class="bsm" style="background:var(--er)" onclick="closeOrder(\''+o.id+'\')">Cerrar y cobrar</button><button class="bsm" style="background:transparent;border:1px solid var(--tl);color:var(--wn)" onclick="cancelOrderByAdmin(\''+o.id+'\')">Cancelar pedido</button>':'<button class="bsm" style="background:var(--ok)" onclick="closeMod(\'orderDetailModal\')">Cerrar</button>';
+  inner('odActions',!isClosed?'<button class="bsm" style="background:var(--er)" onclick="closeOrder(\''+o.id+'\')">Cerrar y cobrar</button><button class="bsm" style="background:transparent;border:1px solid var(--tl);color:var(--wn)" onclick="cancelOrderByAdmin(\''+o.id+'\')">Cancelar pedido</button>':'<button class="bsm" style="background:var(--ok)" onclick="closeMod(\'orderDetailModal\')">Cerrar</button>';
   openMod('orderDetailModal');
 }
 function closeOrder(oid){
@@ -1890,11 +1896,11 @@ function saveRecipeWithUndo(){withUndo(saveRecipe)();}
 function initApp(){
   loadFromLocalStorage();
   renderTables();renderMenu();renderPaySection();updateOCBadge();
-  initsupabaseClientInstance();
+  initSupabase();
   if(cRole==='admin'){renderDashboard();navTo('dashboard');}
   else if(cRole==='kitchen'){renderKitchen();goPage('kitchen');}
   else{goPage('tables');}
-  if(cRole==='admin'){setTimeout(loadMenuFromsupabaseClientInstance,1000);setTimeout(loadInvFromsupabaseClientInstance,1500);setTimeout(loadStaffFromsupabaseClientInstance,2000);setTimeout(loadRecipesFromsupabaseClientInstance,2500);}
+  if(cRole==='admin'){setTimeout(loadMenuFromSupabase,1000);setTimeout(loadInvFromSupabase,1500);setTimeout(loadStaffFromSupabase,2000);setTimeout(loadRecipesFromSupabase,2500);}
   if($$('undoBtnWrap'))$$('undoBtnWrap').style.display='none';
   document.querySelectorAll('.undo-btn').forEach(btn=>btn.addEventListener('click',executeUndo));
   document.querySelectorAll('.undo-close').forEach(btn=>btn.addEventListener('click',hideUndoControls));
@@ -1906,6 +1912,8 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadFromL
 </script>
 </body>
 </html>
+
+
 
 
 
