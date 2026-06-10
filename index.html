@@ -791,9 +791,10 @@ function selRole(r){
   const lu=$$('lu'),lp=$$('lp');
   if(lu)lu.value='';if(lp)lp.value='';
 }
+window.selRole=selRole;
 selRole('admin');
 
-function doLogin(){
+window.doLogin=function doLogin(){
   const u=($$('lu').value||'').trim(),p=($$('lp').value||'').trim();
   const all=[...SYSTEM_USERS,...waiters];
   const found=all.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
