@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<!-- saved from url=(0056)file:///C:/Users/gaspa/Downloads/EcoNativo_POS_15_1.html -->
+<!-- saved from url=(0056)file:///C:/Users/gaspa/Downloads/EcoNativo_POS_17_1.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>EcoNativo POS</title>
 <!-- Google Fonts: DM Sans + Playfair Display -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link href="./EcoNativo POS 18_files/css2" rel="stylesheet">
 <!-- Tabler Icons -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="./EcoNativo POS 18_files/tabler-icons.min.css">
 <!-- SheetJS (exportar Excel) -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./EcoNativo POS 18_files/xlsx.full.min.js.descarga"></script>
 <!-- Supabase JS SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="./EcoNativo POS 18_files/supabase.min.js.descarga"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -2042,7 +2042,8 @@ function kDel(oid){
    ═══════════════════════════════════════════════════════════════ */
 
 const SUPABASE_URL = 'https://xtprxnfvvynbakgonoau.supabase.co';  /* URL real de tu proyecto */
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzgwNzQsImV4cCI6MjA5NjQ1NDA3NH0.e8V8A18bgI_q3LwsToQOtqDKIPvEVBgE4q5xONrebU8';          /* Pega tu anon/public key de Project Settings → API */
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzgwNzQsImV4cCI6MjA5NjQ1NDA3NH0.e8V8A18bgI_q3LwsToQOtqDKIPvEVBgE4q5xONrebU8
+';          /* Pega tu anon/public key de Project Settings → API */
 const SYNC_KEY='econativo_state';
 const SYNC_ROW_KEY='pos_state';
 
@@ -2159,7 +2160,6 @@ function _refreshActiveView(){
 }
 
 /* ── Capa 1: BroadcastChannel listener ── */
-let _lastSyncTs=0;
 if(bc){
   bc.onmessage=e=>{
     if(e.data?.type==='STATE_UPDATE'){
@@ -2170,6 +2170,7 @@ if(bc){
 }
 
 /* ── Capa 2a: localStorage polling (fallback para cross-domain/mobile) ── */
+let _lastSyncTs=0;
 setInterval(()=>{
   try{
     const raw=localStorage.getItem(SYNC_KEY);
