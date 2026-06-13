@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- saved from url=(0045)file:///C:/Users/gaspa/Downloads/index_1.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -435,9 +436,9 @@ button:active{transform:scale(.97)}
       <p style="color:var(--ts);font-size:12px;margin-top:3px">Sistema de Gestión</p>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:1rem 0">
-      <div class="rb" onclick="selRole(&#39;waiter&#39;)" id="role-waiter" style="padding: 12px 6px; border-color: var(--bm); background: var(--bm); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--wh);"><i class="ti ti-notebook" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Garzón</span></div>
+      <div class="rb" onclick="selRole(&#39;waiter&#39;)" id="role-waiter" style="padding: 12px 6px; border-color: var(--br); background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-notebook" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Garzón</span></div>
       <div class="rb" onclick="selRole(&#39;admin&#39;)" id="role-admin" style="padding: 12px 6px; border-color: var(--br); background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-layout-dashboard" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Admin</span></div>
-      <div class="rb" onclick="selRole(&#39;kitchen&#39;)" id="role-kitchen" style="padding: 12px 6px; border-color: var(--br); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-chef-hat" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Cocina</span></div>
+      <div class="rb" onclick="selRole(&#39;kitchen&#39;)" id="role-kitchen" style="padding: 12px 6px; border-color: var(--bm); background: var(--bm); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--wh);"><i class="ti ti-chef-hat" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Cocina</span></div>
     </div>
     <div class="form-item"><label>Usuario</label><input type="text" id="lu" value="Econativo"></div>
     <div class="form-item"><label>Contraseña</label><input type="password" id="lp" value="1914"></div>
@@ -599,9 +600,9 @@ button:active{transform:scale(.97)}
 
       <!-- RECETAS -->
       <div class="page" id="page-recipes">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
+        <div id="recipesPageHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Recetas &amp; Costeo</div>
-          <span style="font-size:11px;color:var(--ts)">Edita ingredientes y costos</span>
+          <button id="btnConfirmRecipes" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncRecipesToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
         </div>
         <div class="cat-pills" id="recipesCatPills"></div>
         <div id="recipesContent"></div>
@@ -609,7 +610,10 @@ button:active{transform:scale(.97)}
 
       <!-- CARTA -->
       <div class="page" id="page-carta">
-        <div class="pt">Editor de Carta</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
+          <div class="pt" style="margin-bottom:0">Editor de Carta</div>
+          <button id="btnConfirmCarta" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncCartaToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
+        </div>
         <div class="cat-pills" id="cartaCatPills"></div>
         <div id="cartaMain"></div>
       </div>
@@ -618,7 +622,12 @@ button:active{transform:scale(.97)}
       <div class="page" id="page-inventory"><div class="pt">Inventario</div><div id="invContent"></div></div>
 
       <!-- PERSONAL -->
-      <div class="page" id="page-staff"><div class="pt">Personal</div><div id="staffContent"></div></div>
+      <div class="page" id="page-staff">
+        <div id="staffPageHeader" class="pt" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">Personal
+          <button id="btnConfirmStaff" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncStaffToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
+        </div>
+        <div id="staffContent"></div>
+      </div>
 
       <!-- COCINA -->
       <div class="page" id="page-kitchen">
@@ -721,6 +730,25 @@ button:active{transform:scale(.97)}
   <div class="form-item"><label>Usuario *</label><input type="text" id="wUser" placeholder="usuario"></div>
   <div class="form-item"><label>Contraseña *</label><input type="text" id="wPass" placeholder="contraseña"></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addWaiterModal&#39;)">Cancelar</button><button class="bc2" onclick="saveWaiter()">Guardar</button></div>
+</div></div>
+
+<div class="ov" id="addStaffUserModal"><div class="mb">
+  <h3 style="margin-bottom:.8rem"><i class="ti ti-user-plus" style="color:var(--bm)"></i> Crear usuario con acceso</h3>
+  <p style="font-size:11px;color:var(--ts);margin-bottom:.8rem">Crea un empleado que podrá iniciar sesión con email y contraseña mediante Supabase Auth.</p>
+  <div class="form-item"><label>Nombre completo *</label><input type="text" id="newStaffName" placeholder="Ej: Ana Muñoz"></div>
+  <div class="form-item"><label>Email *</label><input type="email" id="newStaffEmail" placeholder="ana@econativo.cl"></div>
+  <div class="form-item"><label>Contraseña * (mín. 6 caracteres)</label><input type="password" id="newStaffPass" placeholder="Contraseña segura"></div>
+  <div class="form-item"><label>Rol *</label>
+    <select id="newStaffRole" style="width:100%;padding:10px;border:1px solid var(--br);border-radius:var(--r);font-family:inherit;font-size:13px;background:var(--bg)">
+      <option value="waiter">Garzón</option>
+      <option value="kitchen">Cocina</option>
+      <option value="admin">Administrador</option>
+    </select>
+  </div>
+  <div class="ma">
+    <button class="bs2" onclick="closeMod(&#39;addStaffUserModal&#39;)">Cancelar</button>
+    <button class="bc2" id="btnCreateStaffUser" onclick="createStaffUser()">Crear usuario</button>
+  </div>
 </div></div>
 
 <div class="ov" id="waiterDetailModal"><div class="mb" id="waiterDetailContent"></div></div>
@@ -936,12 +964,42 @@ function selRole(r){
 }
 selRole('admin');
 
-function doLogin(){
+async function doLogin(){
   const u=$('lu').value.trim(),p=$('lp').value.trim();
+  if(!u||!p){showToast('Ingresa usuario y contraseña');return;}
+  /* 1. Intentar login local primero (admin/cocina hardcoded) */
   const all=[...SYSTEM_USERS,...waiters];
   const found=all.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
-  if(!found){showToast('Usuario o contraseña incorrectos');return;}
-  cUser=found.name||found.user;cRole=found.role;
+  if(found){
+    _doLoginSuccess(found.name||found.user,found.role);
+    return;
+  }
+  /* 2. Intentar Supabase Auth (email+password) — para usuarios creados con "Crear usuario" */
+  const sbTmp=window.supabase?.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  if(sbTmp&&u.includes('@')){
+    try{
+      const {data,error}=await sbTmp.auth.signInWithPassword({email:u,password:p});
+      if(error)throw error;
+      const uid=data?.user?.id;
+      if(uid){
+        /* Buscar perfil con rol */
+        const {data:prof}=await sbTmp.from('profiles').select('name,role').eq('id',uid).single();
+        const profRole=prof?.role||cRole;
+        if(profRole!==cRole){showToast('Rol incorrecto para este usuario');return;}
+        _sb=sbTmp;
+        _doLoginSuccess(prof?.name||u,profRole);
+        return;
+      }
+    }catch(e){
+      showToast('Usuario o contraseña incorrectos');
+      console.warn('[Auth login]',e.message);
+      return;
+    }
+  }
+  showToast('Usuario o contraseña incorrectos');
+}
+function _doLoginSuccess(name,role){
+  cUser=name;cRole=role;
   buildRecipes();
   $('loginScreen').style.display='none';$('app').style.display='flex';
   setupNav();
@@ -956,7 +1014,7 @@ function logout(){$('app').style.display='none';$('loginScreen').style.display='
 /* ── NAV ── */
 const TABS={
   waiter:[{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'clients',label:'Clientes',icon:'ti-users'}],
-  admin:[{id:'dashboard',label:'Pedidos',icon:'ti-receipt'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Stats',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
+  admin:[{id:'dashboard',label:'Pedidos',icon:'ti-receipt'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Stats',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
   kitchen:[{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'}]
 };
 
@@ -1015,12 +1073,7 @@ function renderTables(){
 let currentAccountId=null;
 
 function tableClick(id){
-  if(cRole==='admin'){
-    const ords=orders.filter(ord=>ord.tableId===id&&ord.status!=='closed');
-    if(ords.length===1){openOD(ords[0].id);return;}
-    if(ords.length>1){showAccountSelect(id);return;}
-    showToast('Mesa sin pedido activo');return;
-  }
+  if(false){/* admin now uses same flow as waiter below */}
   /* Garzón — check for existing accounts */
   const activeOrds=orders.filter(ord=>ord.tableId===id&&ord.status!=='closed'&&ord.status!=='canceled');
   const canceledOrds=orders.filter(ord=>ord.tableId===id&&ord.status==='canceled');
@@ -1061,7 +1114,6 @@ function selectTableAccount(oid){
   closeMod('accountSelectModal');
   const o=getOrder(oid);
   if(!o)return;
-  if(cRole==='admin'){openOD(oid);return;}
   loadTableOrder(o.tableId,o);
 }
 function addNewTableAccount(){
@@ -1072,7 +1124,6 @@ function addNewTableAccount(){
   const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:tid,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:accountName};
   orders.push(newOrder);totalOrdsIn++;
   showToast('Cuenta "'+accountName+'" creada en Mesa '+tid,'ok');
-  if(cRole==='admin'){renderDashboard();return;}
   loadTableOrder(tid,newOrder);
 }
 
@@ -1189,7 +1240,7 @@ function mcSendKitchen(){
   showBell('🔔 Mostrador → Cocina');
   showToast('Pedido enviado a cocina ✓','ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();
-  if(cRole==='admin')navTo('dashboard');else{renderTables();goPage('tables');}
+  navTo('tables');
 }
 function mcCobrar(){
   if(!cart.length){showToast('El carrito está vacío');return;}
@@ -1198,7 +1249,7 @@ function mcCobrar(){
   totalOrdsIn++;addCajaMov(sub,selPay,'Mostrador directo');
   showToast('Venta registrada · '+fmt(sub),'ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();
-  if(cRole==='admin')navTo('dashboard');else{renderTables();goPage('tables');}
+  navTo('tables');
 }
 
 /* SEND ORDER — mesa only (mostrador handled by mcSendKitchen/mcCobrar above) */
@@ -1857,6 +1908,9 @@ function renderRecipes(){
   buildRecipes();
   const cats=[...new Set(Object.values(recipes).map(r=>r.cat))].sort();
   $('recipesCatPills').innerHTML=cats.map(c=>`<button class="cp2 ${c===aRecipeCat?'active':''}" onclick="setRecipeCat('${c}')">${c}</button>`).join('');
+  /* Mostrar botón Guardar solo para admin */
+  const btnRec=$('btnConfirmRecipes');
+  if(btnRec)btnRec.style.display=cRole==='admin'?'':'none';
   const catRecipes=Object.entries(recipes).filter(([,r])=>r.cat===aRecipeCat);
   if(!catRecipes.length){$('recipesContent').innerHTML='<div class="noo"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i><p>Sin recetas en esta categoría</p></div>';return;}
   $('recipesContent').innerHTML=catRecipes.map(([name,recipe])=>{
@@ -1912,6 +1966,9 @@ function delIngredient(encodedName,ii){
 /* ── CARTA ── */
 function renderCarta(){
   $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
+  /* Botón Guardar solo para admin */
+  const btnCarta=$('btnConfirmCarta');
+  if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
   const cd=menuData[aCartaCat];
   let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod('addProdModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
   Object.entries(cd).forEach(([sub,items])=>{
@@ -1939,30 +1996,119 @@ function saveNewProd(){
   showToast('"'+name+'" agregado','ok');closeMod('addProdModal');renderCarta();
 }
 
-/* ── INVENTORY ── */
+/* ── INVENTORY — seguimiento de cambios para update selectivo ── */
+let _invSnapshot={};   /* nombre→stock al momento de cargar la vista */
+let _invDirty=new Set(); /* nombres de ítems modificados desde el snapshot */
+
 function renderInv(){
-  $('invContent').innerHTML=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod('addInvModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button></div>`+
+  /* Tomar snapshot inicial si aún no existe */
+  if(Object.keys(_invSnapshot).length===0){
+    inventoryItems.forEach(item=>{ _invSnapshot[item.name]=item.stock; });
+  }
+  $('invContent').innerHTML=
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
+      <button class="btn-add-sm" onclick="openMod('addInvModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
+      <button id="btnActualizarInv" class="bgrn" style="font-size:12px;padding:7px 14px;opacity:.5;cursor:not-allowed" disabled onclick="syncInventoryToSupabase()">
+        <i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario
+      </button>
+    </div>`+
   inventoryItems.map((item,i)=>{
     const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok';
-    return `<div class="inv-item">
-      <div class="inv-info"><div class="inv-name">${item.name}</div><div class="inv-cat">${item.cat}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
+    const isDirty=_invDirty.has(item.name);
+    return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
+      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><div class="inv-cat">${item.cat}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
       <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
-      <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="inventoryItems[${i}].stock=parseFloat(this.value);renderInv();showToast('Stock actualizado','ok')">
-      <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="inventoryItems.splice(${i},1);renderInv();showToast('Eliminado','del')"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
+      <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
+      <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="invDeleteItem(${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
     </div>`;
   }).join('');
+  _refreshActualizarBtn();
+}
+
+function invStockChanged(i,val){
+  const item=inventoryItems[i];
+  item.stock=parseFloat(val)||0;
+  /* Marcar como dirty solo si cambió respecto al snapshot */
+  if(item.stock !== (_invSnapshot[item.name]??item.stock)){
+    _invDirty.add(item.name);
+  } else {
+    _invDirty.delete(item.name);
+  }
+  renderInv();
+}
+
+function invDeleteItem(i){
+  const name=inventoryItems[i].name;
+  inventoryItems.splice(i,1);
+  _invDirty.delete(name);
+  delete _invSnapshot[name];
+  renderInv();
+  showToast('Eliminado','del');
+}
+
+function _refreshActualizarBtn(){
+  const btn=$('btnActualizarInv');
+  if(!btn)return;
+  if(_invDirty.size>0){
+    btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
+    btn.innerHTML=`<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario (${_invDirty.size})`;
+  } else {
+    btn.disabled=true;btn.style.opacity='.5';btn.style.cursor='not-allowed';
+    btn.innerHTML=`<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario`;
+  }
+}
+
+async function syncInventoryToSupabase(){
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  if(_invDirty.size===0){showToast('Sin cambios pendientes');return;}
+  const btn=$('btnActualizarInv');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
+  let ok=0,err=0;
+  for(const name of [..._invDirty]){
+    const item=inventoryItems.find(x=>x.name===name);
+    if(!item)continue;
+    try{
+      const {error}=await _sb.from('inventory').update({
+        stock:item.stock,
+        updated_at:new Date().toISOString()
+      }).eq('name',name);
+      if(error)throw error;
+      _invSnapshot[name]=item.stock;
+      _invDirty.delete(name);
+      ok++;
+    }catch(e){
+      console.warn('[Inv] Error actualizando',name,e.message);
+      err++;
+    }
+  }
+  if(err===0){
+    showToast(`✅ ${ok} ítem${ok!==1?'s':''} actualizado${ok!==1?'s':''} en Supabase`,'ok');
+  } else {
+    showToast(`${ok} ok · ${err} con error — revisa consola`,'del');
+  }
+  renderInv();
 }
 function saveInvItem(){
   const name=($('invName').value||'').trim(),cat=($('invCat').value||'').trim(),stock=parseFloat($('invStock').value)||0,unit=($('invUnit').value||'').trim(),min=parseFloat($('invMin').value)||1;
   if(!name||!cat||!unit){showToast('Completa todos los campos');return;}
-  inventoryItems.push({name,cat,stock,unit,min});showToast('"'+name+'" agregado','ok');closeMod('addInvModal');renderInv();
+  inventoryItems.push({name,cat,stock,unit,min});
+  _invSnapshot[name]=stock;
+  showToast('"'+name+'" agregado','ok');closeMod('addInvModal');renderInv();
 }
 
 /* ── STAFF (includes kitchen password edit) ── */
 function renderStaff(){
   const kitchenUser=SYSTEM_USERS.find(u=>u.id==='U1');
   const all=[kitchenUser,...waiters];
-  $('staffContent').innerHTML=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod('addWaiterModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar garzón</button></div>`+
+  /* Header con botón Confirmar cambios */
+  const hdr=$('staffPageHeader');
+  /* Botón Guardar solo para admin */
+  const btnStf=$('btnConfirmStaff');
+  if(btnStf)btnStf.style.display=cRole==='admin'?'':'none';
+  $('staffContent').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
+    <button class="btn-add-sm" onclick="openMod('addWaiterModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar garzón (local)</button>
+    <button class="btn-add-sm" style="background:var(--bm);color:#fff;border-color:var(--bm)" onclick="openMod('addStaffUserModal')"><i class="ti ti-user-plus" style="font-size:11px" aria-hidden="true"></i> Crear usuario con acceso</button>
+  </div>`+
   all.map(w=>{
     const isClickable=true;
     return `<div class="waiter-card" onclick="openWaiterDetail('${w.id}')">
@@ -2061,6 +2207,182 @@ function kDel(oid){
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   PERSISTENCIA SELECTIVA EN SUPABASE
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Recetas → Supabase ── */
+async function syncRecipesToSupabase(){
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  const btn=$('btnConfirmRecipes');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
+  try{
+    const rows=Object.entries(recipes).map(([name,r])=>({
+      name,
+      cat:r.cat,
+      price:r.price,
+      ingredients:JSON.stringify(r.ingredients),
+      updated_at:new Date().toISOString()
+    }));
+    const {error}=await _sb.from('recipes').upsert(rows,{onConflict:'name'});
+    if(error)throw error;
+    showToast(`✅ ${rows.length} recetas guardadas en Supabase`,'ok');
+  }catch(e){
+    showToast('Error al guardar recetas','del');
+    console.warn('[Recipes sync]',e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Confirmar cambios';}
+  }
+}
+
+/* ── Personal → Supabase ── */
+async function syncStaffToSupabase(){
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  const btn=$('btnConfirmStaff');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
+  try{
+    const rows=waiters.map(w=>({
+      id:w.id,
+      user:w.user,
+      pass:w.pass,
+      role:w.role,
+      name:w.name,
+      updated_at:new Date().toISOString()
+    }));
+    if(rows.length){
+      const {error}=await _sb.from('staff').upsert(rows,{onConflict:'id'});
+      if(error)throw error;
+    }
+    showToast(`✅ Personal guardado en Supabase`,'ok');
+  }catch(e){
+    showToast('Error al guardar personal','del');
+    console.warn('[Staff sync]',e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Confirmar cambios';}
+  }
+}
+
+/* ── Carta (menuData) → Supabase ── */
+async function syncCartaToSupabase(){
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  const btn=$('btnConfirmCarta');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
+  try{
+    const rows=[];
+    Object.entries(menuData).forEach(([cat,subs])=>{
+      Object.entries(subs).forEach(([sub,items])=>{
+        items.forEach(item=>{
+          rows.push({
+            name:item.name,cat,sub,
+            price:item.price,
+            active:item.active?true:false,
+            extra_data:JSON.stringify(Object.fromEntries(Object.entries(item).filter(([k])=>!['name','price','active'].includes(k)))),
+            updated_at:new Date().toISOString()
+          });
+        });
+      });
+    });
+    const {error}=await _sb.from('menu').upsert(rows,{onConflict:'name'});
+    if(error)throw error;
+    showToast(`✅ Carta guardada en Supabase (${rows.length} items)`,'ok');
+  }catch(e){
+    showToast('Error al guardar carta','del');
+    console.warn('[Carta sync]',e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios';}
+  }
+}
+
+/* ── Cargar inventario, recetas y personal desde Supabase al iniciar ── */
+async function loadPersistentData(){
+  if(!_sb)return;
+  try{
+    /* Inventario */
+    const {data:inv}=await _sb.from('inventory').select('*');
+    if(inv&&inv.length){
+      inventoryItems.length=0;
+      inv.forEach(r=>inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1}));
+      _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
+      console.log('[EcoNativo] Inventario cargado desde Supabase');
+    }
+    /* Recetas */
+    const {data:recs}=await _sb.from('recipes').select('*');
+    if(recs&&recs.length){
+      recs.forEach(r=>{
+        try{ recipes[r.name]={cat:r.cat,price:r.price,ingredients:JSON.parse(r.ingredients||'[]')}; }catch(e){}
+      });
+      console.log('[EcoNativo] Recetas cargadas desde Supabase');
+    }
+    /* Personal (garzones) */
+    const {data:staff}=await _sb.from('staff').select('*');
+    if(staff&&staff.length){
+      waiters.length=0;
+      staff.filter(w=>w.role==='waiter').forEach(w=>waiters.push({id:w.id,user:w.user,pass:w.pass,role:w.role,name:w.name}));
+      console.log('[EcoNativo] Personal cargado desde Supabase');
+    }
+    /* Carta (menuData) desde Supabase */
+    const {data:menu}=await _sb.from('menu').select('*');
+    if(menu&&menu.length){
+      menu.forEach(r=>{
+        if(menuData[r.cat]&&menuData[r.cat][r.sub]){
+          const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
+          if(ex){ex.price=r.price;ex.active=r.active;}
+        }
+      });
+      console.log('[EcoNativo] Carta cargada desde Supabase');
+    }
+  }catch(e){
+    console.warn('[EcoNativo] loadPersistentData error:',e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GESTIÓN DE USUARIOS — Supabase Auth
+   ═══════════════════════════════════════════════════════════════ */
+async function createStaffUser(){
+  const name=($('newStaffName').value||'').trim();
+  const email=($('newStaffEmail').value||'').trim();
+  const pass=($('newStaffPass').value||'').trim();
+  const role=$('newStaffRole').value||'waiter';
+  if(!name||!email||!pass){showToast('Completa todos los campos');return;}
+  if(pass.length<6){showToast('La contraseña debe tener al menos 6 caracteres');return;}
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  const btn=$('btnCreateStaffUser');
+  if(btn){btn.disabled=true;btn.textContent='Creando...';}
+  try{
+    /* 1. Crear usuario en Supabase Auth */
+    const {data:authData,error:authErr}=await _sb.auth.signUp({email,password:pass});
+    if(authErr)throw authErr;
+    const uid=authData?.user?.id;
+    if(!uid)throw new Error('No se obtuvo UID del usuario creado');
+    /* 2. Insertar en tabla 'profiles' con el rol asignado */
+    const {error:profErr}=await _sb.from('profiles').insert({
+      id:uid,name,email,role,
+      created_at:new Date().toISOString()
+    });
+    if(profErr)throw profErr;
+    /* 3. Agregar localmente */
+    if(role==='waiter'){
+      const newW={id:uid,user:email.split('@')[0],pass,role:'waiter',name};
+      if(!waiters.find(w=>w.id===uid))waiters.push(newW);
+      /* También persistir en tabla staff */
+      await _sb.from('staff').upsert({id:uid,user:email.split('@')[0],pass,role:'waiter',name,updated_at:new Date().toISOString()},{onConflict:'id'});
+    }else if(role==='kitchen'||role==='admin'){
+      /* Persistir en staff para que aparezca en personal */
+      await _sb.from('staff').upsert({id:uid,user:email.split('@')[0],pass,role,name,updated_at:new Date().toISOString()},{onConflict:'id'});
+    }
+    showToast(`✅ Usuario "${name}" creado con rol ${role}`,'ok');
+    closeMod('addStaffUserModal');
+    $('newStaffName').value='';$('newStaffEmail').value='';$('newStaffPass').value='';
+    renderStaff();
+  }catch(e){
+    showToast('Error: '+(e.message||'no se pudo crear el usuario'),'del');
+    console.warn('[Auth] createStaffUser error:',e);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Crear usuario';}
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SINCRONIZACIÓN MULTIDISPOSITIVO — Supabase como capa principal
    ─────────────────────────────────────────────────────────────
    CAPA 1 (mismo navegador):  BroadcastChannel → instantáneo
@@ -2091,7 +2413,7 @@ async function initSupabase(){
     if(!window.supabase){console.warn('[EcoNativo] Supabase SDK no cargó');return;}
     _sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
-    /* Subscribe to Realtime changes on the state row */
+    /* Subscribe to Realtime: estado operacional (pedidos, mesas, caja) */
     _sbChannel=_sb.channel('econativo-realtime')
       .on('postgres_changes',{event:'*',schema:'public',table:'econativo_state',filter:`key=eq.${SYNC_ROW_KEY}`},
         payload=>{
@@ -2101,10 +2423,55 @@ async function initSupabase(){
             applyRemoteState(incoming);
           }
         })
+      /* Realtime: inventario */
+      .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},
+        payload=>{
+          if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
+            const r=payload.new;
+            const ex=inventoryItems.find(x=>x.name===r.name);
+            if(ex){ex.stock=r.stock;ex.cat=r.cat;ex.unit=r.unit;ex.min=r.min_stock||r.min||1;}
+            else inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1});
+          }else if(payload.eventType==='DELETE'){
+            const idx=inventoryItems.findIndex(x=>x.name===payload.old?.name);
+            if(idx>=0)inventoryItems.splice(idx,1);
+          }
+          const ap=document.querySelector('.page.active');
+          if(ap&&ap.id==='page-inventory')renderInv();
+        })
+      /* Realtime: recetas */
+      .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},
+        payload=>{
+          if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
+            const r=payload.new;
+            try{recipes[r.name]={cat:r.cat,price:r.price,ingredients:JSON.parse(r.ingredients||'[]')};}catch(e){}
+          }else if(payload.eventType==='DELETE'){
+            delete recipes[payload.old?.name];
+          }
+          const ap=document.querySelector('.page.active');
+          if(ap&&ap.id==='page-recipes')renderRecipes();
+        })
+      /* Realtime: personal */
+      .on('postgres_changes',{event:'*',schema:'public',table:'staff'},
+        payload=>{
+          if(payload.eventType==='INSERT'){
+            const r=payload.new;
+            if(!waiters.find(w=>w.id===r.id))waiters.push({id:r.id,user:r.user,pass:r.pass,role:r.role,name:r.name});
+          }else if(payload.eventType==='UPDATE'){
+            const w=waiters.find(x=>x.id===payload.new?.id);
+            if(w)Object.assign(w,{user:payload.new.user,pass:payload.new.pass,role:payload.new.role,name:payload.new.name});
+          }else if(payload.eventType==='DELETE'){
+            const idx=waiters.findIndex(x=>x.id===payload.old?.id);
+            if(idx>=0)waiters.splice(idx,1);
+          }
+          const ap=document.querySelector('.page.active');
+          if(ap&&ap.id==='page-staff')renderStaff();
+        })
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
+          _updateSyncIndicator(true);
           console.log('%c[EcoNativo] Realtime activo ✓','color:#4A7C59;font-weight:bold');
         } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+          _updateSyncIndicator(false);
           console.warn('[EcoNativo] Realtime falló:',status,'. Revisa que Realtime esté habilitado en Supabase.');
         }
       });
@@ -2232,7 +2599,10 @@ function _updateSyncIndicator(connected){
 /* ── Init Supabase después de login ── */
 /* Called at end of doLogin once app is visible */
 function postLoginInit(){
-  initSupabase().then(()=>{_updateSyncIndicator(!!_sb);});
+  initSupabase().then(()=>{
+    _updateSyncIndicator(!!_sb);
+    if(_sb) loadPersistentData();
+  });
 }
 
 /* ═══════════════════════════════════════════════════════
