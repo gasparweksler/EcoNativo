@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0045)file:///C:/Users/gaspa/Downloads/index_1.html -->
+<!-- saved from url=(0045)file:///C:/Users/gaspa/Downloads/index_2.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -437,8 +437,8 @@ button:active{transform:scale(.97)}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:1rem 0">
       <div class="rb" onclick="selRole(&#39;waiter&#39;)" id="role-waiter" style="padding: 12px 6px; border-color: var(--br); background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-notebook" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Garzón</span></div>
-      <div class="rb" onclick="selRole(&#39;admin&#39;)" id="role-admin" style="padding: 12px 6px; border-color: var(--br); background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-layout-dashboard" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Admin</span></div>
-      <div class="rb" onclick="selRole(&#39;kitchen&#39;)" id="role-kitchen" style="padding: 12px 6px; border-color: var(--bm); background: var(--bm); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--wh);"><i class="ti ti-chef-hat" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Cocina</span></div>
+      <div class="rb" onclick="selRole(&#39;admin&#39;)" id="role-admin" style="padding: 12px 6px; border-color: var(--bm); background: var(--bm); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--wh);"><i class="ti ti-layout-dashboard" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Admin</span></div>
+      <div class="rb" onclick="selRole(&#39;kitchen&#39;)" id="role-kitchen" style="padding: 12px 6px; border-color: var(--br); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-chef-hat" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Cocina</span></div>
     </div>
     <div class="form-item"><label>Usuario</label><input type="text" id="lu" value="Econativo"></div>
     <div class="form-item"><label>Contraseña</label><input type="password" id="lp" value="1914"></div>
@@ -622,12 +622,7 @@ button:active{transform:scale(.97)}
       <div class="page" id="page-inventory"><div class="pt">Inventario</div><div id="invContent"></div></div>
 
       <!-- PERSONAL -->
-      <div class="page" id="page-staff">
-        <div id="staffPageHeader" class="pt" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">Personal
-          <button id="btnConfirmStaff" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncStaffToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
-        </div>
-        <div id="staffContent"></div>
-      </div>
+      <div class="page" id="page-staff"><div id="staffPageHeader" class="pt" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">Personal<button id="btnConfirmStaff" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncStaffToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button></div><div id="staffContent"></div></div>
 
       <!-- COCINA -->
       <div class="page" id="page-kitchen">
@@ -785,7 +780,7 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addIngrModal&#39;)">Cancelar</button><button class="bc2" onclick="saveIngredient()">Agregar</button></div>
 </div></div>
 
-<div class="bell-popup" id="bellPopup" aria-live="polite"><i class="ti ti-bell" style="font-size:18px" aria-hidden="true"></i><span id="bellText"></span></div>
+<div class="bell-popup" id="bellPopup" aria-live="polite"><i class="ti ti-bell" style="font-size:18px" aria-hidden="true"></i><span id="bellText">🔔 Nuevo pedido ingresado</span></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -967,38 +962,32 @@ selRole('admin');
 async function doLogin(){
   const u=$('lu').value.trim(),p=$('lp').value.trim();
   if(!u||!p){showToast('Ingresa usuario y contraseña');return;}
-  /* 1. Intentar login local primero (admin/cocina hardcoded) */
+  /* 1. Login local (SYSTEM_USERS + waiters hardcoded) */
   const all=[...SYSTEM_USERS,...waiters];
   const found=all.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
   if(found){
-    _doLoginSuccess(found.name||found.user,found.role);
+    _loginSuccess(found.name||found.user, found.role);
     return;
   }
-  /* 2. Intentar Supabase Auth (email+password) — para usuarios creados con "Crear usuario" */
-  const sbTmp=window.supabase?.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-  if(sbTmp&&u.includes('@')){
-    try{
-      const {data,error}=await sbTmp.auth.signInWithPassword({email:u,password:p});
-      if(error)throw error;
-      const uid=data?.user?.id;
-      if(uid){
-        /* Buscar perfil con rol */
-        const {data:prof}=await sbTmp.from('profiles').select('name,role').eq('id',uid).single();
-        const profRole=prof?.role||cRole;
-        if(profRole!==cRole){showToast('Rol incorrecto para este usuario');return;}
-        _sb=sbTmp;
-        _doLoginSuccess(prof?.name||u,profRole);
-        return;
-      }
-    }catch(e){
-      showToast('Usuario o contraseña incorrectos');
-      console.warn('[Auth login]',e.message);
-      return;
-    }
+  /* 2. Login Supabase Auth (para usuarios creados con "Crear usuario con acceso") */
+  const email=u.includes('@')?u:(u+'@econativo.cl');
+  try{
+    if(!window.supabase){showToast('Usuario o contraseña incorrectos');return;}
+    const sbTmp=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    const {data,error}=await sbTmp.auth.signInWithPassword({email,password:p});
+    if(error||!data?.user){showToast('Usuario o contraseña incorrectos');return;}
+    const uid=data.user.id;
+    const {data:prof}=await sbTmp.from('profiles').select('name,role').eq('id',uid).single();
+    const profRole=prof?.role||'waiter';
+    if(profRole!==cRole){showToast('Rol incorrecto para este usuario');return;}
+    _sb=sbTmp;
+    _loginSuccess(prof?.name||u, profRole);
+  }catch(e){
+    showToast('Usuario o contraseña incorrectos');
+    console.warn('[Login]',e.message);
   }
-  showToast('Usuario o contraseña incorrectos');
 }
-function _doLoginSuccess(name,role){
+function _loginSuccess(name,role){
   cUser=name;cRole=role;
   buildRecipes();
   $('loginScreen').style.display='none';$('app').style.display='flex';
@@ -1908,7 +1897,7 @@ function renderRecipes(){
   buildRecipes();
   const cats=[...new Set(Object.values(recipes).map(r=>r.cat))].sort();
   $('recipesCatPills').innerHTML=cats.map(c=>`<button class="cp2 ${c===aRecipeCat?'active':''}" onclick="setRecipeCat('${c}')">${c}</button>`).join('');
-  /* Mostrar botón Guardar solo para admin */
+   /* Botón Guardar solo admin */
   const btnRec=$('btnConfirmRecipes');
   if(btnRec)btnRec.style.display=cRole==='admin'?'':'none';
   const catRecipes=Object.entries(recipes).filter(([,r])=>r.cat===aRecipeCat);
@@ -1966,7 +1955,6 @@ function delIngredient(encodedName,ii){
 /* ── CARTA ── */
 function renderCarta(){
   $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
-  /* Botón Guardar solo para admin */
   const btnCarta=$('btnConfirmCarta');
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
   const cd=menuData[aCartaCat];
@@ -2059,7 +2047,8 @@ function _refreshActualizarBtn(){
 }
 
 async function syncInventoryToSupabase(){
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
   if(_invDirty.size===0){showToast('Sin cambios pendientes');return;}
   const btn=$('btnActualizarInv');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
@@ -2100,9 +2089,7 @@ function saveInvItem(){
 function renderStaff(){
   const kitchenUser=SYSTEM_USERS.find(u=>u.id==='U1');
   const all=[kitchenUser,...waiters];
-  /* Header con botón Confirmar cambios */
-  const hdr=$('staffPageHeader');
-  /* Botón Guardar solo para admin */
+   /* Botón Guardar solo admin */
   const btnStf=$('btnConfirmStaff');
   if(btnStf)btnStf.style.display=cRole==='admin'?'':'none';
   $('staffContent').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
@@ -2171,7 +2158,7 @@ function delWaiter(wid){
 
 /* ── KITCHEN ── */
 function renderKitchen(){
-  const active=orders.filter(o=>o.status!=='closed');
+  const active=orders.filter(o=>o.status!=='closed'&&!o.kitchenHidden);
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
   $('kitchenGrid').innerHTML=active.map(o=>{
@@ -2180,7 +2167,11 @@ function renderKitchen(){
     return `<div class="kc ${o.status}">
       <div class="kcH">
         <div><div class="ktn">${o.tableId?'Mesa '+o.tableId:'Mostrador'}</div><div class="kw"><i class="ti ti-user" style="font-size:9px" aria-hidden="true"></i> ${o.waiter}</div></div>
-        <div style="text-align:right"><div class="ktm"><i class="ti ti-clock" style="font-size:9px" aria-hidden="true"></i> ${elapsed(o.time)}</div><div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div></div>
+        <div style="text-align:right">
+          <div class="ktm" style="font-size:10px;color:var(--ts)">Ingresado hace ${elapsed(o.time)}</div>
+          ${o.kitchenStartTime?`<div class="ktm" style="color:var(--bm);font-weight:700" id="ktimer-${o.id}"><i class="ti ti-clock" style="font-size:9px"></i> ${elapsed(o.kitchenStartTime)}</div>`:''}
+          <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
+        </div>
       </div>
       <div class="ki">${o.items.map((item,i)=>`<div class="ki-row">
         ${o.status!=='canceled'?`<div class="kck ${done.includes(i)?'done':''}" onclick="tkI('${o.id}',${i})">${done.includes(i)?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
@@ -2191,19 +2182,34 @@ function renderKitchen(){
         ${o.status==='preparing'?`<button class="bkr" onclick="kReady('${o.id}')"><i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i> Completado</button>`:''}
         ${o.status==='ready'?`<div style="flex:1;text-align:center;font-size:11px;color:var(--ok);font-weight:700"><i class="ti ti-check-circle" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Listo para servir</div>`:''}
         ${o.status==='canceled'?`<div style="flex:1;text-align:center;font-size:11px;color:var(--er);font-weight:700"><i class="ti ti-x-circle" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Cancelado por Cocina</div>`:''}
-        ${o.status!=='canceled'?`<button class="bkd" onclick="kDel('${o.id}')"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Cancelar</button>`:''}
+        <button class="bkd" onclick="kDel('${o.id}')" style="${o.status==='canceled'?'background:var(--er);color:#fff':''}" title="${o.status==='canceled'?'Eliminar de cocina':'Eliminar de cocina'}"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>
       </div>
     </div>`;
   }).join('');
 }
-function tkI(oid,i){if(!kDone[oid])kDone[oid]=[];const d=kDone[oid];const idx=d.indexOf(i);if(idx>=0)d.splice(idx,1);else d.push(i);renderKitchen();}
-function kStart(oid){const o=getOrder(oid);if(o){o.status='preparing';showToast('Preparación iniciada','ok');renderKitchen();broadcastState();}}
+function tkI(oid,i){
+  if(!kDone[oid])kDone[oid]=[];
+  const d=kDone[oid];
+  const idx=d.indexOf(i);
+  if(idx>=0)d.splice(idx,1);else d.push(i);
+  renderKitchen();
+  broadcastState(); /* persiste kDone en Supabase via broadcastState → pushToSupabase */
+}
+function kStart(oid){
+  const o=getOrder(oid);if(!o)return;
+  o.status='preparing';
+  o.kitchenStartTime=Date.now();
+  showToast('Preparación iniciada','ok');
+  renderKitchen();broadcastState();
+  /* Guardar en Supabase si disponible */
+  if(_sb){_sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(getSerializableState()),updated_at:new Date().toISOString()}).catch(()=>{});}
+}
 function kReady(oid){const o=getOrder(oid);if(o){o.status='ready';showBell('✅ Listo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));showToast('Pedido listo ✓','ok');renderKitchen();broadcastState();}}
 function kDel(oid){
-  if(!confirm('¿Cancelar este pedido? (visible para admin / no se elimina)'))return;
+  if(!confirm('¿Eliminar de la vista de cocina? El pedido sigue activo para el administrador.'))return;
   const o=getOrder(oid);if(!o)return;
-  o.status='canceled';delete kDone[oid];
-  showToast('Pedido cancelado — visible en cobro','del');renderKitchen();broadcastState();
+  o.kitchenHidden=true;  /* marca solo para cocina */
+  showToast('Eliminado de cocina','del');renderKitchen();broadcastState();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2212,7 +2218,8 @@ function kDel(oid){
 
 /* ── Recetas → Supabase ── */
 async function syncRecipesToSupabase(){
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
   const btn=$('btnConfirmRecipes');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   try{
@@ -2236,7 +2243,8 @@ async function syncRecipesToSupabase(){
 
 /* ── Personal → Supabase ── */
 async function syncStaffToSupabase(){
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
   const btn=$('btnConfirmStaff');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   try{
@@ -2261,9 +2269,10 @@ async function syncStaffToSupabase(){
   }
 }
 
-/* ── Carta (menuData) → Supabase ── */
+/* ── Cargar inventario, recetas y personal desde Supabase al iniciar ── */
 async function syncCartaToSupabase(){
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
   const btn=$('btnConfirmCarta');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   try{
@@ -2271,28 +2280,23 @@ async function syncCartaToSupabase(){
     Object.entries(menuData).forEach(([cat,subs])=>{
       Object.entries(subs).forEach(([sub,items])=>{
         items.forEach(item=>{
-          rows.push({
-            name:item.name,cat,sub,
-            price:item.price,
-            active:item.active?true:false,
+          rows.push({name:item.name,cat,sub,price:item.price,active:!!item.active,
             extra_data:JSON.stringify(Object.fromEntries(Object.entries(item).filter(([k])=>!['name','price','active'].includes(k)))),
-            updated_at:new Date().toISOString()
-          });
+            updated_at:new Date().toISOString()});
         });
       });
     });
     const {error}=await _sb.from('menu').upsert(rows,{onConflict:'name'});
     if(error)throw error;
-    showToast(`✅ Carta guardada en Supabase (${rows.length} items)`,'ok');
+    showToast('Carta guardada en Supabase ('+rows.length+' items)','ok');
   }catch(e){
-    showToast('Error al guardar carta','del');
+    showToast('Error al guardar carta: '+e.message,'del');
     console.warn('[Carta sync]',e.message);
   }finally{
     if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios';}
   }
 }
 
-/* ── Cargar inventario, recetas y personal desde Supabase al iniciar ── */
 async function loadPersistentData(){
   if(!_sb)return;
   try{
@@ -2328,7 +2332,6 @@ async function loadPersistentData(){
           if(ex){ex.price=r.price;ex.active=r.active;}
         }
       });
-      console.log('[EcoNativo] Carta cargada desde Supabase');
     }
   }catch(e){
     console.warn('[EcoNativo] loadPersistentData error:',e.message);
@@ -2345,7 +2348,8 @@ async function createStaffUser(){
   const role=$('newStaffRole').value||'waiter';
   if(!name||!email||!pass){showToast('Completa todos los campos');return;}
   if(pass.length<6){showToast('La contraseña debe tener al menos 6 caracteres');return;}
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
   const btn=$('btnCreateStaffUser');
   if(btn){btn.disabled=true;btn.textContent='Creando...';}
   try{
@@ -2360,15 +2364,9 @@ async function createStaffUser(){
       created_at:new Date().toISOString()
     });
     if(profErr)throw profErr;
-    /* 3. Agregar localmente */
+    /* 3. Agregar localmente como garzón si corresponde */
     if(role==='waiter'){
-      const newW={id:uid,user:email.split('@')[0],pass,role:'waiter',name};
-      if(!waiters.find(w=>w.id===uid))waiters.push(newW);
-      /* También persistir en tabla staff */
-      await _sb.from('staff').upsert({id:uid,user:email.split('@')[0],pass,role:'waiter',name,updated_at:new Date().toISOString()},{onConflict:'id'});
-    }else if(role==='kitchen'||role==='admin'){
-      /* Persistir en staff para que aparezca en personal */
-      await _sb.from('staff').upsert({id:uid,user:email.split('@')[0],pass,role,name,updated_at:new Date().toISOString()},{onConflict:'id'});
+      waiters.push({id:'W'+Date.now(),user:email.split('@')[0],pass,role:'waiter',name});
     }
     showToast(`✅ Usuario "${name}" creado con rol ${role}`,'ok');
     closeMod('addStaffUserModal');
@@ -2413,7 +2411,7 @@ async function initSupabase(){
     if(!window.supabase){console.warn('[EcoNativo] Supabase SDK no cargó');return;}
     _sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
-    /* Subscribe to Realtime: estado operacional (pedidos, mesas, caja) */
+    /* Subscribe to Realtime changes on the state row */
     _sbChannel=_sb.channel('econativo-realtime')
       .on('postgres_changes',{event:'*',schema:'public',table:'econativo_state',filter:`key=eq.${SYNC_ROW_KEY}`},
         payload=>{
@@ -2424,48 +2422,43 @@ async function initSupabase(){
           }
         })
       /* Realtime: inventario */
-      .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},
-        payload=>{
-          if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
-            const r=payload.new;
-            const ex=inventoryItems.find(x=>x.name===r.name);
-            if(ex){ex.stock=r.stock;ex.cat=r.cat;ex.unit=r.unit;ex.min=r.min_stock||r.min||1;}
-            else inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1});
-          }else if(payload.eventType==='DELETE'){
-            const idx=inventoryItems.findIndex(x=>x.name===payload.old?.name);
-            if(idx>=0)inventoryItems.splice(idx,1);
-          }
-          const ap=document.querySelector('.page.active');
-          if(ap&&ap.id==='page-inventory')renderInv();
-        })
+      .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},payload=>{
+        if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
+          const r=payload.new;
+          const ex=inventoryItems.find(x=>x.name===r.name);
+          if(ex){ex.stock=r.stock;ex.cat=r.cat;ex.unit=r.unit;ex.min=r.min_stock||r.min||1;}
+          else inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1});
+        }else if(payload.eventType==='DELETE'){
+          const idx=inventoryItems.findIndex(x=>x.name===payload.old?.name);
+          if(idx>=0)inventoryItems.splice(idx,1);
+        }
+        const ap=document.querySelector('.page.active');
+        if(ap?.id==='page-inventory')renderInv();
+      })
       /* Realtime: recetas */
-      .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},
-        payload=>{
-          if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
-            const r=payload.new;
-            try{recipes[r.name]={cat:r.cat,price:r.price,ingredients:JSON.parse(r.ingredients||'[]')};}catch(e){}
-          }else if(payload.eventType==='DELETE'){
-            delete recipes[payload.old?.name];
-          }
-          const ap=document.querySelector('.page.active');
-          if(ap&&ap.id==='page-recipes')renderRecipes();
-        })
+      .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},payload=>{
+        if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
+          const r=payload.new;
+          try{recipes[r.name]={cat:r.cat,price:r.price,ingredients:JSON.parse(r.ingredients||'[]')};}catch(e){}
+        }else if(payload.eventType==='DELETE'){delete recipes[payload.old?.name];}
+        const ap=document.querySelector('.page.active');
+        if(ap?.id==='page-recipes')renderRecipes();
+      })
       /* Realtime: personal */
-      .on('postgres_changes',{event:'*',schema:'public',table:'staff'},
-        payload=>{
-          if(payload.eventType==='INSERT'){
-            const r=payload.new;
-            if(!waiters.find(w=>w.id===r.id))waiters.push({id:r.id,user:r.user,pass:r.pass,role:r.role,name:r.name});
-          }else if(payload.eventType==='UPDATE'){
-            const w=waiters.find(x=>x.id===payload.new?.id);
-            if(w)Object.assign(w,{user:payload.new.user,pass:payload.new.pass,role:payload.new.role,name:payload.new.name});
-          }else if(payload.eventType==='DELETE'){
-            const idx=waiters.findIndex(x=>x.id===payload.old?.id);
-            if(idx>=0)waiters.splice(idx,1);
-          }
-          const ap=document.querySelector('.page.active');
-          if(ap&&ap.id==='page-staff')renderStaff();
-        })
+      .on('postgres_changes',{event:'*',schema:'public',table:'staff'},payload=>{
+        if(payload.eventType==='INSERT'){
+          const r=payload.new;
+          if(!waiters.find(w=>w.id===r.id))waiters.push({id:r.id,user:r.user,pass:r.pass,role:r.role,name:r.name});
+        }else if(payload.eventType==='UPDATE'){
+          const w=waiters.find(x=>x.id===payload.new?.id);
+          if(w)Object.assign(w,{user:payload.new.user,pass:payload.new.pass,role:payload.new.role,name:payload.new.name});
+        }else if(payload.eventType==='DELETE'){
+          const idx=waiters.findIndex(x=>x.id===payload.old?.id);
+          if(idx>=0)waiters.splice(idx,1);
+        }
+        const ap=document.querySelector('.page.active');
+        if(ap?.id==='page-staff')renderStaff();
+      })
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
           _updateSyncIndicator(true);
@@ -2554,7 +2547,7 @@ function _refreshActiveView(){
   const ap=document.querySelector('.page.active');
   if(!ap)return;
   const pid=ap.id?.replace('page-','');
-  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients};
+  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,inventory:renderInv,staff:renderStaff};
   if(map[pid])map[pid]();
   updateOCBadge();
 }
@@ -2602,6 +2595,15 @@ function postLoginInit(){
   initSupabase().then(()=>{
     _updateSyncIndicator(!!_sb);
     if(_sb) loadPersistentData();
+    else {
+      /* Reintentar conexión cada 3s hasta lograrla */
+      const retryInterval = setInterval(()=>{
+        if(_sb){clearInterval(retryInterval);return;}
+        initSupabase().then(()=>{
+          if(_sb){_updateSyncIndicator(true);loadPersistentData();clearInterval(retryInterval);}
+        });
+      },3000);
+    }
   });
 }
 
@@ -2677,9 +2679,20 @@ function nuevoDia(){
 /* Kitchen new-order bell (polls every 5s) */
 setInterval(()=>{
   const cur=orders.filter(o=>o.status!=='closed').length;
-  if(cur>prevOrderCount&&cRole==='kitchen')showBell('🔔 Nuevo pedido ingresado');
+  if(cur>prevOrderCount&&(cRole==='kitchen'||cRole==='admin'))showBell('🔔 Nuevo pedido ingresado');
   prevOrderCount=cur;
 },5000);
+
+/* Actualizar cronómetros de cocina cada 30 segundos */
+setInterval(()=>{
+  const ap=document.querySelector('.page.active');
+  if(ap?.id==='page-kitchen'){
+    orders.filter(o=>o.status!=='closed'&&o.kitchenStartTime).forEach(o=>{
+      const el=document.getElementById('ktimer-'+o.id);
+      if(el)el.innerHTML='<i class="ti ti-clock" style="font-size:9px"></i> '+elapsed(o.kitchenStartTime);
+    });
+  }
+},30000);
 
 renderTables();
 </script>
