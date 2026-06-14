@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0045)file:///C:/Users/gaspa/Downloads/index_9.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_10.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -562,7 +562,9 @@ button:active{transform:scale(.97)}
             <div id="menuItems"></div>
           </div>
           <div class="cp">
-            <div class="ch"><h3>Pedido</h3><div class="cbdg" id="cartBadge">—</div></div>
+            <div class="ch"><h3>Pedido</h3><div class="cbdg" id="cartBadge">—</div>
+              <button id="btnAddClient" onclick="addClientToOrder()" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-user-plus" style="font-size:9px"></i> Cliente</button>
+            </div></div>
             <div class="ci" id="cartItems"><div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div></div>
             <div class="cf">
               <div id="cartSummary"></div>
@@ -577,6 +579,7 @@ button:active{transform:scale(.97)}
               <div class="cobrar-btns" id="cobrarBtns" style="display:none">
                 <button class="bco total" onclick="cobrarTotal()"><i class="ti ti-receipt" style="font-size:12px" aria-hidden="true"></i> Cobrar total</button>
                 <button class="bco div" onclick="cobrarDividido()"><i class="ti ti-users" style="font-size:12px" aria-hidden="true"></i> Dividir</button>
+                <button class="bco" onclick="cerrarSinCobrar()" style="background:var(--er);color:#fff;border-color:var(--er)"><i class="ti ti-x" style="font-size:12px" aria-hidden="true"></i> Cerrar sin cobrar</button>
               </div>
               <button class="bsend" id="btnSend" onclick="sendOrder()"><i class="ti ti-send" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Enviar a Cocina</button>
             </div>
@@ -661,7 +664,7 @@ button:active{transform:scale(.97)}
     </div>
     <div class="bnav" id="bnav"></div>
   </div>
-</div>
+
 
 <!-- MODALS -->
 <div class="ov" id="secModal"><div class="mb" style="max-width:400px">
@@ -753,11 +756,11 @@ button:active{transform:scale(.97)}
 </div></div>
 
 <div class="ov" id="addStaffUserModal"><div class="mb">
-  <h3 style="margin-bottom:.8rem"><i class="ti ti-user-plus" style="color:var(--bm)"></i> Crear usuario con acceso</h3>
-  <p style="font-size:11px;color:var(--ts);margin-bottom:.8rem">Crea un empleado que podrá iniciar sesión con email y contraseña mediante Supabase Auth.</p>
+  <h3 style="margin-bottom:.8rem"><i class="ti ti-user-plus" style="color:var(--bm)"></i> Crear usuario</h3>
+  <p style="font-size:11px;color:var(--ts);margin-bottom:.8rem">El usuario podrá iniciar sesión con su nombre de usuario y contraseña.</p>
   <div class="form-item"><label>Nombre completo *</label><input type="text" id="newStaffName" placeholder="Ej: Ana Muñoz"></div>
-  <div class="form-item"><label>Email *</label><input type="email" id="newStaffEmail" placeholder="ana@econativo.cl"></div>
-  <div class="form-item"><label>Contraseña * (mín. 6 caracteres)</label><input type="password" id="newStaffPass" placeholder="Contraseña segura"></div>
+  <div class="form-item"><label>Nombre de usuario *</label><input type="text" id="newStaffUser" placeholder="Ej: ana" autocomplete="off" style="text-transform:lowercase"></div>
+  <div class="form-item"><label>Contraseña * (mín. 4 caracteres)</label><input type="password" id="newStaffPass" placeholder="Contraseña" autocomplete="new-password"></div>
   <div class="form-item"><label>Rol *</label>
     <select id="newStaffRole" style="width:100%;padding:10px;border:1px solid var(--br);border-radius:var(--r);font-family:inherit;font-size:13px;background:var(--bg)">
       <option value="waiter">Garzón</option>
@@ -987,30 +990,28 @@ selRole('admin');
 async function doLogin(){
   const u=$('lu').value.trim(),p=$('lp').value.trim();
   if(!u||!p){showToast('Ingresa usuario y contraseña');return;}
-  /* 1. Login local (SYSTEM_USERS + waiters hardcoded) */
-  const all=[...SYSTEM_USERS,...waiters];
-  const found=all.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
-  if(found){
-    _loginSuccess(found.name||found.user, found.role);
-    return;
-  }
-  /* 2. Login Supabase Auth (para usuarios creados con "Crear usuario con acceso") */
-  const email=u.includes('@')?u:(u+'@econativo.cl');
+  /* 1. Login local hardcoded (SYSTEM_USERS) */
+  const sysFound=SYSTEM_USERS.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
+  if(sysFound){_loginSuccess(sysFound.name||sysFound.user,sysFound.role);return;}
+  /* 2. Login en waiters locales (cargados desde Supabase) */
+  const localFound=waiters.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
+  if(localFound){_loginSuccess(localFound.name||localFound.user,localFound.role);return;}
+  /* 3. Login consultando Supabase directo (si waiters aún no cargaron) */
   try{
-    if(!window.supabase){showToast('Usuario o contraseña incorrectos');return;}
-    const sbTmp=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-    const {data,error}=await sbTmp.auth.signInWithPassword({email,password:p});
-    if(error||!data?.user){showToast('Usuario o contraseña incorrectos');return;}
-    const uid=data.user.id;
-    const {data:prof}=await sbTmp.from('profiles').select('name,role').eq('id',uid).single();
-    const profRole=prof?.role||'waiter';
-    if(profRole!==cRole){showToast('Rol incorrecto para este usuario');return;}
-    _sb=sbTmp;
-    _loginSuccess(prof?.name||u, profRole);
-  }catch(e){
-    showToast('Usuario o contraseña incorrectos');
-    console.warn('[Login]',e.message);
-  }
+    if(!_sb&&window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    if(_sb){
+      const {data:rows}=await _sb.from('staff').select('*').eq('user',u.toLowerCase()).eq('role',cRole);
+      if(rows&&rows.length){
+        const row=rows[0];
+        if(row.pass===p||row.pass_plain===p){
+          if(!waiters.find(w=>w.id===row.id))waiters.push({id:row.id,user:row.user,pass:row.pass_plain||row.pass,role:row.role,name:row.name});
+          _loginSuccess(row.name||row.user,row.role);
+          return;
+        }
+      }
+    }
+  }catch(e){console.warn('[Login Supabase]',e.message);}
+  showToast('Usuario o contraseña incorrectos');
 }
 function _loginSuccess(name,role){
   cUser=name;cRole=role;
@@ -1094,21 +1095,52 @@ function tableClick(id){
   if(activeOrds.length>1){showAccountSelect(id);return;}
   if(activeOrds.length===1){loadTableOrder(id,activeOrds[0]);return;}
   if(canceledOrds.length){showToast('Mesa con pedido cancelado — avisar a admin','del');return;}
-  /* No active orders — start new */
-  const accountName=prompt('Nombre del cliente para Mesa '+id+':',cUser)||cUser;
-  const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:accountName};
+  /* No active orders — start new (sin prompt de cliente) */
+  const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:''};
   orders.push(newOrder);totalOrdsIn++;
   loadTableOrder(id,newOrder);
 }
 function loadTableOrder(id,order){
   isMC=false;cTable=getTable(id);currentAccountId=order.id;
-  $('cartBadge').textContent=`Mesa ${id} · ${order.clientName||order.waiter}`;$('cartBadge').className='cbdg mesa';
+  $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;$('cartBadge').className='cbdg mesa';
   $('btnSend').style.display='';$('cobrarBtns').style.display='none';
   $('btnSend').textContent='Enviar a Cocina';$('btnSend').className='bsend';
   $('kitchenCheckWrap').style.display='none';
   $('mcSplitBtns').style.display='none';
+  /* Mostrar botón agregar cliente */
+  const btnAC=$('btnAddClient');
+  if(btnAC)btnAC.style.display='';
   cart=order.items.map(i=>({...i}));
   $('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
+}
+
+function addClientToOrder(){
+  const order=orders.find(o=>o.id===currentAccountId);if(!order)return;
+  const name=prompt('Nombre del cliente:',order.clientName||'');
+  if(name===null)return;
+  order.clientName=name.trim();
+  const id=cTable?.id||order.tableId;
+  $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;
+  broadcastState();
+  showToast(order.clientName?'Cliente asignado':'Cliente eliminado','ok');
+}
+
+function cerrarSinCobrar(){
+  const order=orders.find(o=>o.id===currentAccountId);
+  if(!order){goPage('tables');return;}
+  const mesa=cTable?.id||order.tableId;
+  if(!confirm('¿Cerrar Mesa '+mesa+' sin cobrar? El pedido no pasará a caja ni a historial.'))return;
+  /* Marcar orden como cancelada sin pasar a closedSales */
+  order.status='canceled';
+  /* Liberar mesa */
+  const t=getTable(mesa);
+  if(t){t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;}
+  /* Ocultar btn cliente */
+  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  broadcastState();
+  showToast('Mesa '+mesa+' cerrada sin cobrar','ok');
+  cart=[];isMC=false;cTable=null;currentAccountId=null;
+  renderTables();goPage('tables');
 }
 function showAccountSelect(tid){
   const ords=orders.filter(ord=>ord.tableId===tid&&ord.status!=='closed');
@@ -2113,20 +2145,27 @@ function saveInvItem(){
 /* ── STAFF (includes kitchen password edit) ── */
 function renderStaff(){
   const kitchenUser=SYSTEM_USERS.find(u=>u.id==='U1');
-  const all=[kitchenUser,...waiters];
-   /* Botón Guardar solo admin */
+  const all=[...SYSTEM_USERS,...waiters];
+  /* Botón Guardar solo admin */
   const btnStf=$('btnConfirmStaff');
   if(btnStf)btnStf.style.display=cRole==='admin'?'':'none';
-  $('staffContent').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
-    <button class="btn-add-sm" onclick="openMod('addWaiterModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar garzón (local)</button>
-    <button class="btn-add-sm" style="background:var(--bm);color:#fff;border-color:var(--bm)" onclick="openMod('addStaffUserModal')"><i class="ti ti-user-plus" style="font-size:11px" aria-hidden="true"></i> Crear usuario con acceso</button>
-  </div>`+
+  const roleLabel=r=>r==='kitchen'?'Cocina':r==='admin'?'Admin':'Garzón';
+  $('staffContent').innerHTML=(cRole==='admin'?`<div style="display:flex;justify-content:flex-end;margin-bottom:.6rem">
+    <button class="btn-add-sm" style="background:var(--bm);color:#fff;border-color:var(--bm)" onclick="openMod('addStaffUserModal')"><i class="ti ti-user-plus" style="font-size:11px" aria-hidden="true"></i> Nuevo usuario</button>
+  </div>`:'') +
   all.map(w=>{
-    const isClickable=true;
-    return `<div class="waiter-card" onclick="openWaiterDetail('${w.id}')">
-      <div class="waiter-av">${(w.name||w.user).charAt(0)}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:700">${w.name||w.user}</div><div style="font-size:11px;color:var(--ts)">@${w.user} · ${w.role==='kitchen'?'Cocina':'Garzón'}</div></div>
-      <i class="ti ti-chevron-right" style="color:var(--tl);font-size:14px" aria-hidden="true"></i>
+    const isSystem=SYSTEM_USERS.some(s=>s.id===w.id);
+    const canEdit=cRole==='admin'&&!isSystem;
+    return `<div class="waiter-card">
+      <div class="waiter-av">${(w.name||w.user).charAt(0).toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700">${w.name||w.user}</div>
+        <div style="font-size:11px;color:var(--ts)">@${w.user} · ${roleLabel(w.role)}</div>
+      </div>
+      ${canEdit?`<div style="display:flex;gap:4px">
+        <button onclick="editStaffUser('${w.id}')" style="padding:4px 8px;font-size:10px;background:var(--cr);border:1px solid var(--br);border-radius:var(--r);cursor:pointer;color:var(--tm)"><i class="ti ti-pencil" style="font-size:10px"></i></button>
+        <button onclick="deleteStaffUser('${w.id}')" style="padding:4px 8px;font-size:10px;background:var(--er);border:none;border-radius:var(--r);cursor:pointer;color:#fff"><i class="ti ti-trash" style="font-size:10px"></i></button>
+      </div>`:''}
     </div>`;
   }).join('');
 }
@@ -2366,43 +2405,80 @@ async function loadPersistentData(){
 /* ═══════════════════════════════════════════════════════════════
    GESTIÓN DE USUARIOS — Supabase Auth
    ═══════════════════════════════════════════════════════════════ */
+/* ─── Hash simple para contraseñas (sin Auth de Supabase) ─── */
+async function hashPass(pass){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pass+'_econativo'));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 async function createStaffUser(){
   const name=($('newStaffName').value||'').trim();
-  const email=($('newStaffEmail').value||'').trim();
+  const username=($('newStaffUser').value||'').trim().toLowerCase();
   const pass=($('newStaffPass').value||'').trim();
   const role=$('newStaffRole').value||'waiter';
-  if(!name||!email||!pass){showToast('Completa todos los campos');return;}
-  if(pass.length<6){showToast('La contraseña debe tener al menos 6 caracteres');return;}
+  if(!name||!username||!pass){showToast('Completa todos los campos');return;}
+  if(pass.length<4){showToast('La contraseña debe tener al menos 4 caracteres');return;}
   if(!_sb){await initSupabase();}
-  if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  /* Verificar que el usuario no exista */
+  const allUsers=[...SYSTEM_USERS,...waiters];
+  if(allUsers.find(x=>x.user.toLowerCase()===username)){showToast('Ese nombre de usuario ya existe','del');return;}
   const btn=$('btnCreateStaffUser');
   if(btn){btn.disabled=true;btn.textContent='Creando...';}
   try{
-    /* 1. Crear usuario en Supabase Auth */
-    const {data:authData,error:authErr}=await _sb.auth.signUp({email,password:pass});
-    if(authErr)throw authErr;
-    const uid=authData?.user?.id;
-    if(!uid)throw new Error('No se obtuvo UID del usuario creado');
-    /* 2. Insertar en tabla 'profiles' con el rol asignado */
-    const {error:profErr}=await _sb.from('profiles').insert({
-      id:uid,name,email,role,
-      created_at:new Date().toISOString()
-    });
-    if(profErr)throw profErr;
-    /* 3. Agregar localmente como garzón si corresponde */
-    if(role==='waiter'){
-      waiters.push({id:'W'+Date.now(),user:email.split('@')[0],pass,role:'waiter',name});
-    }
-    showToast(`✅ Usuario "${name}" creado con rol ${role}`,'ok');
+    const uid='U'+Date.now();
+    const passHash=await hashPass(pass);
+    const row={id:uid,user:username,pass:passHash,pass_plain:pass,role,name,updated_at:new Date().toISOString()};
+    const {error}=await _sb.from('staff').upsert(row,{onConflict:'id'});
+    if(error)throw error;
+    /* Agregar localmente */
+    waiters.push({id:uid,user:username,pass,role,name});
+    showToast('✅ Usuario "'+name+'" creado','ok');
     closeMod('addStaffUserModal');
-    $('newStaffName').value='';$('newStaffEmail').value='';$('newStaffPass').value='';
+    $('newStaffName').value='';$('newStaffUser').value='';$('newStaffPass').value='';
     renderStaff();
+    broadcastState();
   }catch(e){
     showToast('Error: '+(e.message||'no se pudo crear el usuario'),'del');
-    console.warn('[Auth] createStaffUser error:',e);
+    console.warn('[Staff] createStaffUser error:',e);
   }finally{
     if(btn){btn.disabled=false;btn.textContent='Crear usuario';}
   }
+}
+
+async function editStaffUser(uid){
+  const w=waiters.find(x=>x.id===uid);if(!w)return;
+  const newName=prompt('Nombre completo:',w.name);if(!newName)return;
+  const newUser=prompt('Nombre de usuario:',w.user);if(!newUser)return;
+  const newPass=prompt('Nueva contraseña (dejar vacío para no cambiar):','');
+  const newRole=prompt('Rol (waiter/kitchen/admin):',w.role);if(!newRole)return;
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  try{
+    const row={id:uid,user:newUser.toLowerCase(),role:newRole,name:newName,updated_at:new Date().toISOString()};
+    if(newPass&&newPass.length>=4){row.pass=newPass;row.pass_plain=newPass;}
+    const {error}=await _sb.from('staff').upsert(row,{onConflict:'id'});
+    if(error)throw error;
+    w.name=newName;w.user=newUser.toLowerCase();w.role=newRole;
+    if(newPass&&newPass.length>=4)w.pass=newPass;
+    showToast('✅ Usuario actualizado','ok');
+    renderStaff();
+  }catch(e){showToast('Error al actualizar: '+e.message,'del');}
+}
+
+async function deleteStaffUser(uid){
+  const w=waiters.find(x=>x.id===uid);if(!w)return;
+  if(!confirm('¿Eliminar usuario "'+w.name+'"?'))return;
+  if(!_sb){await initSupabase();}
+  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+  try{
+    const {error}=await _sb.from('staff').delete().eq('id',uid);
+    if(error)throw error;
+    const idx=waiters.findIndex(x=>x.id===uid);
+    if(idx>=0)waiters.splice(idx,1);
+    showToast('Usuario eliminado','ok');
+    renderStaff();
+  }catch(e){showToast('Error al eliminar: '+e.message,'del');}
 }
 
 /* ═══════════════════════════════════════════════════════════════
