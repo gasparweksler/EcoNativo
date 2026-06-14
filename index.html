@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_11.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_12.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -579,7 +579,7 @@ button:active{transform:scale(.97)}
               <div class="cobrar-btns" id="cobrarBtns" style="display:none">
                 <button class="bco total" onclick="cobrarTotal()"><i class="ti ti-receipt" style="font-size:12px" aria-hidden="true"></i> Cobrar total</button>
                 <button class="bco div" onclick="cobrarDividido()"><i class="ti ti-users" style="font-size:12px" aria-hidden="true"></i> Dividir</button>
-                <button class="bco" onclick="cerrarSinCobrar()" style="background:var(--er);color:#fff;border-color:var(--er)"><i class="ti ti-x" style="font-size:12px" aria-hidden="true"></i> Cerrar sin cobrar</button>
+
               </div>
               <button class="bsend" id="btnSend" onclick="sendOrder()"><i class="ti ti-send" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Enviar a Cocina</button>
             </div>
@@ -1000,7 +1000,7 @@ async function doLogin(){
   try{
     if(!_sb&&window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
     if(_sb){
-      const {data:rows}=await _sb.from('staff').select('*').eq('user',u.toLowerCase()).eq('role',cRole);
+      const {data:rows}=await _sb.from('staff').select('*').eq('username',u.toLowerCase()).eq('role',cRole);
       if(rows&&rows.length){
         const row=rows[0];
         if(row.pass===p||row.pass_plain===p){
@@ -1105,9 +1105,11 @@ function loadTableOrder(id,order){
   $('btnSend').textContent='Enviar a Cocina';$('btnSend').className='bsend';
   $('kitchenCheckWrap').style.display='none';
   $('mcSplitBtns').style.display='none';
-  /* Mostrar botón agregar cliente */
+  /* Mostrar botón agregar cliente y cancelar pedido */
   const btnAC=$('btnAddClient');
   if(btnAC)btnAC.style.display='';
+  const btnCO=$('btnCancelOrder');
+  if(btnCO)btnCO.style.display='';
   cart=order.items.map(i=>({...i}));
   $('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
 }
@@ -1121,6 +1123,28 @@ function addClientToOrder(){
   $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;
   broadcastState();
   showToast(order.clientName?'Cliente asignado':'Cliente eliminado','ok');
+}
+
+function cancelarPedido(){
+  const order=orders.find(o=>o.id===currentAccountId);
+  if(!order){goPage('tables');return;}
+  const mesa=cTable?.id||order.tableId;
+  if(!confirm('¿Cancelar el pedido de Mesa '+mesa+'? Se eliminarán todos los productos y la mesa quedará libre.'))return;
+  /* Eliminar orden completamente */
+  const idx=orders.findIndex(o=>o.id===currentAccountId);
+  if(idx>=0)orders.splice(idx,1);
+  /* Liberar mesa — estado exactamente igual que mesa nueva */
+  const t=getTable(mesa);
+  if(t){t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;}
+  /* Limpiar kDone */
+  if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
+  /* Limpiar UI */
+  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  const btnCO=$('btnCancelOrder');if(btnCO)btnCO.style.display='none';
+  cart=[];isMC=false;cTable=null;currentAccountId=null;
+  broadcastState();
+  showToast('Pedido cancelado. Mesa '+mesa+' disponible.','ok');
+  renderTables();goPage('tables');
 }
 
 function cerrarSinCobrar(){
@@ -1138,6 +1162,7 @@ function cerrarSinCobrar(){
   if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
   /* Ocultar btn cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  const btnCO2=$('btnCancelOrder');if(btnCO2)btnCO2.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   broadcastState();
   showToast('Mesa '+mesa+' cerrada sin cobrar','ok');
@@ -2315,8 +2340,9 @@ async function syncStaffToSupabase(){
   try{
     const rows=waiters.map(w=>({
       id:w.id,
-      user:w.user,
+      username:w.user,
       pass:w.pass,
+      pass_plain:w.pass,
       role:w.role,
       name:w.name,
       updated_at:new Date().toISOString()
@@ -2385,7 +2411,7 @@ async function loadPersistentData(){
     const {data:staff}=await _sb.from('staff').select('*');
     if(staff&&staff.length){
       waiters.length=0;
-      staff.filter(w=>w.role==='waiter').forEach(w=>waiters.push({id:w.id,user:w.user,pass:w.pass,role:w.role,name:w.name}));
+      staff.filter(w=>w.role==='waiter'||w.role==='kitchen'||w.role==='admin').forEach(w=>waiters.push({id:w.id,user:w.username||w.user,pass:w.pass_plain||w.pass,role:w.role,name:w.name}));
       console.log('[EcoNativo] Personal cargado desde Supabase');
     }
     /* Carta (menuData) desde Supabase */
@@ -2434,11 +2460,11 @@ async function createStaffUser(){
   if(btn){btn.disabled=true;btn.textContent='Creando...';}
   try{
     const uid='USR'+Date.now();
-    const row={id:uid,user:username,pass:pass,pass_plain:pass,role,name,
+    const row={id:uid,username:username,pass:pass,pass_plain:pass,role,name,
       updated_at:new Date().toISOString()};
     if(_sb){
       /* Verificar duplicado en Supabase */
-      const {data:exist}=await _sb.from('staff').select('id').eq('user',username).limit(1);
+      const {data:exist}=await _sb.from('staff').select('id').eq('username',username).limit(1);
       if(exist&&exist.length){showToast('El usuario "'+username+'" ya existe en la base de datos','del');return;}
       const {error}=await _sb.from('staff').insert(row);
       if(error){
@@ -2474,8 +2500,8 @@ async function editStaffUser(uid){
   if(!_sb){await initSupabase();}
   if(!_sb){showToast('Sin conexión a Supabase','del');return;}
   try{
-    const row={id:uid,user:newUser.toLowerCase(),role:newRole,name:newName,updated_at:new Date().toISOString()};
-    if(newPass&&newPass.length>=4){row.pass=newPass;row.pass_plain=newPass;}
+    const row={id:uid,username:newUser.toLowerCase(),role:newRole,name:newName,updated_at:new Date().toISOString()};
+    if(newPass&&newPass.length>=4){row.pass=newPass;row.pass_plain=newPass;w.pass=newPass;}
     const {error}=await _sb.from('staff').upsert(row,{onConflict:'id'});
     if(error)throw error;
     w.name=newName;w.user=newUser.toLowerCase();w.role=newRole;
@@ -2570,10 +2596,10 @@ async function initSupabase(){
       .on('postgres_changes',{event:'*',schema:'public',table:'staff'},payload=>{
         if(payload.eventType==='INSERT'){
           const r=payload.new;
-          if(!waiters.find(w=>w.id===r.id))waiters.push({id:r.id,user:r.user,pass:r.pass,role:r.role,name:r.name});
+          if(!waiters.find(w=>w.id===r.id))waiters.push({id:r.id,user:r.username||r.user,pass:r.pass_plain||r.pass,role:r.role,name:r.name});
         }else if(payload.eventType==='UPDATE'){
           const w=waiters.find(x=>x.id===payload.new?.id);
-          if(w)Object.assign(w,{user:payload.new.user,pass:payload.new.pass,role:payload.new.role,name:payload.new.name});
+          if(w)Object.assign(w,{user:payload.new.username||payload.new.user,pass:payload.new.pass_plain||payload.new.pass,role:payload.new.role,name:payload.new.name});
         }else if(payload.eventType==='DELETE'){
           const idx=waiters.findIndex(x=>x.id===payload.old?.id);
           if(idx>=0)waiters.splice(idx,1);
