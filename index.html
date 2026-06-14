@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_10.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_11.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -1091,10 +1091,8 @@ function tableClick(id){
   if(false){/* admin now uses same flow as waiter below */}
   /* Garzón — check for existing accounts */
   const activeOrds=orders.filter(ord=>ord.tableId===id&&ord.status!=='closed'&&ord.status!=='canceled');
-  const canceledOrds=orders.filter(ord=>ord.tableId===id&&ord.status==='canceled');
   if(activeOrds.length>1){showAccountSelect(id);return;}
   if(activeOrds.length===1){loadTableOrder(id,activeOrds[0]);return;}
-  if(canceledOrds.length){showToast('Mesa con pedido cancelado — avisar a admin','del');return;}
   /* No active orders — start new (sin prompt de cliente) */
   const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:''};
   orders.push(newOrder);totalOrdsIn++;
@@ -1130,16 +1128,19 @@ function cerrarSinCobrar(){
   if(!order){goPage('tables');return;}
   const mesa=cTable?.id||order.tableId;
   if(!confirm('¿Cerrar Mesa '+mesa+' sin cobrar? El pedido no pasará a caja ni a historial.'))return;
-  /* Marcar orden como cancelada sin pasar a closedSales */
-  order.status='canceled';
-  /* Liberar mesa */
+  /* Eliminar orden completamente del array — no queda rastro */
+  const idx=orders.findIndex(o=>o.id===currentAccountId);
+  if(idx>=0)orders.splice(idx,1);
+  /* Liberar mesa completamente */
   const t=getTable(mesa);
   if(t){t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;}
+  /* Limpiar kDone de esa orden */
+  if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
   /* Ocultar btn cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  cart=[];isMC=false;cTable=null;currentAccountId=null;
   broadcastState();
   showToast('Mesa '+mesa+' cerrada sin cobrar','ok');
-  cart=[];isMC=false;cTable=null;currentAccountId=null;
   renderTables();goPage('tables');
 }
 function showAccountSelect(tid){
@@ -2413,34 +2414,52 @@ async function hashPass(pass){
 
 async function createStaffUser(){
   const name=($('newStaffName').value||'').trim();
-  const username=($('newStaffUser').value||'').trim().toLowerCase();
+  const username=($('newStaffUser').value||'').trim().toLowerCase().replace(/\s+/g,'');
   const pass=($('newStaffPass').value||'').trim();
   const role=$('newStaffRole').value||'waiter';
-  if(!name||!username||!pass){showToast('Completa todos los campos');return;}
-  if(pass.length<4){showToast('La contraseña debe tener al menos 4 caracteres');return;}
-  if(!_sb){await initSupabase();}
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
-  /* Verificar que el usuario no exista */
+  /* Validaciones */
+  if(!name){showToast('Falta el nombre completo','del');return;}
+  if(!username){showToast('Falta el nombre de usuario','del');return;}
+  if(!pass){showToast('Falta la contraseña','del');return;}
+  if(pass.length<4){showToast('La contraseña debe tener al menos 4 caracteres','del');return;}
+  if(!/^[a-z0-9_]+$/.test(username)){showToast('Usuario: solo letras, números y guión bajo','del');return;}
+  /* Verificar duplicado local */
   const allUsers=[...SYSTEM_USERS,...waiters];
-  if(allUsers.find(x=>x.user.toLowerCase()===username)){showToast('Ese nombre de usuario ya existe','del');return;}
+  if(allUsers.find(x=>x.user.toLowerCase()===username)){
+    showToast('El usuario "'+username+'" ya existe','del');return;
+  }
+  /* Conectar Supabase */
+  if(!_sb){await initSupabase();}
   const btn=$('btnCreateStaffUser');
   if(btn){btn.disabled=true;btn.textContent='Creando...';}
   try{
-    const uid='U'+Date.now();
-    const passHash=await hashPass(pass);
-    const row={id:uid,user:username,pass:passHash,pass_plain:pass,role,name,updated_at:new Date().toISOString()};
-    const {error}=await _sb.from('staff').upsert(row,{onConflict:'id'});
-    if(error)throw error;
-    /* Agregar localmente */
+    const uid='USR'+Date.now();
+    const row={id:uid,user:username,pass:pass,pass_plain:pass,role,name,
+      updated_at:new Date().toISOString()};
+    if(_sb){
+      /* Verificar duplicado en Supabase */
+      const {data:exist}=await _sb.from('staff').select('id').eq('user',username).limit(1);
+      if(exist&&exist.length){showToast('El usuario "'+username+'" ya existe en la base de datos','del');return;}
+      const {error}=await _sb.from('staff').insert(row);
+      if(error){
+        console.error('[Staff] Supabase insert error:',error);
+        /* Si falla por RLS, intentar con upsert */
+        const {error:err2}=await _sb.from('staff').upsert(row,{onConflict:'id'});
+        if(err2)throw new Error('Supabase: '+err2.message+' (code: '+err2.code+')');
+      }
+      console.log('[Staff] Usuario creado en Supabase ✓');
+    }
+    /* Agregar localmente siempre */
     waiters.push({id:uid,user:username,pass,role,name});
-    showToast('✅ Usuario "'+name+'" creado','ok');
+    showToast('Usuario "'+name+'" creado'+(_sb?' (guardado en Supabase)':' (solo local)'),'ok');
     closeMod('addStaffUserModal');
     $('newStaffName').value='';$('newStaffUser').value='';$('newStaffPass').value='';
     renderStaff();
-    broadcastState();
+    if(_sb)broadcastState();
   }catch(e){
-    showToast('Error: '+(e.message||'no se pudo crear el usuario'),'del');
-    console.warn('[Staff] createStaffUser error:',e);
+    const msg=e.message||'Error desconocido';
+    showToast('Error al crear usuario: '+msg,'del');
+    console.error('[Staff] createStaffUser error completo:',e);
   }finally{
     if(btn){btn.disabled=false;btn.textContent='Crear usuario';}
   }
