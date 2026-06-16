@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_18.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_19.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -155,9 +155,23 @@ button:active{transform:scale(.97)}
 .mc-icon{width:40px;height:40px;border-radius:10px;background:#EAF1F8;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mc-icon i{font-size:22px;color:var(--inf)}
 
-/* ─── ORDER ─── */
-.mp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);padding:.8rem}
-.cp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);overflow:hidden;display:flex;flex-direction:column;position:sticky;top:16px;max-height:calc(100vh - 100px)}
+/* ─── ORDER PAGE LAYOUT ─── */
+/* Grid principal: menú a la izquierda, carrito fijo a la derecha */
+.op-desk{display:grid;grid-template-columns:1fr 380px;gap:1rem;align-items:start}
+.mp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);padding:.8rem;min-height:200px}
+
+/* Panel del carrito: sticky, altura máxima del viewport con scroll interno */
+.cp{
+  background:var(--wh);
+  border-radius:var(--rl);
+  border:1px solid var(--br);
+  display:flex;
+  flex-direction:column;
+  position:sticky;
+  top:16px;
+  max-height:calc(100vh - 90px);
+  overflow:hidden;
+}
 .mc2{display:flex;gap:5px;overflow-x:auto;margin-bottom:.5rem;padding-bottom:2px}
 .mc2::-webkit-scrollbar{display:none}
 .cb{padding:4px 10px;border-radius:20px;border:1px solid var(--br);background:var(--cr);cursor:pointer;font-size:11px;font-weight:600;color:var(--ts);white-space:nowrap;flex-shrink:0;transition:all .1s}
@@ -178,7 +192,7 @@ button:active{transform:scale(.97)}
 .ch h3{font-size:14px;color:var(--bd);font-weight:700}
 .cbdg{padding:2px 8px;border-radius:20px;font-size:11px;margin-top:3px;display:inline-block}
 .cbdg.mesa{background:var(--cr2);color:var(--ts)}.cbdg.mostr{background:#EAF1F8;color:var(--inf);font-weight:600}
-.ci{overflow-y:auto;padding:.7rem .8rem;flex:1;min-height:0;min-height:80px}
+.ci{overflow-y:auto;padding:.5rem .8rem;flex:1;min-height:0}
 .cit{display:flex;align-items:flex-start;gap:6px;padding:6px 0;border-bottom:1px solid var(--cr2)}
 .cit:last-child{border-bottom:none}
 .ci-info{flex:1;min-width:0}
@@ -569,35 +583,47 @@ button:active{transform:scale(.97)}
             <div class="cf">
               <div id="cartSummary"></div>
               <div id="paySection"></div>
-              <div id="kitchenCheckWrap" style="display:none">
-                <!-- Mostrador split-action buttons (shown instead of btnSend when isMC) -->
-                <div id="mcSplitBtns" style="display:none;gap:6px;margin-top:6px">
-                  <button class="bsend" style="background:var(--inf);flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="mcSendKitchen()"><i class="ti ti-chef-hat" style="font-size:14px" aria-hidden="true"></i> Enviar a Cocina</button>
-                  <button class="bsend" style="background:var(--ok);flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="mcCobrar()"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i> Cobrar Pedido</button>
-                </div>
-              </div>
-              <!-- BOTONES DE ACCIÓN DE MESA -->
-              <div id="mesaActions" style="display:none;flex-direction:column;gap:6px">
-                <!-- Fila 1: Enviar + Cancelar -->
+              <!-- Botones Mostrador -->
+              <div id="mcOrderBtns" style="display:none;flex-direction:column;gap:5px;margin-top:4px">
                 <div style="display:flex;gap:6px">
-                  <button id="btnSend" onclick="sendOrder()" style="flex:1;padding:12px;background:var(--bm);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-                    <i class="ti ti-send" style="font-size:13px"></i> Enviar a Cocina
-                  </button>
-                  <button id="btnCancelOrder" onclick="cancelarPedido()" style="padding:12px 16px;background:#FEF0F0;color:var(--er);border:1.5px solid var(--er);border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
-                    <i class="ti ti-x" style="font-size:13px"></i> Cancelar Pedido
-                  </button>
-                </div>
-                <!-- Fila 2: Cobrar y Cerrar + Dividir cuenta -->
-                <div id="cobrarBtns" style="display:none;flex-direction:column;gap:6px">
-                  <button class="bco total" onclick="cobrarYCerrar()" style="width:100%;padding:13px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px">
-                    <i class="ti ti-receipt" style="font-size:14px"></i> Cobrar y Cerrar
-                  </button>
-                  <button class="bco div" onclick="cobrarDividido()" style="width:100%;padding:11px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:7px">
-                    <i class="ti ti-users" style="font-size:13px"></i> Dividir cuenta
-                  </button>
+                  <button style="flex:1;padding:11px;background:var(--inf);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px" onclick="mcSendKitchen()"><i class="ti ti-chef-hat" style="font-size:13px"></i> Cocina</button>
+                  <button style="flex:1;padding:11px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px" onclick="mcCobrar()"><i class="ti ti-receipt" style="font-size:13px"></i> Cobrar</button>
                 </div>
               </div>
-              <!-- Botón mostrador (se mantiene) -->
+              <!-- ═══ BOTONES DE MESA ═══ -->
+              <div id="mesaActions" style="display:none;flex-direction:column;gap:5px;margin-top:4px">
+
+                <!-- BOTÓN 1: Enviar a Cocina (siempre visible) -->
+                <button id="btnSend" onclick="sendOrder()" style="width:100%;padding:13px;background:var(--bm);color:#fff;border:none;
+                         border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;
+                         display:flex;align-items:center;justify-content:center;gap:7px">
+                  <i class="ti ti-send" style="font-size:14px"></i> Enviar a Cocina
+                </button>
+
+                <!-- BOTONES 2+3: Cobrar y Dividir (se muestran al enviar a cocina) -->
+                <div id="cobrarBtns" style="display:none;flex-direction:column;gap:5px">
+                  <button onclick="cobrarYCerrar()" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;
+                           border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;
+                           display:flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="ti ti-receipt" style="font-size:13px"></i> Cobrar y Cerrar
+                  </button>
+                  <button onclick="cobrarDividido()" style="width:100%;padding:11px;background:#1D3557;color:#fff;border:none;
+                           border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;
+                           display:flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="ti ti-users" style="font-size:13px"></i> Dividir Cuenta
+                  </button>
+                </div>
+
+                <!-- BOTÓN 4: Cancelar Pedido (siempre visible, separado visualmente) -->
+                <button id="btnCancelOrder" onclick="cancelarPedido()" style="width:100%;padding:10px;background:transparent;color:var(--er);
+                         border:1.5px solid var(--er);border-radius:var(--r);font-size:12px;
+                         font-weight:700;cursor:pointer;display:flex;align-items:center;
+                         justify-content:center;gap:5px;margin-top:2px">
+                  <i class="ti ti-x" style="font-size:12px"></i> Cancelar Pedido
+                </button>
+
+              </div>
+                            <!-- Botón mostrador (se mantiene) -->
               <div id="mcSendWrap" style="display:none">
                 <button class="bsend" onclick="sendOrder()"><i class="ti ti-send" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Cobrar Mostrador</button>
               </div>
@@ -1117,26 +1143,40 @@ function tableClick(id){
   orders.push(newOrder);totalOrdsIn++;
   loadTableOrder(id,newOrder);
 }
-function loadTableOrder(id,order){
-  isMC=false;cTable=getTable(id);currentAccountId=order.id;
-  $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;$('cartBadge').className='cbdg mesa';
-  $('kitchenCheckWrap').style.display='none';
-  $('mcSplitBtns').style.display='none';
-  /* Mostrar botones de mesa */
-  const ma=$('mesaActions');if(ma)ma.style.display='flex';
-  const mcw=$('mcSendWrap');if(mcw)mcw.style.display='none';
-  /* Mostrar botón agregar cliente */
-  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
-  /* Mostrar cobrar solo si hay ítems enviados a cocina */
-  _updateCobrarBtn(order);
-  /* Si el pedido ya tiene ítems enviados, mostrar resumen; si no, cargar al carrito */
-  if(order.items&amp;&amp;order.items.length&gt;0){
-    cart=[];  /* carrito vacío — los ítems están en el pedido */
+function loadTableOrder(id, order){
+  isMC = false;
+  cTable = getTable(id);
+  currentAccountId = order.id;
+
+  /* Badge */
+  $('cartBadge').textContent = 'Mesa ' + id + (order.clientName ? ' · ' + order.clientName : '');
+  $('cartBadge').className = 'cbdg mesa';
+
+  /* Mostrar panel de mesa, ocultar mostrador */
+  const ma = $('mesaActions'); if(ma) ma.style.display = 'flex';
+  const mcw = $('mcSendWrap'); if(mcw) mcw.style.display = 'none';
+  const mc2 = $('mcOrderBtns'); if(mc2) mc2.style.display = 'none';
+
+  /* Mostrar btn agregar cliente */
+  const btnAC = $('btnAddClient'); if(btnAC) btnAC.style.display = '';
+
+  /* Si ya tiene ítems enviados → mostrar cobrar; si no → carrito vacío */
+  if(order.items &amp;&amp; order.items.length &gt; 0){
+    cart = []; /* carrito limpio; ítems ya están en el pedido */
   } else {
-    cart=order.items.map(i=&gt;({...i}));
+    cart = order.items.map(i =&gt; ({...i}));
   }
-  $('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
+  _updateCobrarBtn(order);
+
+  $('menuSearch').value = '';
+  $('kitchenCheckWrap') &amp;&amp; ($('kitchenCheckWrap').style.display = 'none');
+  $('mcSplitBtns') &amp;&amp; ($('mcSplitBtns').style.display = 'none');
+  $('paySection') &amp;&amp; ($('paySection').innerHTML = '');
+  renderMenu();
+  renderCart();
+  goPage('order');
 }
+
 
 function _updateCobrarBtn(order){
   const cb=$('cobrarBtns');if(!cb)return;
@@ -1233,18 +1273,20 @@ function addNewTableAccount(){
 function openMostrador(){
   isMC=true;cTable=null;cart=[];currentAccountId=null;
   $('cartBadge').textContent='Mostrador · '+cUser;$('cartBadge').className='cbdg mostr';
-  /* Ocultar botones de mesa, mostrar botón mostrador */
+  /* Ocultar botones de mesa, mostrar botones mostrador */
   const _ma=$('mesaActions');if(_ma)_ma.style.display='none';
-  const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='block';
+  const _mc2=$('mcOrderBtns');if(_mc2)_mc2.style.display='flex';
+  const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='none';
   const _bac=$('btnAddClient');if(_bac)_bac.style.display='none';
   $('kitchenCheckWrap').style.display='block';
   $('mcSplitBtns').style.display='flex';
   selPay='efectivo';$('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
 }
 function backFromOrder(){
-  const ma=$('mesaActions');if(ma)ma.style.display='none';
+  ['mesaActions','mcOrderBtns','mcSendWrap'].forEach(id=&gt;{const el=$(id);if(el)el.style.display='none';});
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  currentAccountId=null;renderTables();goPage('tables');
+  cart=[];isMC=false;cTable=null;currentAccountId=null;
+  renderTables();goPage('tables');
 }
 
 function renderPaySection(){
@@ -1301,7 +1343,37 @@ function saveNote(){if(noteItemIdx&gt;=0)cart[noteItemIdx].note=$('noteText').va
 
 function renderCart(){
   const el=$('cartItems');
-  if(!cart.length){el.innerHTML='<div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div>';$('cartSummary').innerHTML='';return;}
+  if(!el)return;
+
+  /* Si carrito vacío pero hay pedido activo con ítems → mostrar resumen */
+  const activeOrder = currentAccountId ? getOrder(currentAccountId) : null;
+  const sentItems = activeOrder &amp;&amp; activeOrder.items &amp;&amp; activeOrder.items.length ? activeOrder.items : [];
+
+  if(!cart.length &amp;&amp; sentItems.length){
+    const sentTotal = sentItems.reduce((s,i) =&gt; s + i.price*i.qty, 0);
+    el.innerHTML = `
+      <div style="padding:6px 0 4px;border-bottom:1px solid var(--br);margin-bottom:6px;font-size:10px;color:var(--ok);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:4px">
+        <i class="ti ti-check-circle" style="font-size:12px"></i> En cocina
+      </div>
+      ${sentItems.map(i=&gt;`<div class="cit">
+        <div class="ci-info"><div class="ci-name">${i.qty&gt;1?i.qty+'× ':''} ${i.name}</div>${i.note?`<div class="ci-note">${i.note}</div>`:''}</div>
+        <div class="ci-price">${fmt(i.price*i.qty)}</div>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:8px 0 4px;border-top:1px solid var(--br);margin-top:4px">
+        <span>Total pedido</span><span style="color:var(--bm)">${fmt(sentTotal)}</span>
+      </div>
+      <button onclick="agregarMasProductos()" style="width:100%;margin-top:6px;padding:8px;background:var(--cr);border:1.5px dashed var(--bm);border-radius:var(--r);color:var(--bm);font-size:11px;font-weight:700;cursor:pointer">
+        <i class="ti ti-plus" style="font-size:11px"></i> Agregar más productos
+      </button>`;
+    $('cartSummary').innerHTML = `<div class="crow"><span>Subtotal</span><span>${fmt(sentTotal)}</span></div><div class="ctotal"><span>Total</span><span>${fmt(sentTotal)}</span></div>`;
+    return;
+  }
+
+  if(!cart.length){
+    el.innerHTML='<div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div>';
+    $('cartSummary').innerHTML='';
+    return;
+  }
   el.innerHTML=cart.map((item,i)=&gt;`<div class="cit">
     <div class="ci-info">
       <div class="ci-name">${item.name}</div>
@@ -1400,8 +1472,8 @@ function confirmarCobro(oid,sub){
   }
   document.getElementById('cobrarModal')?.remove();
   /* Limpiar UI */
+  ['mesaActions','cobrarBtns','mcOrderBtns'].forEach(id=&gt;{const el=$(id);if(el)el.style.display='none';});
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  const ma=$('mesaActions');if(ma)ma.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(sub+tip),'ok');
   updateOCBadge();renderDashboard();renderTables();broadcastState();
@@ -1482,15 +1554,15 @@ function agregarMasProductos(){
 }
 
 function _refreshOrderView(order){
-  /* Actualizar badge */
-  const tableId=order.tableId;
-  $('cartBadge').textContent='Mesa '+tableId+(order.clientName?' · '+order.clientName:'');
-  /* Mostrar ítems enviados en el carrito (modo lectura) */
-  renderCart();
-  /* Mostrar botones cobrar */
+  const tableId = order.tableId;
+  $('cartBadge').textContent = 'Mesa ' + tableId + (order.clientName ? ' · ' + order.clientName : '');
+  /* Mostrar cobrarBtns ahora que hay ítems en el pedido */
   _updateCobrarBtn(order);
-  /* Vaciar búsqueda */
-  $('menuSearch').value='';
+  /* Refrescar vista del carrito para mostrar ítems enviados */
+  renderCart();
+  /* Asegurar que mesaActions esté visible */
+  const ma = $('mesaActions'); if(ma) ma.style.display = 'flex';
+  $('menuSearch').value = '';
   renderMenu();
 }
 
