@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_22.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_23.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -1275,12 +1275,12 @@ function renderMenuItems(){
     let found=[];
     Object.entries(menuData).forEach(([,subs])=&gt;Object.entries(subs).forEach(([,items])=&gt;items.forEach(item=&gt;{if(item.active&amp;&amp;item.name.toLowerCase().includes(q))found.push(item);})));
     html=found.length
-      ?`<div class="mi-grid">${found.map(item=&gt;`<div class="mi" onclick="addItemByName(&#39;${item.name.replace(/&#39;/g," '")}')""=""><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div>`
+      ?`<div class="mi-grid">${found.map(item=&gt;`<div class="mi" onclick="addItemByName(&#39;${item.name.replace(/&#39;/g,String.fromCharCode(39))}&#39;)"><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div>`
       :`<div style="color:var(--tl);text-align:center;padding:1rem;font-size:12px">Sin resultados para "${q}"</div>`;
   }else{
     Object.entries(menuData[aMenuCat]).forEach(([sec,items])=&gt;{
       const a=items.filter(i=&gt;i.active);if(!a.length)return;
-      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=&gt;`<div class="mi" onclick="addItemByName(&#39;${item.name.replace(/&#39;/g," '")}')""=""><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div></div>`;
+      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=&gt;`<div class="mi" onclick="addItemByName(&#39;${item.name.replace(/&#39;/g,String.fromCharCode(39))}&#39;)"><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div></div>`;
     });
   }
   $('menuItems').innerHTML=html;
