@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_12.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_14.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -576,12 +576,31 @@ button:active{transform:scale(.97)}
                   <button class="bsend" style="background:var(--ok);flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="mcCobrar()"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i> Cobrar Pedido</button>
                 </div>
               </div>
-              <div class="cobrar-btns" id="cobrarBtns" style="display:none">
-                <button class="bco total" onclick="cobrarTotal()"><i class="ti ti-receipt" style="font-size:12px" aria-hidden="true"></i> Cobrar total</button>
-                <button class="bco div" onclick="cobrarDividido()"><i class="ti ti-users" style="font-size:12px" aria-hidden="true"></i> Dividir</button>
-
+              <!-- BOTONES DE ACCIÓN DE MESA -->
+              <div id="mesaActions" style="display:none;flex-direction:column;gap:6px">
+                <!-- Fila 1: Enviar + Cancelar -->
+                <div style="display:flex;gap:6px">
+                  <button id="btnSend" onclick="sendOrder()" style="flex:1;padding:12px;background:var(--bm);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="ti ti-send" style="font-size:13px"></i> Enviar a Cocina
+                  </button>
+                  <button id="btnCancelOrder" onclick="cancelarPedido()" style="padding:12px 16px;background:#FEF0F0;color:var(--er);border:1.5px solid var(--er);border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
+                    <i class="ti ti-x" style="font-size:13px"></i> Cancelar
+                  </button>
+                </div>
+                <!-- Fila 2: Cobrar y Cerrar + Dividir cuenta -->
+                <div id="cobrarBtns" style="display:none;flex-direction:column;gap:6px">
+                  <button class="bco total" onclick="cobrarYCerrar()" style="width:100%;padding:13px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px">
+                    <i class="ti ti-receipt" style="font-size:14px"></i> Cobrar y Cerrar
+                  </button>
+                  <button class="bco div" onclick="cobrarDividido()" style="width:100%;padding:11px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:7px">
+                    <i class="ti ti-users" style="font-size:13px"></i> Dividir cuenta
+                  </button>
+                </div>
               </div>
-              <button class="bsend" id="btnSend" onclick="sendOrder()"><i class="ti ti-send" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Enviar a Cocina</button>
+              <!-- Botón mostrador (se mantiene) -->
+              <div id="mcSendWrap" style="display:none">
+                <button class="bsend" onclick="sendOrder()"><i class="ti ti-send" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Cobrar Mostrador</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1101,17 +1120,24 @@ function tableClick(id){
 function loadTableOrder(id,order){
   isMC=false;cTable=getTable(id);currentAccountId=order.id;
   $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;$('cartBadge').className='cbdg mesa';
-  $('btnSend').style.display='';$('cobrarBtns').style.display='none';
-  $('btnSend').textContent='Enviar a Cocina';$('btnSend').className='bsend';
   $('kitchenCheckWrap').style.display='none';
   $('mcSplitBtns').style.display='none';
-  /* Mostrar botón agregar cliente y cancelar pedido */
-  const btnAC=$('btnAddClient');
-  if(btnAC)btnAC.style.display='';
-  const btnCO=$('btnCancelOrder');
-  if(btnCO)btnCO.style.display='';
+  /* Mostrar botones de mesa */
+  const ma=$('mesaActions');if(ma)ma.style.display='flex';
+  const mcw=$('mcSendWrap');if(mcw)mcw.style.display='none';
+  /* Mostrar botón agregar cliente */
+  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
+  /* Mostrar cobrar solo si hay ítems enviados a cocina */
+  _updateCobrarBtn(order);
   cart=order.items.map(i=>({...i}));
   $('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
+}
+
+function _updateCobrarBtn(order){
+  const cb=$('cobrarBtns');if(!cb)return;
+  /* Mostrar "Cobrar y Cerrar" solo si hay ítems en el pedido */
+  const hasItems=order&&order.items&&order.items.length>0;
+  cb.style.display=hasItems?'flex':'none';
 }
 
 function addClientToOrder(){
@@ -1202,14 +1228,19 @@ function addNewTableAccount(){
 function openMostrador(){
   isMC=true;cTable=null;cart=[];currentAccountId=null;
   $('cartBadge').textContent='Mostrador · '+cUser;$('cartBadge').className='cbdg mostr';
-  /* Hide the single send button — split buttons take over for mostrador */
-  $('btnSend').style.display='none';
-  $('cobrarBtns').style.display='none';
+  /* Ocultar botones de mesa, mostrar botón mostrador */
+  const _ma=$('mesaActions');if(_ma)_ma.style.display='none';
+  const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='block';
+  const _bac=$('btnAddClient');if(_bac)_bac.style.display='none';
   $('kitchenCheckWrap').style.display='block';
   $('mcSplitBtns').style.display='flex';
   selPay='efectivo';$('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
 }
-function backFromOrder(){currentAccountId=null;renderTables();goPage('tables');}
+function backFromOrder(){
+  const ma=$('mesaActions');if(ma)ma.style.display='none';
+  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  currentAccountId=null;renderTables();goPage('tables');
+}
 
 function renderPaySection(){
   if(!isMC){$('paySection').innerHTML='';return;}
@@ -1292,9 +1323,88 @@ function cobrarTotal(){
   if(!o){showToast('Sin pedido activo');return;}
   backFromOrder();setTimeout(()=>openOD(o.id),80);
 }
+
+function cobrarYCerrar(){
+  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
+  if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
+  const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
+  const defaultTip=Math.round(sub*0.1);
+  /* Mostrar modal de cobro con propina */
+  const modal=document.createElement('div');
+  modal.className='ov';modal.id='cobrarModal';modal.style.cssText='display:flex;z-index:9999';
+  modal.innerHTML=`<div class="mb" style="max-width:360px;width:100%">
+    <h3 style="margin-bottom:.8rem"><i class="ti ti-receipt" style="color:var(--bm)"></i> Cobrar ${o.tableId?'Mesa '+o.tableId:''}</h3>
+    <div style="margin-bottom:.6rem">
+      ${o.items.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
+    </div>
+    <div style="border-top:1px solid var(--br);padding-top:.6rem;margin-bottom:.8rem">
+      <div class="dir"><span style="color:var(--ts)">Subtotal</span><span>${fmt(sub)}</span></div>
+      <div class="dir" style="align-items:center;margin-top:6px">
+        <span style="color:var(--ts)">Propina</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="cobrarTipPct" value="10" min="0" max="100" style="width:52px;padding:4px 6px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;text-align:center" oninput="cobrarUpdateTip(${sub})"> %
+          <span style="font-size:11px;color:var(--ts)" id="cobrarTipAmt">${fmt(defaultTip)}</span>
+        </div>
+      </div>
+      <div class="dir" style="margin-top:6px;font-weight:700;font-size:15px"><span>Total</span><span id="cobrarTotalAmt" style="color:var(--bm)">${fmt(sub+defaultTip)}</span></div>
+    </div>
+    <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Método de pago</div>
+    <div class="pay-opts" id="cobrarPayOpts">
+      <div class="pb2 active" onclick="setCobrarPago('efectivo',this)"><i class="ti ti-cash"></i>Efectivo</div>
+      <div class="pb2" onclick="setCobrarPago('tarjeta',this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
+      <div class="pb2" onclick="setCobrarPago('transferencia',this)"><i class="ti ti-building-bank"></i>Transfer.</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="bs2" style="flex:1" onclick="document.getElementById('cobrarModal').remove()">Cancelar</button>
+      <button class="bc2" style="flex:2;background:var(--bm);color:#fff;border:none" onclick="confirmarCobro('${o.id}',${sub})">
+        <i class="ti ti-check"></i> Confirmar cobro
+      </button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.onclick=e=>{if(e.target===modal)modal.remove();};
+  window._cobrarPago='efectivo';
+}
+
+function cobrarUpdateTip(sub){
+  const pct=parseInt($('cobrarTipPct').value)||0;
+  const tip=Math.round(sub*pct/100);
+  $('cobrarTipAmt').textContent=fmt(tip);
+  $('cobrarTotalAmt').textContent=fmt(sub+tip);
+}
+
+function setCobrarPago(pago,el){
+  window._cobrarPago=pago;
+  el.closest('#cobrarPayOpts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function confirmarCobro(oid,sub){
+  const o=getOrder(oid);if(!o)return;
+  const pct=parseInt($('cobrarTipPct')?.value)||0;
+  const tip=Math.round(sub*pct/100);
+  const pago=window._cobrarPago||'efectivo';
+  o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
+  closedSales.push({...o,items:o.items.map(i=>({...i}))});
+  addCajaMov(sub+tip,pago,(o.tableId?'Mesa '+o.tableId:'Mostrador'));
+  /* Liberar mesa */
+  const t=getTable(o.tableId);
+  if(t){
+    const rem=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
+    if(!rem.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
+  }
+  document.getElementById('cobrarModal')?.remove();
+  /* Limpiar UI */
+  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  const ma=$('mesaActions');if(ma)ma.style.display='none';
+  cart=[];isMC=false;cTable=null;currentAccountId=null;
+  showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(sub+tip),'ok');
+  updateOCBadge();renderDashboard();renderTables();broadcastState();
+  goPage('tables');
+}
 function cobrarDividido(){
   const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
-  if(!o){showToast('Sin pedido activo');return;}
+  if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
   openSplitBill(o.id);
 }
 
