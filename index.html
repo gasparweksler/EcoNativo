@@ -1,5 +1,4 @@
 ﻿<!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_26.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -993,7 +992,7 @@ function checkSecurity(){
   const ans=($('secAnswer').value||'').trim().toLowerCase();
   if(ans==='gaspar'){
     const all=[...SYSTEM_USERS,...waiters];
-    $('secResult').innerHTML='<strong>Credenciales del sistema:</strong><br><br>'+all.map(u=>`<div style=" padding:3px="" 0;border-bottom:1px="" solid="" var(--br)"=""><strong>${u.name}</strong> (${u.role})<br>Usuario: <code>${u.user}</code> · Contraseña: <code>${u.pass}</code></div>`).join('');
+    $('secResult').innerHTML='<strong>Credenciales del sistema:</strong><br><br>'+all.map(u=>`<div style="padding:3px 0;border-bottom:1px solid var(--br)"><strong>${u.name}</strong> (${u.role})<br>Usuario: <code>${u.user}</code> · Contraseña: <code>${u.pass}</code></div>`).join('');
     $('secResult').style.display='block';
   }else{$('secResult').innerHTML='<span style="color:var(--er)">Respuesta incorrecta.</span>';$('secResult').style.display='block';}
 }
@@ -1592,7 +1591,7 @@ function openSplitBill(oid){
 }
 function getSplitItems(){
   const o=getOrder(splitOrderId);let items=[];
-  o.items.forEach(item=>{for(let q=0;q<item.qty;q++)items.push({...item,qty:1});}); return="" items;="" }="" function="" getitemowner(ii){return="" splitpeople.findindex(p="">p.items.includes(ii));}
+  o.items.forEach(item=>{for(let q=0;q<item.qty;q++)items.push({...item,qty:1});}); return items; } function getItemOwner(ii){return splitPeople.findIndex(p=>p.items.includes(ii));}
 
 function renderSplitModal(){
   const o=getOrder(splitOrderId);const items=getSplitItems();
@@ -1616,15 +1615,15 @@ function renderSplitModal(){
 
       const style=isPaidItem?'text-decoration:line-through;color:var(--tl)':'';
       html+=`<div class="split-item-row">
-        <input type="checkbox" ${assignedtome?'checked':''}="" ${p.paid?'disabled':''}="" onchange="toggleSplitItem(${pi},${ii})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
+        <input type="checkbox" ${assignedToMe?'checked':''} ${p.paid?'disabled':''} onchange="toggleSplitItem(${pi},${ii})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
         <span class="split-item-name" style="${style}">${item.name}${item.note?' ('+item.note+')':''}</span>
         <span class="split-item-price" style="${style}">${fmt(item.price)}</span>
       </div>`;
     });
 
     html+=`<div class="split-tip-row"><label>Propina:</label>
-      <input type="number" value="${p.tip}" min="0" ${p.paid?'disabled':''}="" onchange="splitPeople[${pi}].tip=parseInt(this.value)||0">
-      <button onclick="autoSplitTip(${pi})" ${p.paid?'disabled':''}="" style="padding:2px 7px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">10% auto</button>
+      <input type="number" value="${p.tip}" min="0" ${p.paid?'disabled':''} onchange="splitPeople[${pi}].tip=parseInt(this.value)||0">
+      <button onclick="autoSplitTip(${pi})" ${p.paid?'disabled':''} style="padding:2px 7px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">10% auto</button>
     </div>
     <div class="split-total-row"><span>Total persona ${pi+1}</span><span>${fmt(calcPersonTotal(pi))}</span></div>`;
 
@@ -1862,7 +1861,7 @@ function openClientDetail(cid){
       </div>
     </div>
     ${c.pendings.length?c.pendings.map((p,pi)=>`<div class="pend-item">
-      <input type="checkbox" ${p.done?'checked':''}="" onchange="togglePending('${cid}',${pi})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
+      <input type="checkbox" ${p.done?'checked':''} onchange="togglePending('${cid}',${pi})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
       <div style="flex:1"><span style="${p.done?'text-decoration:line-through;color:var(--tl)':''}">${p.desc}</span><div style="font-size:10px;color:var(--ts)">${p.val||''}</div></div>
       <div style="display:flex;gap:4px;align-items:center">
         ${!p.done&&p.unitVal?`<button style="display:flex;align-items:center;gap:3px;padding:3px 7px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap" title="Cobrar este ítem" onclick="chargeClientItem('${cid}',${pi})"><i class="ti ti-cash" style="font-size:11px" aria-hidden="true"></i> Cobrar</button>`:''}
@@ -1941,7 +1940,7 @@ function renderPendingSearch(){
   Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
   if(!found.length){res.style.display='none';return;}
   res.style.display='block';
-  res.innerHTML=found.slice(0,6).map(item=>`<div class="pend-search-result" onclick="selectPendingProduct('${item.name.replace(/'/g," \\'")}',${item.price})"=""><span>${item.name}</span><span style="color:var(--bm);font-weight:700">${fmt(item.price)}</span></div>`).join('');
+  res.innerHTML=found.slice(0,6).map(item=>`<div class="pend-search-result" onclick="selectPendingProduct('${item.name.replace(/'/g,"\\''")}',${item.price})"><span>${item.name}</span><span style="color:var(--bm);font-weight:700">${fmt(item.price)}</span></div>`).join('');
 }
 function selectPendingProduct(name,price){
   $('pendingDesc').value=name;$('pendingUnit').value=price;
@@ -2222,7 +2221,7 @@ function renderCarta(){
     <table class="p-table"><thead><tr><th>Nombre</th><th>Precio</th><th>Activo</th><th></th></tr></thead><tbody><tr>
       <td style="font-weight:600;font-size:11px">${item.name}${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;margin-left:3px">pizza</span>':''}</td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
-      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''}="" onchange="menuData['${aCartaCat}']['${sub}'][${i}].active=this.checked;showToast(this.checked?'Activado':'Desactivado')"><span class="tsl"></span></label></td>
+      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="menuData['${aCartaCat}']['${sub}'][${i}].active=this.checked;showToast(this.checked?'Activado':'Desactivado')"><span class="tsl"></span></label></td>
       <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${aCartaCat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
     </tr></tbody></table></div>`;
   });
@@ -2257,7 +2256,7 @@ function renderInv(){
       </button>
     </div>`+
   inventoryItems.map((item,i)=>{
-    const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok'; const="" isdirty="_invDirty.has(item.name);" return="" `<div="" class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
+    const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok'; const isDirty=_invDirty.has(item.name); return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
       <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><div class="inv-cat">${item.cat}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
       <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
       <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
