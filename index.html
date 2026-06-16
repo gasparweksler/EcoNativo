@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_14.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_15.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -1129,7 +1129,12 @@ function loadTableOrder(id,order){
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
   /* Mostrar cobrar solo si hay ítems enviados a cocina */
   _updateCobrarBtn(order);
-  cart=order.items.map(i=>({...i}));
+  /* Si el pedido ya tiene ítems enviados, mostrar resumen; si no, cargar al carrito */
+  if(order.items&&order.items.length>0){
+    cart=[];  /* carrito vacío — los ítems están en el pedido */
+  } else {
+    cart=order.items.map(i=>({...i}));
+  }
   $('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
 }
 
@@ -1437,15 +1442,46 @@ function mcCobrar(){
 /* SEND ORDER — mesa only (mostrador handled by mcSendKitchen/mcCobrar above) */
 function sendOrder(){
   if(!cart.length){showToast('El carrito está vacío');return;}
-  if(isMC){mcCobrar();return;}/* safety fallback */
-  /* Mesa — use currentAccountId if set */
-  const ex=currentAccountId?getOrder(currentAccountId):orders.find(o=>o.tableId===cTable?.id&&o.status!=='closed'&&o.status!=='canceled');
-  if(ex&&ex.status!=='closed'){ex.items=[...ex.items,...cart.map(i=>({...i}))];showToast('Productos agregados al pedido','ok');}
-  else{
-    const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:cTable.id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:cart.map(i=>({...i})),clientName:cUser};
-    orders.push(newOrder);totalOrdsIn++;showBell('🔔 Nuevo pedido · Mesa '+cTable.id);
+  if(isMC){mcCobrar();return;}
+  /* Mesa */
+  let order=currentAccountId?getOrder(currentAccountId):orders.find(o=>o.tableId===cTable?.id&&o.status!=='closed'&&o.status!=='canceled');
+  if(order&&order.status!=='closed'){
+    order.items=[...order.items,...cart.map(i=>({...i}))];
+    showToast('Enviado a cocina 🍳','ok');
+  } else {
+    order={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:cTable.id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:cart.map(i=>({...i})),clientName:''};
+    orders.push(order);totalOrdsIn++;
+    showToast('Pedido enviado a cocina 🍳','ok');
+    showBell('🔔 Nuevo pedido · Mesa '+cTable.id);
   }
-  cart=[];currentAccountId=null;updateOCBadge();renderTables();goPage('tables');broadcastState();
+  /* Mantener currentAccountId para mostrar el resumen */
+  currentAccountId=order.id;
+  cart=[];
+  updateOCBadge();
+  broadcastState();
+  /* Actualizar vista: mostrar resumen del pedido con botones de cobro */
+  _refreshOrderView(order);
+}
+
+function agregarMasProductos(){
+  /* Limpiar carrito para agregar nuevos productos */
+  cart=[];
+  renderCart();
+  renderMenu();
+  showToast('Agrega productos y vuelve a enviar a cocina','ok');
+}
+
+function _refreshOrderView(order){
+  /* Actualizar badge */
+  const tableId=order.tableId;
+  $('cartBadge').textContent='Mesa '+tableId+(order.clientName?' · '+order.clientName:'');
+  /* Mostrar ítems enviados en el carrito (modo lectura) */
+  renderCart();
+  /* Mostrar botones cobrar */
+  _updateCobrarBtn(order);
+  /* Vaciar búsqueda */
+  $('menuSearch').value='';
+  renderMenu();
 }
 
 /* ── PIZZA ── */
