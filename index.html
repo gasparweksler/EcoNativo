@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_15.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_17.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -108,7 +108,7 @@ button:active{transform:scale(.97)}
   .sg{grid-template-columns:repeat(4,1fr)}
   .op-desk{display:grid;grid-template-columns:1fr 390px;gap:1.2rem}
   .mp{max-height:calc(100vh - 120px);overflow-y:auto}
-  .ci{max-height:280px}
+  .ci{max-height:none}
   .kg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 }
 /* Mobile */
@@ -157,7 +157,7 @@ button:active{transform:scale(.97)}
 
 /* ─── ORDER ─── */
 .mp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);padding:.8rem}
-.cp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);overflow:hidden;display:flex;flex-direction:column}
+.cp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);overflow:hidden;display:flex;flex-direction:column;height:100%}
 .mc2{display:flex;gap:5px;overflow-x:auto;margin-bottom:.5rem;padding-bottom:2px}
 .mc2::-webkit-scrollbar{display:none}
 .cb{padding:4px 10px;border-radius:20px;border:1px solid var(--br);background:var(--cr);cursor:pointer;font-size:11px;font-weight:600;color:var(--ts);white-space:nowrap;flex-shrink:0;transition:all .1s}
@@ -178,7 +178,7 @@ button:active{transform:scale(.97)}
 .ch h3{font-size:14px;color:var(--bd);font-weight:700}
 .cbdg{padding:2px 8px;border-radius:20px;font-size:11px;margin-top:3px;display:inline-block}
 .cbdg.mesa{background:var(--cr2);color:var(--ts)}.cbdg.mostr{background:#EAF1F8;color:var(--inf);font-weight:600}
-.ci{overflow-y:auto;padding:.7rem .8rem}
+.ci{overflow-y:auto;padding:.7rem .8rem;flex:1;min-height:0}
 .cit{display:flex;align-items:flex-start;gap:6px;padding:6px 0;border-bottom:1px solid var(--cr2)}
 .cit:last-child{border-bottom:none}
 .ci-info{flex:1;min-width:0}
@@ -564,7 +564,7 @@ button:active{transform:scale(.97)}
           <div class="cp">
             <div class="ch"><h3>Pedido</h3><div class="cbdg" id="cartBadge">—</div>
               <button id="btnAddClient" onclick="addClientToOrder()" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-user-plus" style="font-size:9px"></i> Cliente</button>
-            </div></div>
+            </div>
             <div class="ci" id="cartItems"><div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div></div>
             <div class="cf">
               <div id="cartSummary"></div>
@@ -683,7 +683,7 @@ button:active{transform:scale(.97)}
     </div>
     <div class="bnav" id="bnav"></div>
   </div>
-
+</div>
 
 <!-- MODALS -->
 <div class="ov" id="secModal"><div class="mb" style="max-width:400px">
