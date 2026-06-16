@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_19.html -->
+<!-- saved from url=(0046)file:///C:/Users/gaspa/Downloads/index_20.html -->
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -155,23 +155,9 @@ button:active{transform:scale(.97)}
 .mc-icon{width:40px;height:40px;border-radius:10px;background:#EAF1F8;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mc-icon i{font-size:22px;color:var(--inf)}
 
-/* ─── ORDER PAGE LAYOUT ─── */
-/* Grid principal: menú a la izquierda, carrito fijo a la derecha */
-.op-desk{display:grid;grid-template-columns:1fr 380px;gap:1rem;align-items:start}
-.mp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);padding:.8rem;min-height:200px}
-
-/* Panel del carrito: sticky, altura máxima del viewport con scroll interno */
-.cp{
-  background:var(--wh);
-  border-radius:var(--rl);
-  border:1px solid var(--br);
-  display:flex;
-  flex-direction:column;
-  position:sticky;
-  top:16px;
-  max-height:calc(100vh - 90px);
-  overflow:hidden;
-}
+/* ─── ORDER ─── */
+.mp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);padding:.8rem}
+.cp{background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);overflow:hidden;display:flex;flex-direction:column;position:sticky;top:16px;max-height:calc(100vh - 100px)}
 .mc2{display:flex;gap:5px;overflow-x:auto;margin-bottom:.5rem;padding-bottom:2px}
 .mc2::-webkit-scrollbar{display:none}
 .cb{padding:4px 10px;border-radius:20px;border:1px solid var(--br);background:var(--cr);cursor:pointer;font-size:11px;font-weight:600;color:var(--ts);white-space:nowrap;flex-shrink:0;transition:all .1s}
@@ -192,7 +178,7 @@ button:active{transform:scale(.97)}
 .ch h3{font-size:14px;color:var(--bd);font-weight:700}
 .cbdg{padding:2px 8px;border-radius:20px;font-size:11px;margin-top:3px;display:inline-block}
 .cbdg.mesa{background:var(--cr2);color:var(--ts)}.cbdg.mostr{background:#EAF1F8;color:var(--inf);font-weight:600}
-.ci{overflow-y:auto;padding:.5rem .8rem;flex:1;min-height:0}
+.ci{overflow-y:auto;padding:.7rem .8rem;flex:1;min-height:0;min-height:80px}
 .cit{display:flex;align-items:flex-start;gap:6px;padding:6px 0;border-bottom:1px solid var(--cr2)}
 .cit:last-child{border-bottom:none}
 .ci-info{flex:1;min-width:0}
@@ -477,7 +463,7 @@ button:active{transform:scale(.97)}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:1rem 0">
       <div class="rb" onclick="selRole(&#39;waiter&#39;)" id="role-waiter" style="padding: 12px 6px; border-color: var(--br); background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-notebook" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Garzón</span></div>
       <div class="rb" onclick="selRole(&#39;admin&#39;)" id="role-admin" style="padding: 12px 6px; border-color: var(--bm); background: var(--bm); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--wh);"><i class="ti ti-layout-dashboard" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Admin</span></div>
-      <div class="rb" onclick="selRole(&#39;kitchen&#39;)" id="role-kitchen" style="padding: 12px 6px; border-color: var(--br); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-chef-hat" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Cocina</span></div>
+      <div class="rb" onclick="selRole(&#39;kitchen&#39;)" id="role-kitchen" style="padding: 12px 6px; border-color: var(--br); background: var(--cr); border-radius: var(--r); cursor: pointer; text-align: center; transition: 0.15s; color: var(--tm);"><i class="ti ti-chef-hat" style="display:block;font-size:20px;margin-bottom:3px"></i><span style="font-size:11px;font-weight:700">Cocina</span></div>
     </div>
     <div class="form-item"><label>Usuario</label><input type="text" id="lu" value="Econativo"></div>
     <div class="form-item"><label>Contraseña</label><input type="password" id="lp" value="1914"></div>
@@ -583,47 +569,35 @@ button:active{transform:scale(.97)}
             <div class="cf">
               <div id="cartSummary"></div>
               <div id="paySection"></div>
-              <!-- Botones Mostrador -->
-              <div id="mcOrderBtns" style="display:none;flex-direction:column;gap:5px;margin-top:4px">
+              <div id="kitchenCheckWrap" style="display:none">
+                <!-- Mostrador split-action buttons (shown instead of btnSend when isMC) -->
+                <div id="mcSplitBtns" style="display:none;gap:6px;margin-top:6px">
+                  <button class="bsend" style="background:var(--inf);flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="mcSendKitchen()"><i class="ti ti-chef-hat" style="font-size:14px" aria-hidden="true"></i> Enviar a Cocina</button>
+                  <button class="bsend" style="background:var(--ok);flex:1;display:flex;align-items:center;justify-content:center;gap:6px" onclick="mcCobrar()"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i> Cobrar Pedido</button>
+                </div>
+              </div>
+              <!-- BOTONES DE ACCIÓN DE MESA -->
+              <div id="mesaActions" style="display:none;flex-direction:column;gap:6px">
+                <!-- Fila 1: Enviar + Cancelar -->
                 <div style="display:flex;gap:6px">
-                  <button style="flex:1;padding:11px;background:var(--inf);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px" onclick="mcSendKitchen()"><i class="ti ti-chef-hat" style="font-size:13px"></i> Cocina</button>
-                  <button style="flex:1;padding:11px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px" onclick="mcCobrar()"><i class="ti ti-receipt" style="font-size:13px"></i> Cobrar</button>
-                </div>
-              </div>
-              <!-- ═══ BOTONES DE MESA ═══ -->
-              <div id="mesaActions" style="display:none;flex-direction:column;gap:5px;margin-top:4px">
-
-                <!-- BOTÓN 1: Enviar a Cocina (siempre visible) -->
-                <button id="btnSend" onclick="sendOrder()" style="width:100%;padding:13px;background:var(--bm);color:#fff;border:none;
-                         border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;
-                         display:flex;align-items:center;justify-content:center;gap:7px">
-                  <i class="ti ti-send" style="font-size:14px"></i> Enviar a Cocina
-                </button>
-
-                <!-- BOTONES 2+3: Cobrar y Dividir (se muestran al enviar a cocina) -->
-                <div id="cobrarBtns" style="display:none;flex-direction:column;gap:5px">
-                  <button onclick="cobrarYCerrar()" style="width:100%;padding:12px;background:#2D6A4F;color:#fff;border:none;
-                           border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;
-                           display:flex;align-items:center;justify-content:center;gap:6px">
-                    <i class="ti ti-receipt" style="font-size:13px"></i> Cobrar y Cerrar
+                  <button id="btnSend" onclick="sendOrder()" style="flex:1;padding:12px;background:var(--bm);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="ti ti-send" style="font-size:13px"></i> Enviar a Cocina
                   </button>
-                  <button onclick="cobrarDividido()" style="width:100%;padding:11px;background:#1D3557;color:#fff;border:none;
-                           border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;
-                           display:flex;align-items:center;justify-content:center;gap:6px">
-                    <i class="ti ti-users" style="font-size:13px"></i> Dividir Cuenta
+                  <button id="btnCancelOrder" onclick="cancelarPedido()" style="padding:12px 16px;background:#FEF0F0;color:var(--er);border:1.5px solid var(--er);border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
+                    <i class="ti ti-x" style="font-size:13px"></i> Cancelar Pedido
                   </button>
                 </div>
-
-                <!-- BOTÓN 4: Cancelar Pedido (siempre visible, separado visualmente) -->
-                <button id="btnCancelOrder" onclick="cancelarPedido()" style="width:100%;padding:10px;background:transparent;color:var(--er);
-                         border:1.5px solid var(--er);border-radius:var(--r);font-size:12px;
-                         font-weight:700;cursor:pointer;display:flex;align-items:center;
-                         justify-content:center;gap:5px;margin-top:2px">
-                  <i class="ti ti-x" style="font-size:12px"></i> Cancelar Pedido
-                </button>
-
+                <!-- Fila 2: Cobrar y Cerrar + Dividir cuenta -->
+                <div id="cobrarBtns" style="display:none;flex-direction:column;gap:6px">
+                  <button class="bco total" onclick="cobrarYCerrar()" style="width:100%;padding:13px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px">
+                    <i class="ti ti-receipt" style="font-size:14px"></i> Cobrar y Cerrar
+                  </button>
+                  <button class="bco div" onclick="cobrarDividido()" style="width:100%;padding:11px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:7px">
+                    <i class="ti ti-users" style="font-size:13px"></i> Dividir cuenta
+                  </button>
+                </div>
               </div>
-                            <!-- Botón mostrador (se mantiene) -->
+              <!-- Botón mostrador (se mantiene) -->
               <div id="mcSendWrap" style="display:none">
                 <button class="bsend" onclick="sendOrder()"><i class="ti ti-send" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Cobrar Mostrador</button>
               </div>
@@ -856,16 +830,16 @@ button:active{transform:scale(.97)}
 <div class="bell-popup" id="bellPopup" aria-live="polite"><i class="ti ti-bell" style="font-size:18px" aria-hidden="true"></i><span id="bellText">🔔 Nuevo pedido ingresado</span></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-&lt;
+<script>
 /* ── UTILS ── */
-const $=id=&gt;document.getElementById(id);
+const $=id=>document.getElementById(id);
 function fmt(n){return '$'+Math.round(n).toLocaleString('es-CL')}
-function elapsed(ts){const m=Math.floor((Date.now()-ts)/60000);return m&lt;60?m+'min':Math.floor(m/60)+'h '+(m%60)+'min'}
+function elapsed(ts){const m=Math.floor((Date.now()-ts)/60000);return m<60?m+'min':Math.floor(m/60)+'h '+(m%60)+'min'}
 function ftime(ts){return new Date(ts).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}
 function fdate(ts){return new Date(ts).toLocaleDateString('es-CL')}
-function getTable(id){return tables.find(t=&gt;t.id===id)}
-function getOrder(id){return orders.find(o=&gt;o.id===id)}
-function oTotal(o){return o.items.reduce((s,i)=&gt;s+i.price*i.qty,0)}
+function getTable(id){return tables.find(t=>t.id===id)}
+function getOrder(id){return orders.find(o=>o.id===id)}
+function oTotal(o){return o.items.reduce((s,i)=>s+i.price*i.qty,0)}
 function openMod(id){$(id).classList.add('open')}
 function closeMod(id){$(id).classList.remove('open')}
 
@@ -877,7 +851,7 @@ function showToast(msg,type=''){
   t.textContent=msg;
   t.style.background=type==='ok'?'var(--ok)':type==='del'?'var(--er)':'var(--bd)';
   t.classList.add('show');
-  toastTm=setTimeout(()=&gt;{t.classList.remove('show');toastTm=null},2500);
+  toastTm=setTimeout(()=>{t.classList.remove('show');toastTm=null},2500);
 }
 
 /* Bell — slides up from bottom, auto-hides */
@@ -885,7 +859,7 @@ let bellTm=null;
 function playBell(){
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [0,.15,.3].forEach((d,i)=&gt;{
+    [0,.15,.3].forEach((d,i)=>{
       const o=ctx.createOscillator(),g=ctx.createGain();
       o.connect(g);g.connect(ctx.destination);
       o.frequency.value=880-i*80;o.type='sine';
@@ -902,7 +876,7 @@ function showBell(msg){
   b.classList.add('show');
   playBell();
   if(bellTm)clearTimeout(bellTm);
-  bellTm=setTimeout(()=&gt;{b.classList.remove('show');bellTm=null},3500);
+  bellTm=setTimeout(()=>{b.classList.remove('show');bellTm=null},3500);
 }
 
 /* ── STATE ── */
@@ -958,7 +932,7 @@ let clientCnt=3;
 
 /* ── CAJA ── */
 const caja={open:false,openTime:null,fondo:0,movements:[],log:[]};
-function cajaByPago(p){return caja.movements.filter(m=&gt;m.pago===p).reduce((s,m)=&gt;s+m.amount,0)}
+function cajaByPago(p){return caja.movements.filter(m=>m.pago===p).reduce((s,m)=>s+m.amount,0)}
 function cajaTotal(){return cajaByPago('efectivo')+cajaByPago('tarjeta')+cajaByPago('transferencia')}
 function addCajaMov(amount,pago,desc){
   caja.movements.push({time:Date.now(),amount,pago,desc});
@@ -997,7 +971,7 @@ function buildRecipes(){
     'Bombón de Macondo':{cat:'Bebidas Frías',ingredients:[{name:'Café molido',qty:14,unit:'g',cost:240},{name:'Leche condensada',qty:40,unit:'ml',cost:280},{name:'Leche entera',qty:100,unit:'ml',cost:85},{name:'Hielo',qty:100,unit:'g',cost:20}]},
   };
   /* Populate all menu items */
-  Object.entries(menuData).forEach(([cat,subs])=&gt;Object.entries(subs).forEach(([,items])=&gt;items.forEach(item=&gt;{
+  Object.entries(menuData).forEach(([cat,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{
     if(!recipes[item.name])recipes[item.name]={cat,price:item.price,ingredients:(defs[item.name]?.ingredients||[])};
     else recipes[item.name].price=item.price;
   })));
@@ -1016,7 +990,7 @@ function checkSecurity(){
   const ans=($('secAnswer').value||'').trim().toLowerCase();
   if(ans==='gaspar'){
     const all=[...SYSTEM_USERS,...waiters];
-    $('secResult').innerHTML='<strong>Credenciales del sistema:</strong><br><br>'+all.map(u=&gt;`<div style="padding:3px 0;border-bottom:1px solid var(--br)"><strong>${u.name}</strong> (${u.role})<br>Usuario: <code>${u.user}</code> · Contraseña: <code>${u.pass}</code></div>`).join('');
+    $('secResult').innerHTML='<strong>Credenciales del sistema:</strong><br><br>'+all.map(u=>`<div style="padding:3px 0;border-bottom:1px solid var(--br)"><strong>${u.name}</strong> (${u.role})<br>Usuario: <code>${u.user}</code> · Contraseña: <code>${u.pass}</code></div>`).join('');
     $('secResult').style.display='block';
   }else{$('secResult').innerHTML='<span style="color:var(--er)">Respuesta incorrecta.</span>';$('secResult').style.display='block';}
 }
@@ -1024,7 +998,7 @@ function checkSecurity(){
 /* ── LOGIN ── */
 function selRole(r){
   cRole=r;
-  document.querySelectorAll('.rb').forEach(b=&gt;{b.style.borderColor='var(--br)';b.style.background='var(--cr)';b.style.color='var(--tm)'});
+  document.querySelectorAll('.rb').forEach(b=>{b.style.borderColor='var(--br)';b.style.background='var(--cr)';b.style.color='var(--tm)'});
   const el=$('role-'+r);el.style.borderColor='var(--bm)';el.style.background='var(--bm)';el.style.color='var(--wh)';
   /* Fix 4: reset login fields on role change */
   const lu=$('lu'),lp=$('lp');
@@ -1036,20 +1010,20 @@ async function doLogin(){
   const u=$('lu').value.trim(),p=$('lp').value.trim();
   if(!u||!p){showToast('Ingresa usuario y contraseña');return;}
   /* 1. Login local hardcoded (SYSTEM_USERS) */
-  const sysFound=SYSTEM_USERS.find(x=&gt;x.user.toLowerCase()===u.toLowerCase()&amp;&amp;x.pass===p&amp;&amp;x.role===cRole);
+  const sysFound=SYSTEM_USERS.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
   if(sysFound){_loginSuccess(sysFound.name||sysFound.user,sysFound.role);return;}
   /* 2. Login en waiters locales (cargados desde Supabase) */
-  const localFound=waiters.find(x=&gt;x.user.toLowerCase()===u.toLowerCase()&amp;&amp;x.pass===p&amp;&amp;x.role===cRole);
+  const localFound=waiters.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
   if(localFound){_loginSuccess(localFound.name||localFound.user,localFound.role);return;}
   /* 3. Login consultando Supabase directo (si waiters aún no cargaron) */
   try{
-    if(!_sb&amp;&amp;window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    if(!_sb&&window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
     if(_sb){
       const {data:rows}=await _sb.from('staff').select('*').eq('username',u.toLowerCase()).eq('role',cRole);
-      if(rows&amp;&amp;rows.length){
+      if(rows&&rows.length){
         const row=rows[0];
         if(row.pass===p||row.pass_plain===p){
-          if(!waiters.find(w=&gt;w.id===row.id))waiters.push({id:row.id,user:row.user,pass:row.pass_plain||row.pass,role:row.role,name:row.name});
+          if(!waiters.find(w=>w.id===row.id))waiters.push({id:row.id,user:row.user,pass:row.pass_plain||row.pass,role:row.role,name:row.name});
           _loginSuccess(row.name||row.user,row.role);
           return;
         }
@@ -1081,50 +1055,50 @@ const TABS={
 function setupNav(){
   $('nbBadge').textContent={waiter:'Garzón',admin:'Admin',kitchen:'Cocina'}[cRole]+' · '+cUser.split(' ')[0];
   const tabs=TABS[cRole];
-  $('sideTabs').innerHTML=tabs.map(t=&gt;`<button class="bnt" id="bnt-${t.id}" onclick="navTo(&#39;${t.id}&#39;)"><i class="ti ${t.icon}" aria-hidden="true"></i>${t.label}</button>`).join('');
-  $('bnav').innerHTML=tabs.map(t=&gt;`<button class="bnt" id="mbnt-${t.id}" onclick="navTo(&#39;${t.id}&#39;)"><i class="ti ${t.icon}" aria-hidden="true"></i>${t.label}</button>`).join('');
+  $('sideTabs').innerHTML=tabs.map(t=>`<button class="bnt" id="bnt-${t.id}" onclick="navTo('${t.id}')"><i class="ti ${t.icon}" aria-hidden="true"></i>${t.label}</button>`).join('');
+  $('bnav').innerHTML=tabs.map(t=>`<button class="bnt" id="mbnt-${t.id}" onclick="navTo('${t.id}')"><i class="ti ${t.icon}" aria-hidden="true"></i>${t.label}</button>`).join('');
   /* Show reset button only for admin */
   if($('resetClientsBtn'))$('resetClientsBtn').style.display=cRole==='admin'?'':'none';
 }
 
 function navTo(id){
   ({
-    tables:()=&gt;{renderTables();goPage('tables')},
-    order:()=&gt;goPage('order'),
-    dashboard:()=&gt;{renderDashboard();goPage('dashboard')},
-    clients:()=&gt;{renderClients();goPage('clients')},
-    caja:()=&gt;{renderCaja();goPage('caja')},
-    stats:()=&gt;{renderStats();goPage('stats')},
-    recipes:()=&gt;{renderRecipes();goPage('recipes')},
-    carta:()=&gt;{renderCarta();goPage('carta')},
-    inventory:()=&gt;{renderInv();goPage('inventory')},
-    staff:()=&gt;{renderStaff();goPage('staff')},
-    kitchen:()=&gt;{renderKitchen();goPage('kitchen')},
+    tables:()=>{renderTables();goPage('tables')},
+    order:()=>goPage('order'),
+    dashboard:()=>{renderDashboard();goPage('dashboard')},
+    clients:()=>{renderClients();goPage('clients')},
+    caja:()=>{renderCaja();goPage('caja')},
+    stats:()=>{renderStats();goPage('stats')},
+    recipes:()=>{renderRecipes();goPage('recipes')},
+    carta:()=>{renderCarta();goPage('carta')},
+    inventory:()=>{renderInv();goPage('inventory')},
+    staff:()=>{renderStaff();goPage('staff')},
+    kitchen:()=>{renderKitchen();goPage('kitchen')},
   })[id]?.();
 }
 function goPage(id){
-  document.querySelectorAll('.page').forEach(p=&gt;p.classList.remove('active'));$('page-'+id).classList.add('active');
-  document.querySelectorAll('.bnt').forEach(b=&gt;b.classList.remove('active'));
-  [$('bnt-'+id),$('mbnt-'+id)].forEach(b=&gt;{if(b)b.classList.add('active');});
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$('page-'+id).classList.add('active');
+  document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('active'));
+  [$('bnt-'+id),$('mbnt-'+id)].forEach(b=>{if(b)b.classList.add('active');});
 }
-function updateOCBadge(){const a=orders.filter(o=&gt;o.status!=='closed').length;$('ocBadge').textContent=a&gt;0?`#${totalOrdsIn} órd.`:'';}
+function updateOCBadge(){const a=orders.filter(o=>o.status!=='closed').length;$('ocBadge').textContent=a>0?`#${totalOrdsIn} órd.`:'';}
 
 /* ── TABLES ── */
 function renderTables(){
-  $('tablesGrid').innerHTML=tables.map(t=&gt;{
-    const ords=orders.filter(ord=&gt;ord.tableId===t.id&amp;&amp;ord.status!=='closed'&amp;&amp;ord.status!=='canceled');
-    const canceledOrders=orders.filter(ord=&gt;ord.tableId===t.id&amp;&amp;ord.status==='canceled');
+  $('tablesGrid').innerHTML=tables.map(t=>{
+    const ords=orders.filter(ord=>ord.tableId===t.id&&ord.status!=='closed'&&ord.status!=='canceled');
+    const canceledOrders=orders.filter(ord=>ord.tableId===t.id&&ord.status==='canceled');
     const primary=ords[0]||canceledOrders[0];
     const st=ords.length?'occupied':canceledOrders.length?'canceled':'free';
     const stMap={free:['s-free','Libre','dot-free'],occupied:['s-occ','Ocupada','dot-occ'],canceled:['s-pen','Cancelado','dot-pen']};
     const [sc,sl,dc]=stMap[st];
-    const accounts=ords.concat(canceledOrders).map(o=&gt;o.clientName||o.waiter).filter((v,i,a)=&gt;a.indexOf(v)===i);
+    const accounts=ords.concat(canceledOrders).map(o=>o.clientName||o.waiter).filter((v,i,a)=>a.indexOf(v)===i);
     return `<div class="tc ${st}" onclick="tableClick(${t.id})">
       <div class="tn">${t.id}</div>
       <div class="ts2 ${sc}"><span class="dot ${dc}"></span>${sl}</div>
-      ${accounts.map(n=&gt;`<div style="font-size:10px;color:var(--ts);margin-top:2px">${n}</div>`).join('')}
-      ${primary&amp;&amp;primary.items.length?`<div style="font-size:10px;color:var(--inf);margin-top:1px"><i class="ti ti-clock" style="font-size:9px" aria-hidden="true"></i> ${elapsed(primary.time)}</div>`:``}
-      ${primary&amp;&amp;primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:1px">${fmt(ords.concat(canceledOrders).reduce((s,o)=&gt;s+oTotal(o),0))}</div>`:``}
+      ${accounts.map(n=>`<div style="font-size:10px;color:var(--ts);margin-top:2px">${n}</div>`).join('')}
+      ${primary&&primary.items.length?`<div style="font-size:10px;color:var(--inf);margin-top:1px"><i class="ti ti-clock" style="font-size:9px" aria-hidden="true"></i> ${elapsed(primary.time)}</div>`:``}
+      ${primary&&primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:1px">${fmt(ords.concat(canceledOrders).reduce((s,o)=>s+oTotal(o),0))}</div>`:``}
       ${canceledOrders.length?`<div style="font-size:10px;color:var(--er);margin-top:2px"><i class="ti ti-x-circle" style="font-size:9px"></i> cobro pendiente</div>`:''}
     </div>`;
   }).join('');
@@ -1135,58 +1109,44 @@ let currentAccountId=null;
 function tableClick(id){
   if(false){/* admin now uses same flow as waiter below */}
   /* Garzón — check for existing accounts */
-  const activeOrds=orders.filter(ord=&gt;ord.tableId===id&amp;&amp;ord.status!=='closed'&amp;&amp;ord.status!=='canceled');
-  if(activeOrds.length&gt;1){showAccountSelect(id);return;}
+  const activeOrds=orders.filter(ord=>ord.tableId===id&&ord.status!=='closed'&&ord.status!=='canceled');
+  if(activeOrds.length>1){showAccountSelect(id);return;}
   if(activeOrds.length===1){loadTableOrder(id,activeOrds[0]);return;}
   /* No active orders — start new (sin prompt de cliente) */
   const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:''};
   orders.push(newOrder);totalOrdsIn++;
   loadTableOrder(id,newOrder);
 }
-function loadTableOrder(id, order){
-  isMC = false;
-  cTable = getTable(id);
-  currentAccountId = order.id;
-
-  /* Badge */
-  $('cartBadge').textContent = 'Mesa ' + id + (order.clientName ? ' · ' + order.clientName : '');
-  $('cartBadge').className = 'cbdg mesa';
-
-  /* Mostrar panel de mesa, ocultar mostrador */
-  const ma = $('mesaActions'); if(ma) ma.style.display = 'flex';
-  const mcw = $('mcSendWrap'); if(mcw) mcw.style.display = 'none';
-  const mc2 = $('mcOrderBtns'); if(mc2) mc2.style.display = 'none';
-
-  /* Mostrar btn agregar cliente */
-  const btnAC = $('btnAddClient'); if(btnAC) btnAC.style.display = '';
-
-  /* Si ya tiene ítems enviados → mostrar cobrar; si no → carrito vacío */
-  if(order.items &amp;&amp; order.items.length &gt; 0){
-    cart = []; /* carrito limpio; ítems ya están en el pedido */
-  } else {
-    cart = order.items.map(i =&gt; ({...i}));
-  }
+function loadTableOrder(id,order){
+  isMC=false;cTable=getTable(id);currentAccountId=order.id;
+  $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;$('cartBadge').className='cbdg mesa';
+  $('kitchenCheckWrap').style.display='none';
+  $('mcSplitBtns').style.display='none';
+  /* Mostrar botones de mesa */
+  const ma=$('mesaActions');if(ma)ma.style.display='flex';
+  const mcw=$('mcSendWrap');if(mcw)mcw.style.display='none';
+  /* Mostrar botón agregar cliente */
+  const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
+  /* Mostrar cobrar solo si hay ítems enviados a cocina */
   _updateCobrarBtn(order);
-
-  $('menuSearch').value = '';
-  $('kitchenCheckWrap') &amp;&amp; ($('kitchenCheckWrap').style.display = 'none');
-  $('mcSplitBtns') &amp;&amp; ($('mcSplitBtns').style.display = 'none');
-  $('paySection') &amp;&amp; ($('paySection').innerHTML = '');
-  renderMenu();
-  renderCart();
-  goPage('order');
+  /* Si el pedido ya tiene ítems enviados, mostrar resumen; si no, cargar al carrito */
+  if(order.items&&order.items.length>0){
+    cart=[];  /* carrito vacío — los ítems están en el pedido */
+  } else {
+    cart=order.items.map(i=>({...i}));
+  }
+  $('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
 }
-
 
 function _updateCobrarBtn(order){
   const cb=$('cobrarBtns');if(!cb)return;
   /* Mostrar "Cobrar y Cerrar" solo si hay ítems en el pedido */
-  const hasItems=order&amp;&amp;order.items&amp;&amp;order.items.length&gt;0;
+  const hasItems=order&&order.items&&order.items.length>0;
   cb.style.display=hasItems?'flex':'none';
 }
 
 function addClientToOrder(){
-  const order=orders.find(o=&gt;o.id===currentAccountId);if(!order)return;
+  const order=orders.find(o=>o.id===currentAccountId);if(!order)return;
   const name=prompt('Nombre del cliente:',order.clientName||'');
   if(name===null)return;
   order.clientName=name.trim();
@@ -1197,18 +1157,18 @@ function addClientToOrder(){
 }
 
 function cancelarPedido(){
-  const order=orders.find(o=&gt;o.id===currentAccountId);
+  const order=orders.find(o=>o.id===currentAccountId);
   if(!order){goPage('tables');return;}
   const mesa=cTable?.id||order.tableId;
   if(!confirm('¿Cancelar el pedido de Mesa '+mesa+'? Se eliminarán todos los productos y la mesa quedará libre.'))return;
   /* Eliminar orden completamente */
-  const idx=orders.findIndex(o=&gt;o.id===currentAccountId);
-  if(idx&gt;=0)orders.splice(idx,1);
+  const idx=orders.findIndex(o=>o.id===currentAccountId);
+  if(idx>=0)orders.splice(idx,1);
   /* Liberar mesa — estado exactamente igual que mesa nueva */
   const t=getTable(mesa);
   if(t){t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;}
   /* Limpiar kDone */
-  if(currentAccountId&amp;&amp;kDone[currentAccountId])delete kDone[currentAccountId];
+  if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
   /* Limpiar UI */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
   const btnCO=$('btnCancelOrder');if(btnCO)btnCO.style.display='none';
@@ -1219,18 +1179,18 @@ function cancelarPedido(){
 }
 
 function cerrarSinCobrar(){
-  const order=orders.find(o=&gt;o.id===currentAccountId);
+  const order=orders.find(o=>o.id===currentAccountId);
   if(!order){goPage('tables');return;}
   const mesa=cTable?.id||order.tableId;
   if(!confirm('¿Cerrar Mesa '+mesa+' sin cobrar? El pedido no pasará a caja ni a historial.'))return;
   /* Eliminar orden completamente del array — no queda rastro */
-  const idx=orders.findIndex(o=&gt;o.id===currentAccountId);
-  if(idx&gt;=0)orders.splice(idx,1);
+  const idx=orders.findIndex(o=>o.id===currentAccountId);
+  if(idx>=0)orders.splice(idx,1);
   /* Liberar mesa completamente */
   const t=getTable(mesa);
   if(t){t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;}
   /* Limpiar kDone de esa orden */
-  if(currentAccountId&amp;&amp;kDone[currentAccountId])delete kDone[currentAccountId];
+  if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
   /* Ocultar btn cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
   const btnCO2=$('btnCancelOrder');if(btnCO2)btnCO2.style.display='none';
@@ -1240,11 +1200,11 @@ function cerrarSinCobrar(){
   renderTables();goPage('tables');
 }
 function showAccountSelect(tid){
-  const ords=orders.filter(ord=&gt;ord.tableId===tid&amp;&amp;ord.status!=='closed');
+  const ords=orders.filter(ord=>ord.tableId===tid&&ord.status!=='closed');
   $('accountSelectDesc').textContent='Mesa '+tid+' — selecciona una cuenta:';
-  $('accountSelectList').innerHTML=ords.map((o,i)=&gt;{
+  $('accountSelectList').innerHTML=ords.map((o,i)=>{
     const isCanceled=o.status==='canceled';
-    return `<div class="acc-opt" onclick="selectTableAccount(&#39;${o.id}&#39;)" style="${isCanceled?&#39;opacity:.6;border-color:var(--er)&#39;:&#39;&#39;}">
+    return `<div class="acc-opt" onclick="selectTableAccount('${o.id}')" style="${isCanceled?'opacity:.6;border-color:var(--er)':''}">
       <div class="acc-name">${o.clientName||'Cuenta '+(i+1)} ${isCanceled?'<span style="color:var(--er);font-size:10px">(cancelado)</span>':''}</div>
       <div style="font-size:11px;color:var(--ts)">${o.items.length} ítems</div>
       <div class="acc-total">${fmt(oTotal(o))}</div>
@@ -1273,29 +1233,27 @@ function addNewTableAccount(){
 function openMostrador(){
   isMC=true;cTable=null;cart=[];currentAccountId=null;
   $('cartBadge').textContent='Mostrador · '+cUser;$('cartBadge').className='cbdg mostr';
-  /* Ocultar botones de mesa, mostrar botones mostrador */
+  /* Ocultar botones de mesa, mostrar botón mostrador */
   const _ma=$('mesaActions');if(_ma)_ma.style.display='none';
-  const _mc2=$('mcOrderBtns');if(_mc2)_mc2.style.display='flex';
-  const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='none';
+  const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='block';
   const _bac=$('btnAddClient');if(_bac)_bac.style.display='none';
   $('kitchenCheckWrap').style.display='block';
   $('mcSplitBtns').style.display='flex';
   selPay='efectivo';$('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
 }
 function backFromOrder(){
-  ['mesaActions','mcOrderBtns','mcSendWrap'].forEach(id=&gt;{const el=$(id);if(el)el.style.display='none';});
+  const ma=$('mesaActions');if(ma)ma.style.display='none';
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  cart=[];isMC=false;cTable=null;currentAccountId=null;
-  renderTables();goPage('tables');
+  currentAccountId=null;renderTables();goPage('tables');
 }
 
 function renderPaySection(){
   if(!isMC){$('paySection').innerHTML='';return;}
   $('paySection').innerHTML=`<div style="font-size:10px;color:var(--ts);font-weight:600;margin:6px 0 3px">Método de pago</div>
   <div class="pay-opts">
-    <div class="pb2 ${selPay===&#39;efectivo&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setPayM(&#39;efectivo&#39;)"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
-    <div class="pb2 ${selPay===&#39;tarjeta&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setPayM(&#39;tarjeta&#39;)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
-    <div class="pb2 ${selPay===&#39;transferencia&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setPayM(&#39;transferencia&#39;)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
+    <div class="pb2 ${selPay==='efectivo'?'active':''}" onclick="setPayM('efectivo')"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
+    <div class="pb2 ${selPay==='tarjeta'?'active':''}" onclick="setPayM('tarjeta')"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
+    <div class="pb2 ${selPay==='transferencia'?'active':''}" onclick="setPayM('transferencia')"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
   </div>`;
 }
 function setPayM(m){selPay=m;renderPaySection();}
@@ -1303,13 +1261,13 @@ function setPayM(m){selPay=m;renderPaySection();}
 /* ── MENU ── */
 let aMenuCat='Cafetería Caliente';
 function renderMenu(){
-  $('menuCats').innerHTML=Object.keys(menuData).map(c=&gt;`<button class="cb ${c===aMenuCat?&#39;active&#39;:&#39;&#39;}" onclick="setMC(&#39;${c}&#39;)">${c}</button>`).join('');
+  $('menuCats').innerHTML=Object.keys(menuData).map(c=>`<button class="cb ${c===aMenuCat?'active':''}" onclick="setMC('${c}')">${c}</button>`).join('');
   renderMenuItems();
 }
 function setMC(c){
   aMenuCat=c;
   /* Re-render pills so active class follows selection */
-  $('menuCats').innerHTML=Object.keys(menuData).map(cat=&gt;`<button class="cb ${cat===aMenuCat?&#39;active&#39;:&#39;&#39;}" onclick="setMC(&#39;${cat}&#39;)">${cat}</button>`).join('');
+  $('menuCats').innerHTML=Object.keys(menuData).map(cat=>`<button class="cb ${cat===aMenuCat?'active':''}" onclick="setMC('${cat}')">${cat}</button>`).join('');
   renderMenuItems();
 }
 function renderMenuItems(){
@@ -1317,64 +1275,35 @@ function renderMenuItems(){
   let html='';
   if(q){
     let found=[];
-    Object.entries(menuData).forEach(([,subs])=&gt;Object.entries(subs).forEach(([,items])=&gt;items.forEach(item=&gt;{if(item.active&amp;&amp;item.name.toLowerCase().includes(q))found.push(item);})));
+    Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
     html=found.length
-      ?`<div class="mi-grid">${found.map(item=&gt;`<div class="mi" onclick="addItem(${JSON.stringify(item).replace(/" g,"&#39;")})'=""><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div>`
+      ?`<div class="mi-grid">${found.map(item=>`<div class="mi" onclick="addItemByName('${item.name.replace(/'/g,"&#39;")}'=""><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div>`
       :`<div style="color:var(--tl);text-align:center;padding:1rem;font-size:12px">Sin resultados para "${q}"</div>`;
   }else{
-    Object.entries(menuData[aMenuCat]).forEach(([sec,items])=&gt;{
-      const a=items.filter(i=&gt;i.active);if(!a.length)return;
-      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=&gt;`<div class="mi" onclick="addItem(${JSON.stringify(item).replace(/" g,"&#39;")})'=""><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div></div>`;
+    Object.entries(menuData[aMenuCat]).forEach(([sec,items])=>{
+      const a=items.filter(i=>i.active);if(!a.length)return;
+      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=>`<div class="mi" onclick="addItemByName('${item.name.replace(/'/g,"&#39;")}'=""><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div></div>`;
     });
   }
   $('menuItems').innerHTML=html;
 }
 
+function addItemByName(name){let found=null;Object.values(menuData).forEach(subs=>Object.values(subs).forEach(items=>items.forEach(item=>{if(item.name===name)found=item;})));if(found)addItem(found);}
 function addItem(item){
   if(item.isPizza){openPM(item);return;}
   if(item.isToast){openToastModal(item);return;}
   if(item.isSandwich){openSM(item);return;}
-  const ex=cart.find(c=&gt;c.name===item.name&amp;&amp;!c.isPizza&amp;&amp;!c.isToast&amp;&amp;!c.isSandwich&amp;&amp;!c.note);
+  const ex=cart.find(c=>c.name===item.name&&!c.isPizza&&!c.isToast&&!c.isSandwich&&!c.note);
   if(ex)ex.qty++;else cart.push({name:item.name,price:item.price,qty:1,detail:item.detail||'',note:''});
   renderCart();showToast(item.name+' agregado','ok');
 }
 function openNoteModal(idx){noteItemIdx=idx;$('noteItemName').textContent=cart[idx].name;$('noteText').value=cart[idx].note||'';openMod('noteModal');}
-function saveNote(){if(noteItemIdx&gt;=0)cart[noteItemIdx].note=$('noteText').value.trim();renderCart();showToast('Nota guardada','ok');closeMod('noteModal');}
+function saveNote(){if(noteItemIdx>=0)cart[noteItemIdx].note=$('noteText').value.trim();renderCart();showToast('Nota guardada','ok');closeMod('noteModal');}
 
 function renderCart(){
   const el=$('cartItems');
-  if(!el)return;
-
-  /* Si carrito vacío pero hay pedido activo con ítems → mostrar resumen */
-  const activeOrder = currentAccountId ? getOrder(currentAccountId) : null;
-  const sentItems = activeOrder &amp;&amp; activeOrder.items &amp;&amp; activeOrder.items.length ? activeOrder.items : [];
-
-  if(!cart.length &amp;&amp; sentItems.length){
-    const sentTotal = sentItems.reduce((s,i) =&gt; s + i.price*i.qty, 0);
-    el.innerHTML = `
-      <div style="padding:6px 0 4px;border-bottom:1px solid var(--br);margin-bottom:6px;font-size:10px;color:var(--ok);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:4px">
-        <i class="ti ti-check-circle" style="font-size:12px"></i> En cocina
-      </div>
-      ${sentItems.map(i=&gt;`<div class="cit">
-        <div class="ci-info"><div class="ci-name">${i.qty&gt;1?i.qty+'× ':''} ${i.name}</div>${i.note?`<div class="ci-note">${i.note}</div>`:''}</div>
-        <div class="ci-price">${fmt(i.price*i.qty)}</div>
-      </div>`).join('')}
-      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:8px 0 4px;border-top:1px solid var(--br);margin-top:4px">
-        <span>Total pedido</span><span style="color:var(--bm)">${fmt(sentTotal)}</span>
-      </div>
-      <button onclick="agregarMasProductos()" style="width:100%;margin-top:6px;padding:8px;background:var(--cr);border:1.5px dashed var(--bm);border-radius:var(--r);color:var(--bm);font-size:11px;font-weight:700;cursor:pointer">
-        <i class="ti ti-plus" style="font-size:11px"></i> Agregar más productos
-      </button>`;
-    $('cartSummary').innerHTML = `<div class="crow"><span>Subtotal</span><span>${fmt(sentTotal)}</span></div><div class="ctotal"><span>Total</span><span>${fmt(sentTotal)}</span></div>`;
-    return;
-  }
-
-  if(!cart.length){
-    el.innerHTML='<div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div>';
-    $('cartSummary').innerHTML='';
-    return;
-  }
-  el.innerHTML=cart.map((item,i)=&gt;`<div class="cit">
+  if(!cart.length){el.innerHTML='<div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div>';$('cartSummary').innerHTML='';return;}
+  el.innerHTML=cart.map((item,i)=>`<div class="cit">
     <div class="ci-info">
       <div class="ci-name">${item.name}</div>
       ${item.detail?`<div class="ci-detail">${item.detail}</div>`:''}
@@ -1386,25 +1315,25 @@ function renderCart(){
       <div class="qi"><button class="qb" onclick="cQ(${i},-1)">−</button><span class="qn">${item.qty}</span><button class="qb" onclick="cQ(${i},1)">+</button></div>
     </div>
   </div>`).join('');
-  const sub=cart.reduce((s,i)=&gt;s+i.price*i.qty,0);
+  const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
   $('cartSummary').innerHTML=`<div class="crow"><span>Subtotal</span><span>${fmt(sub)}</span></div>${!isMC?`<div class="crow"><span>Propina sugerida (10%)</span><span>${fmt(Math.round(sub*.1))}</span></div>`:''}<div class="ctotal"><span>Total</span><span>${fmt(sub)}</span></div>`;
-  if(!isMC&amp;&amp;cTable){
-    const ex=currentAccountId?getOrder(currentAccountId):orders.find(o=&gt;o.tableId===cTable.id&amp;&amp;o.status!=='closed'&amp;&amp;o.status!=='canceled');
-    if(ex&amp;&amp;ex.status!=='closed'){$('cobrarBtns').style.display='';$('btnSend').textContent='Agregar al pedido';}
+  if(!isMC&&cTable){
+    const ex=currentAccountId?getOrder(currentAccountId):orders.find(o=>o.tableId===cTable.id&&o.status!=='closed'&&o.status!=='canceled');
+    if(ex&&ex.status!=='closed'){$('cobrarBtns').style.display='';$('btnSend').textContent='Agregar al pedido';}
   }
 }
-function cQ(i,d){cart[i].qty+=d;if(cart[i].qty&lt;=0)cart.splice(i,1);renderCart();}
+function cQ(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart();}
 
 function cobrarTotal(){
-  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=&gt;ord.tableId===cTable?.id&amp;&amp;ord.status!=='closed'&amp;&amp;ord.status!=='canceled');
+  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
   if(!o){showToast('Sin pedido activo');return;}
-  backFromOrder();setTimeout(()=&gt;openOD(o.id),80);
+  backFromOrder();setTimeout(()=>openOD(o.id),80);
 }
 
 function cobrarYCerrar(){
-  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=&gt;ord.tableId===cTable?.id&amp;&amp;ord.status!=='closed'&amp;&amp;ord.status!=='canceled');
+  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
-  const sub=o.items.reduce((s,i)=&gt;s+i.price*i.qty,0);
+  const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
   const defaultTip=Math.round(sub*0.1);
   /* Mostrar modal de cobro con propina */
   const modal=document.createElement('div');
@@ -1412,7 +1341,7 @@ function cobrarYCerrar(){
   modal.innerHTML=`<div class="mb" style="max-width:360px;width:100%">
     <h3 style="margin-bottom:.8rem"><i class="ti ti-receipt" style="color:var(--bm)"></i> Cobrar ${o.tableId?'Mesa '+o.tableId:''}</h3>
     <div style="margin-bottom:.6rem">
-      ${o.items.map(i=&gt;`<div class="dir"><span>${i.qty&gt;1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
+      ${o.items.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
     </div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem;margin-bottom:.8rem">
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span>${fmt(sub)}</span></div>
@@ -1427,19 +1356,19 @@ function cobrarYCerrar(){
     </div>
     <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Método de pago</div>
     <div class="pay-opts" id="cobrarPayOpts">
-      <div class="pb2 active" onclick="setCobrarPago(&#39;efectivo&#39;,this)"><i class="ti ti-cash"></i>Efectivo</div>
-      <div class="pb2" onclick="setCobrarPago(&#39;tarjeta&#39;,this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
-      <div class="pb2" onclick="setCobrarPago(&#39;transferencia&#39;,this)"><i class="ti ti-building-bank"></i>Transfer.</div>
+      <div class="pb2 active" onclick="setCobrarPago('efectivo',this)"><i class="ti ti-cash"></i>Efectivo</div>
+      <div class="pb2" onclick="setCobrarPago('tarjeta',this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
+      <div class="pb2" onclick="setCobrarPago('transferencia',this)"><i class="ti ti-building-bank"></i>Transfer.</div>
     </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
-      <button class="bs2" style="flex:1" onclick="document.getElementById(&#39;cobrarModal&#39;).remove()">Cancelar</button>
-      <button class="bc2" style="flex:2;background:var(--bm);color:#fff;border:none" onclick="confirmarCobro(&#39;${o.id}&#39;,${sub})">
+      <button class="bs2" style="flex:1" onclick="document.getElementById('cobrarModal').remove()">Cancelar</button>
+      <button class="bc2" style="flex:2;background:var(--bm);color:#fff;border:none" onclick="confirmarCobro('${o.id}',${sub})">
         <i class="ti ti-check"></i> Confirmar cobro
       </button>
     </div>
   </div>`;
   document.body.appendChild(modal);
-  modal.onclick=e=&gt;{if(e.target===modal)modal.remove();};
+  modal.onclick=e=>{if(e.target===modal)modal.remove();};
   window._cobrarPago='efectivo';
 }
 
@@ -1452,7 +1381,7 @@ function cobrarUpdateTip(sub){
 
 function setCobrarPago(pago,el){
   window._cobrarPago=pago;
-  el.closest('#cobrarPayOpts').querySelectorAll('.pb2').forEach(b=&gt;b.classList.remove('active'));
+  el.closest('#cobrarPayOpts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
 }
 
@@ -1462,39 +1391,39 @@ function confirmarCobro(oid,sub){
   const tip=Math.round(sub*pct/100);
   const pago=window._cobrarPago||'efectivo';
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
-  closedSales.push({...o,items:o.items.map(i=&gt;({...i}))});
+  closedSales.push({...o,items:o.items.map(i=>({...i}))});
   addCajaMov(sub+tip,pago,(o.tableId?'Mesa '+o.tableId:'Mostrador'));
   /* Liberar mesa */
   const t=getTable(o.tableId);
   if(t){
-    const rem=orders.filter(ord=&gt;ord.tableId===o.tableId&amp;&amp;ord.status!=='closed');
+    const rem=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
     if(!rem.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
   }
   document.getElementById('cobrarModal')?.remove();
   /* Limpiar UI */
-  ['mesaActions','cobrarBtns','mcOrderBtns'].forEach(id=&gt;{const el=$(id);if(el)el.style.display='none';});
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  const ma=$('mesaActions');if(ma)ma.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(sub+tip),'ok');
   updateOCBadge();renderDashboard();renderTables();broadcastState();
   goPage('tables');
 }
 function cobrarDividido(){
-  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=&gt;ord.tableId===cTable?.id&amp;&amp;ord.status!=='closed'&amp;&amp;ord.status!=='canceled');
+  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
   openSplitBill(o.id);
 }
 
 /* ── MOSTRADOR: two independent actions ── */
 function _mcBuildOrder(){
-  const sub=cart.reduce((s,i)=&gt;s+i.price*i.qty,0);
+  const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
   const id='MC'+String(ordCnt++).padStart(3,'0');
   return {id,sub};
 }
 function mcSendKitchen(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   const {id}=_mcBuildOrder();
-  orders.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:cart.map(i=&gt;({...i}))});
+  orders.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:cart.map(i=>({...i}))});
   totalOrdsIn++;
   showBell('🔔 Mostrador → Cocina');
   showToast('Pedido enviado a cocina ✓','ok');
@@ -1504,7 +1433,7 @@ function mcSendKitchen(){
 function mcCobrar(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   const {id,sub}=_mcBuildOrder();
-  closedSales.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),closedAt:Date.now(),status:'closed',pago:selPay,tip:0,items:cart.map(i=&gt;({...i}))});
+  closedSales.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),closedAt:Date.now(),status:'closed',pago:selPay,tip:0,items:cart.map(i=>({...i}))});
   totalOrdsIn++;addCajaMov(sub,selPay,'Mostrador directo');
   showToast('Venta registrada · '+fmt(sub),'ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();
@@ -1516,11 +1445,11 @@ function mcCobrar(){
 function gestionarPedidoCocina(items, tableId){
   /* Puede llamarse externamente con items y tableId como parámetros */
   const targetTable = tableId || cTable?.id;
-  const itemsToSend = items || cart.map(i=&gt;({...i}));
+  const itemsToSend = items || cart.map(i=>({...i}));
   if(!itemsToSend.length){showToast('El carrito está vacío');return;}
   let order = currentAccountId ? getOrder(currentAccountId)
-    : orders.find(o=&gt;o.tableId===targetTable&amp;&amp;o.status!=='closed'&amp;&amp;o.status!=='canceled');
-  if(order&amp;&amp;order.status!=='closed'){
+    : orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
+  if(order&&order.status!=='closed'){
     order.items=[...order.items,...itemsToSend];
     showToast('Enviado a cocina 🍳','ok');
   } else {
@@ -1542,7 +1471,7 @@ function gestionarPedidoCocina(items, tableId){
 function sendOrder(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   if(isMC){mcCobrar();return;}
-  gestionarPedidoCocina(cart.map(i=&gt;({...i})), cTable?.id);
+  gestionarPedidoCocina(cart.map(i=>({...i})), cTable?.id);
 }
 
 function agregarMasProductos(){
@@ -1554,23 +1483,23 @@ function agregarMasProductos(){
 }
 
 function _refreshOrderView(order){
-  const tableId = order.tableId;
-  $('cartBadge').textContent = 'Mesa ' + tableId + (order.clientName ? ' · ' + order.clientName : '');
-  /* Mostrar cobrarBtns ahora que hay ítems en el pedido */
-  _updateCobrarBtn(order);
-  /* Refrescar vista del carrito para mostrar ítems enviados */
+  /* Actualizar badge */
+  const tableId=order.tableId;
+  $('cartBadge').textContent='Mesa '+tableId+(order.clientName?' · '+order.clientName:'');
+  /* Mostrar ítems enviados en el carrito (modo lectura) */
   renderCart();
-  /* Asegurar que mesaActions esté visible */
-  const ma = $('mesaActions'); if(ma) ma.style.display = 'flex';
-  $('menuSearch').value = '';
+  /* Mostrar botones cobrar */
+  _updateCobrarBtn(order);
+  /* Vaciar búsqueda */
+  $('menuSearch').value='';
   renderMenu();
 }
 
 /* ── PIZZA ── */
-function openPM(item){pType=item.pizzaType;pIngs=[];pSauce=null;$('pizzaSub').textContent=`${item.name} · Base: ${fmt(item.price)}`;document.querySelectorAll('.chip').forEach(c=&gt;c.classList.remove('sel'));updPP(item.price);openMod('pizzaModal');}
-function tPI(el,n){el.classList.toggle('sel');pIngs=el.classList.contains('sel')?[...pIngs,n]:pIngs.filter(i=&gt;i!==n);updPP(pType==='vegana'?7500:6000);}
-function tPS(el,n){document.querySelectorAll('#pSauces .chip').forEach(c=&gt;c.classList.remove('sel'));pSauce=pSauce===n?null:n;if(pSauce)el.classList.add('sel');updPP(pType==='vegana'?7500:6000);}
-function updPP(base){const ex=Math.max(0,pIngs.length-3)*900,sc=pSauce?1500:0;$('pIngCnt').textContent=pIngs.length+' ingrediente'+(pIngs.length!==1?'s':'');$('pExtra').textContent=pIngs.length&gt;3?`${pIngs.length-3} extra = +${fmt(ex)}`:'Primeros 3 incluidos';$('pTotal').textContent=fmt(base+ex+sc);}
+function openPM(item){pType=item.pizzaType;pIngs=[];pSauce=null;$('pizzaSub').textContent=`${item.name} · Base: ${fmt(item.price)}`;document.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));updPP(item.price);openMod('pizzaModal');}
+function tPI(el,n){el.classList.toggle('sel');pIngs=el.classList.contains('sel')?[...pIngs,n]:pIngs.filter(i=>i!==n);updPP(pType==='vegana'?7500:6000);}
+function tPS(el,n){document.querySelectorAll('#pSauces .chip').forEach(c=>c.classList.remove('sel'));pSauce=pSauce===n?null:n;if(pSauce)el.classList.add('sel');updPP(pType==='vegana'?7500:6000);}
+function updPP(base){const ex=Math.max(0,pIngs.length-3)*900,sc=pSauce?1500:0;$('pIngCnt').textContent=pIngs.length+' ingrediente'+(pIngs.length!==1?'s':'');$('pExtra').textContent=pIngs.length>3?`${pIngs.length-3} extra = +${fmt(ex)}`:'Primeros 3 incluidos';$('pTotal').textContent=fmt(base+ex+sc);}
 function confirmPizza(){const base=pType==='vegana'?7500:6000,ex=Math.max(0,pIngs.length-3)*900,sc=pSauce?1500:0;cart.push({name:pType==='vegana'?'Pizza Vegana':'Pizza Tradicional',price:base+ex+sc,qty:1,detail:[...pIngs,pSauce?'+ Salsa '+pSauce:''].filter(Boolean).join(', ')||'Sin extras',isPizza:true,note:''});closeMod('pizzaModal');renderCart();showToast('Pizza agregada','ok');}
 
 /* ── SANDWICH INGREDIENT MODAL ── */
@@ -1584,12 +1513,12 @@ function openSM(item){
   sItem=item;sIngs=[];sMax=item.sandwichMax||2;
   $('sandwichSub').textContent=`${item.name} · ${fmt(item.price)} · Elige ${sMax} ingredientes`;
   $('sandwichMaxMsg').textContent=`Máximo: ${sMax} ingredientes`;
-  $('sandwichChips').innerHTML=SANDWICH_INGREDIENTS.map(g=&gt;`<div style="margin-bottom:5px"><h4>${g.cat}</h4><div class="chips">${g.items.map(n=&gt;`<div class="chip" onclick="toggleSI(this,&#39;${n}&#39;)">${n}</div>`).join('')}</div></div>`).join('');
+  $('sandwichChips').innerHTML=SANDWICH_INGREDIENTS.map(g=>`<div style="margin-bottom:5px"><h4>${g.cat}</h4><div class="chips">${g.items.map(n=>`<div class="chip" onclick="toggleSI(this,'${n}')">${n}</div>`).join('')}</div></div>`).join('');
   updSandwichTotal();openMod('sandwichModal');
 }
 function toggleSI(el,n){
-  if(el.classList.contains('sel')){el.classList.remove('sel');sIngs=sIngs.filter(i=&gt;i!==n);}
-  else{if(sIngs.length&gt;=sMax){showToast('Máximo '+sMax+' ingredientes');return;}el.classList.add('sel');sIngs.push(n);}
+  if(el.classList.contains('sel')){el.classList.remove('sel');sIngs=sIngs.filter(i=>i!==n);}
+  else{if(sIngs.length>=sMax){showToast('Máximo '+sMax+' ingredientes');return;}el.classList.add('sel');sIngs.push(n);}
   updSandwichTotal();
 }
 function updSandwichTotal(){
@@ -1608,28 +1537,28 @@ let toastItem=null,toastSelectedExtras=[];
 function openToastModal(item){
   toastItem=item;toastSelectedExtras=[];
   $('toastSub').textContent='Base: Huevo Revuelto + Pan · '+fmt(item.price);
-  $('toastExtraChips').innerHTML=(item.toastExtras||[]).map((e,i)=&gt;
+  $('toastExtraChips').innerHTML=(item.toastExtras||[]).map((e,i)=>
     `<div class="chip" onclick="toggleToastExtra(${i},this)" data-idx="${i}">${e.name} +${fmt(e.price)}</div>`
   ).join('');
   updToastTotal();openMod('toastModal');
 }
 function toggleToastExtra(idx,el){
   const e=toastItem.toastExtras[idx];
-  const pos=toastSelectedExtras.findIndex(x=&gt;x.name===e.name);
-  if(pos&gt;=0){toastSelectedExtras.splice(pos,1);el.classList.remove('sel');}
+  const pos=toastSelectedExtras.findIndex(x=>x.name===e.name);
+  if(pos>=0){toastSelectedExtras.splice(pos,1);el.classList.remove('sel');}
   else{toastSelectedExtras.push(e);el.classList.add('sel');}
   updToastTotal();
 }
 function updToastTotal(){
-  const extra=toastSelectedExtras.reduce((s,e)=&gt;s+e.price,0);
+  const extra=toastSelectedExtras.reduce((s,e)=>s+e.price,0);
   const total=(toastItem?.price||3500)+extra;
-  $('toastExtraList').textContent=toastSelectedExtras.length?toastSelectedExtras.map(e=&gt;e.name).join(', '):'Sin extras';
+  $('toastExtraList').textContent=toastSelectedExtras.length?toastSelectedExtras.map(e=>e.name).join(', '):'Sin extras';
   $('toastTotal').textContent=fmt(total);
 }
 function confirmToast(){
-  const extra=toastSelectedExtras.reduce((s,e)=&gt;s+e.price,0);
+  const extra=toastSelectedExtras.reduce((s,e)=>s+e.price,0);
   const total=(toastItem?.price||3500)+extra;
-  const detail='Huevo Revuelto'+(toastSelectedExtras.length?', '+toastSelectedExtras.map(e=&gt;e.name).join(', '):'');
+  const detail='Huevo Revuelto'+(toastSelectedExtras.length?', '+toastSelectedExtras.map(e=>e.name).join(', '):'');
   cart.push({name:'Tostadas',price:total,qty:1,detail,note:'',isToast:true});
   closeMod('toastModal');renderCart();showToast('Tostadas agregadas','ok');
 }
@@ -1644,7 +1573,7 @@ function openSplitBill(oid){
 }
 function getSplitItems(){
   const o=getOrder(splitOrderId);let items=[];
-  o.items.forEach(item=&gt;{for(let q=0;q<item.qty;q++)items.push({...item,qty:1});}); return="" items;="" }="" function="" getitemowner(ii){return="" splitpeople.findindex(p="">p.items.includes(ii));}
+  o.items.forEach(item=>{for(let q=0;q<item.qty;q++)items.push({...item,qty:1});}); return items; } function getItemOwner(ii){return splitPeople.findindex(p="">p.items.includes(ii));}
 
 function renderSplitModal(){
   const o=getOrder(splitOrderId);const items=getSplitItems();
@@ -1653,38 +1582,38 @@ function renderSplitModal(){
     <button onclick="addSplitPerson()" style="padding:4px 10px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600">+ Persona</button>
   </div>`;
 
-  splitPeople.forEach((p,pi)=&gt;{
+  splitPeople.forEach((p,pi)=>{
     html+=`<div class="split-person">
       <h4><span>${p.name}</span>${p.paid?'<span style="color:var(--ok);font-size:11px">✓ Pagado</span>':''}</h4>`;
 
-    items.forEach((item,ii)=&gt;{
+    items.forEach((item,ii)=>{
       const ownerIdx=getItemOwner(ii);
       const assignedToMe=p.items.includes(ii);
-      const assignedToOther=ownerIdx&gt;=0&amp;&amp;ownerIdx!==pi;
-      const isPaidItem=splitPeople[ownerIdx]?.paid&amp;&amp;assignedToMe;
+      const assignedToOther=ownerIdx>=0&&ownerIdx!==pi;
+      const isPaidItem=splitPeople[ownerIdx]?.paid&&assignedToMe;
       /* If assigned to another person and that person hasn't paid yet, hide from this person's list */
       /* Show: unassigned OR assigned to me OR paid by owner (struck through) */
       if(assignedToOther)return; /* not shown in other people's lists once assigned */
 
       const style=isPaidItem?'text-decoration:line-through;color:var(--tl)':'';
       html+=`<div class="split-item-row">
-        <input type="checkbox" ${assignedtome?'checked':''}="" ${p.paid?'disabled':''}="" onchange="toggleSplitItem(${pi},${ii})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
+        <input type="checkbox" ${assignedtome?'checked':''} ${p.paid?'disabled':''} onchange="toggleSplitItem(${pi},${ii})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
         <span class="split-item-name" style="${style}">${item.name}${item.note?' ('+item.note+')':''}</span>
         <span class="split-item-price" style="${style}">${fmt(item.price)}</span>
       </div>`;
     });
 
     html+=`<div class="split-tip-row"><label>Propina:</label>
-      <input type="number" value="${p.tip}" min="0" ${p.paid?'disabled':''}="" onchange="splitPeople[${pi}].tip=parseInt(this.value)||0">
-      <button onclick="autoSplitTip(${pi})" ${p.paid?'disabled':''}="" style="padding:2px 7px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">10% auto</button>
+      <input type="number" value="${p.tip}" min="0" ${p.paid?'disabled':''} onchange="splitPeople[${pi}].tip=parseInt(this.value)||0">
+      <button onclick="autoSplitTip(${pi})" ${p.paid?'disabled':''} style="padding:2px 7px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">10% auto</button>
     </div>
     <div class="split-total-row"><span>Total persona ${pi+1}</span><span>${fmt(calcPersonTotal(pi))}</span></div>`;
 
     if(!p.paid){
       html+=`<div class="pay-opts" style="margin-top:6px">
-        <div class="pb2 ${(p.pago||&#39;efectivo&#39;)===&#39;efectivo&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setSplitPago(${pi},&#39;efectivo&#39;,this)"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
-        <div class="pb2 ${(p.pago||&#39;&#39;)===&#39;tarjeta&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setSplitPago(${pi},&#39;tarjeta&#39;,this)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
-        <div class="pb2 ${(p.pago||&#39;&#39;)===&#39;transferencia&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setSplitPago(${pi},&#39;transferencia&#39;,this)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
+        <div class="pb2 ${(p.pago||'efectivo')==='efectivo'?'active':''}" onclick="setSplitPago(${pi},'efectivo',this)"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
+        <div class="pb2 ${(p.pago||'')==='tarjeta'?'active':''}" onclick="setSplitPago(${pi},'tarjeta',this)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
+        <div class="pb2 ${(p.pago||'')==='transferencia'?'active':''}" onclick="setSplitPago(${pi},'transferencia',this)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
       </div>
       <button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
     }else{
@@ -1694,32 +1623,32 @@ function renderSplitModal(){
   });
 
   /* Unassigned items panel */
-  const unassigned=items.filter((_,ii)=&gt;getItemOwner(ii)&lt;0);
+  const unassigned=items.filter((_,ii)=>getItemOwner(ii)<0);
   if(unassigned.length){
     html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.7rem;margin-top:4px">
-      <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Sin asignar (${unassigned.length} ítem${unassigned.length&gt;1?'s':''})</div>
-      ${unassigned.map(item=&gt;`<div style="font-size:12px;display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--br)"><span style="color:var(--wn)">${item.name}</span><span style="color:var(--wn);font-weight:700">${fmt(item.price)}</span></div>`).join('')}
+      <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Sin asignar (${unassigned.length} ítem${unassigned.length>1?'s':''})</div>
+      ${unassigned.map(item=>`<div style="font-size:12px;display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--br)"><span style="color:var(--wn)">${item.name}</span><span style="color:var(--wn);font-weight:700">${fmt(item.price)}</span></div>`).join('')}
     </div>`;
   }
 
-  html+=`<button class="bs2" style="width:100%;margin-top:8px" onclick="closeMod(&#39;splitModal&#39;)">Cerrar</button>`;
+  html+=`<button class="bs2" style="width:100%;margin-top:8px" onclick="closeMod('splitModal')">Cerrar</button>`;
   $('splitContent').innerHTML=html;
 }
 
 function addSplitPerson(){splitPeople.push({name:`Persona ${splitPeople.length+1}`,items:[],tip:0,paid:false,pago:'efectivo'});renderSplitModal();}
 function toggleSplitItem(pi,ii){
   const p=splitPeople[pi];const idx=p.items.indexOf(ii);
-  if(idx&gt;=0)p.items.splice(idx,1);else p.items.push(ii);
+  if(idx>=0)p.items.splice(idx,1);else p.items.push(ii);
   renderSplitModal();
 }
-function setSplitPago(pi,pago,el){splitPeople[pi].pago=pago;el.closest('.pay-opts').querySelectorAll('.pb2').forEach(b=&gt;b.classList.remove('active'));el.classList.add('active');}
+function setSplitPago(pi,pago,el){splitPeople[pi].pago=pago;el.closest('.pay-opts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));el.classList.add('active');}
 function calcPersonTotal(pi){
   const items=getSplitItems();const p=splitPeople[pi];
-  return p.items.reduce((s,ii)=&gt;s+(items[ii]?.price||0),0)+(p.tip||0);
+  return p.items.reduce((s,ii)=>s+(items[ii]?.price||0),0)+(p.tip||0);
 }
 function autoSplitTip(pi){
   const items=getSplitItems();
-  const sub=splitPeople[pi].items.reduce((s,ii)=&gt;s+(items[ii]?.price||0),0);
+  const sub=splitPeople[pi].items.reduce((s,ii)=>s+(items[ii]?.price||0),0);
   splitPeople[pi].tip=Math.round(sub*.1);renderSplitModal();
 }
 function paySplitPerson(pi){
@@ -1728,12 +1657,12 @@ function paySplitPerson(pi){
   const o=getOrder(splitOrderId);
   addCajaMov(total,pago,`Split ${o.tableId?'Mesa '+o.tableId:'MC'} P${pi+1}`);
   showToast(`Persona ${pi+1} pagó ${fmt(total)} ✓`,'ok');
-  if(splitPeople.every(p=&gt;p.paid)){
+  if(splitPeople.every(p=>p.paid)){
     o.status='closed';o.closedAt=Date.now();
-    closedSales.push({...o,items:o.items.map(i=&gt;({...i}))});
+    closedSales.push({...o,items:o.items.map(i=>({...i}))});
     const t=getTable(o.tableId);
     if(t){
-      const remaining=orders.filter(ord=&gt;ord.tableId===o.tableId&amp;&amp;ord.status!=='closed');
+      const remaining=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
       if(!remaining.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
     }
     closeMod('splitModal');showToast(`${o.tableId?'Mesa '+o.tableId:'Mostrador'} cerrada ✓`,'ok');
@@ -1744,32 +1673,32 @@ function paySplitPerson(pi){
 
 /* ── DASHBOARD ── */
 function renderDashboard(){
-  const active=orders.filter(o=&gt;o.status!=='closed');
-  const pending=active.filter(o=&gt;o.status==='pending');
-  const preparing=active.filter(o=&gt;o.status==='preparing');
-  const readyOrds=active.filter(o=&gt;o.status==='ready');
-  const tv=closedSales.reduce((s,o)=&gt;s+oTotal(o),0);
-  const mcv=closedSales.filter(s=&gt;s.type==='mostrador').reduce((s,o)=&gt;s+oTotal(o),0);
+  const active=orders.filter(o=>o.status!=='closed');
+  const pending=active.filter(o=>o.status==='pending');
+  const preparing=active.filter(o=>o.status==='preparing');
+  const readyOrds=active.filter(o=>o.status==='ready');
+  const tv=closedSales.reduce((s,o)=>s+oTotal(o),0);
+  const mcv=closedSales.filter(s=>s.type==='mostrador').reduce((s,o)=>s+oTotal(o),0);
   const ticket=closedSales.length?Math.round(tv/closedSales.length):0;
 
   $('adminStats').innerHTML=`
     <div class="sc"><div class="sl"><i class="ti ti-list-numbers" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Total Órdenes Ingresadas</div><div class="sv">${totalOrdsIn}</div><div class="ss">${active.length} activas ahora</div></div>
     <div class="sc hi"><div class="sl"><i class="ti ti-coin" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Ventas del Día</div><div class="sv hi">${fmt(tv)}</div><div class="ss">${closedSales.length} transacciones cerradas</div></div>
     <div class="sc"><div class="sl"><i class="ti ti-receipt" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Ticket Promedio</div><div class="sv">${fmt(ticket)}</div><div class="ss">ventas ÷ transacciones</div></div>
-    <div class="sc"><div class="sl"><i class="ti ti-building-store" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Ventas Mostrador</div><div class="sv">${fmt(mcv)}</div><div class="ss">${closedSales.filter(s=&gt;s.type==='mostrador').length} ventas takeaway</div></div>`;
+    <div class="sc"><div class="sl"><i class="ti ti-building-store" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Ventas Mostrador</div><div class="sv">${fmt(mcv)}</div><div class="ss">${closedSales.filter(s=>s.type==='mostrador').length} ventas takeaway</div></div>`;
 
   /* ── Kitchen Pipeline ── */
-  const pipelineHTML=(label,icon,color,list,emptyMsg)=&gt;{
+  const pipelineHTML=(label,icon,color,list,emptyMsg)=>{
     return `<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);overflow:hidden;margin-bottom:8px">
       <div style="padding:.55rem .9rem;background:${color}12;border-bottom:1px solid ${color}30;display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:13px;font-weight:700;color:var(--bd);display:flex;align-items:center;gap:6px"><i class="ti ${icon}" style="color:${color};font-size:15px"></i>${label}</div>
         <span style="background:${color}22;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${list.length}</span>
       </div>
-      ${list.length?list.map(o=&gt;`<div class="or" onclick="openOD(&#39;${o.id}&#39;)">
+      ${list.length?list.map(o=>`<div class="or" onclick="openOD('${o.id}')">
         <div class="otb" style="background:${color}18;color:${color}">${o.tableId||'MC'}</div>
         <div class="oi">
           <div class="on">${o.tableId?'Mesa '+o.tableId:'Mostrador'} · <span style="color:var(--ts);font-weight:500">${o.waiter}</span></div>
-          <div class="os">${o.items.map(i=&gt;(i.qty&gt;1?i.qty+'× ':'')+i.name).join(' · ')}</div>
+          <div class="os">${o.items.map(i=>(i.qty>1?i.qty+'× ':'')+i.name).join(' · ')}</div>
         </div>
         <div style="text-align:right">
           <div class="ot">${fmt(oTotal(o))}</div>
@@ -1781,17 +1710,17 @@ function renderDashboard(){
   };
 
   /* Closed orders today — last 5 */
-  const recentClosed=[...closedSales].sort((a,b)=&gt;(b.closedAt||b.time)-(a.closedAt||a.time)).slice(0,5);
+  const recentClosed=[...closedSales].sort((a,b)=>(b.closedAt||b.time)-(a.closedAt||a.time)).slice(0,5);
   const closedHTML=`<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);overflow:hidden;margin-bottom:8px">
     <div style="padding:.55rem .9rem;background:#F0F5EA;border-bottom:1px solid var(--ol)30;display:flex;align-items:center;justify-content:space-between">
       <div style="font-size:13px;font-weight:700;color:var(--bd);display:flex;align-items:center;gap:6px"><i class="ti ti-checks" style="color:var(--ok);font-size:15px"></i>Pedidos Cerrados (hoy)</div>
       <span style="background:#EEF5E8;color:var(--ok);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${closedSales.length}</span>
     </div>
-    ${recentClosed.length?recentClosed.map(s=&gt;`<div class="or">
+    ${recentClosed.length?recentClosed.map(s=>`<div class="or">
       <div class="otb" style="background:#EEF5E8;color:var(--ok)">${s.tableId||'MC'}</div>
       <div class="oi">
         <div class="on">${s.tableId?'Mesa '+s.tableId:'Mostrador'} · <span style="color:var(--ts);font-weight:500">${s.waiter}</span></div>
-        <div class="os">${s.items.map(i=&gt;(i.qty&gt;1?i.qty+'× ':'')+i.name).join(' · ')}</div>
+        <div class="os">${s.items.map(i=>(i.qty>1?i.qty+'× ':'')+i.name).join(' · ')}</div>
       </div>
       <div style="text-align:right">
         <div class="ot" style="color:var(--ok)">${fmt(oTotal(s)+(s.tip||0))}</div>
@@ -1801,7 +1730,7 @@ function renderDashboard(){
     :`<div style="padding:.7rem .9rem;font-size:12px;color:var(--tl);font-style:italic">Sin ventas cerradas aún</div>`}
   </div>`;
 
-  const canceledOrds=active.filter(o=&gt;o.status==='canceled');
+  const canceledOrds=active.filter(o=>o.status==='canceled');
 
   $('adminOrdersList').innerHTML=
     pipelineHTML('Pendientes — En espera de cocina','ti-clock','var(--wn)',pending,'Sin comandas pendientes ✓')+
@@ -1819,40 +1748,40 @@ function openOD(id){
   $('odContent').innerHTML=`<div class="od">
     <h3>${o.tableId?'Mesa '+o.tableId:'Mostrador'} — ${o.id} ${o.status==='canceled'?'<span style="font-size:12px;color:var(--er);background:#FEF0F0;padding:2px 8px;border-radius:20px;font-weight:600">Cancelado</span>':''}</h3>
     <div class="meta">Garzón: ${o.waiter} · ${ftime(o.time)} · ${elapsed(o.time)}</div>
-    <div style="margin-bottom:.6rem">${o.items.map(i=&gt;`<div class="dir"><span>${i.name}${i.qty&gt;1?' ×'+i.qty:''} ${i.detail?'<span style="font-size:10px;color:var(--ts)">('+i.detail+')</span>':''} ${i.note?'<span style="font-size:10px;color:var(--wn);background:#FDF5E0;padding:1px 5px;border-radius:5px">'+i.note+'</span>':''}</span><span>${fmt(i.price*i.qty)}</span></div>`).join('')}</div>
+    <div style="margin-bottom:.6rem">${o.items.map(i=>`<div class="dir"><span>${i.name}${i.qty>1?' ×'+i.qty:''} ${i.detail?'<span style="font-size:10px;color:var(--ts)">('+i.detail+')</span>':''} ${i.note?'<span style="font-size:10px;color:var(--wn);background:#FDF5E0;padding:1px 5px;border-radius:5px">'+i.note+'</span>':''}</span><span>${fmt(i.price*i.qty)}</span></div>`).join('')}</div>
     <div class="dts">
       <div class="dr"><span>Subtotal</span><span>${fmt(sub)}</span></div>
-      <div class="tip-row"><label>Propina:</label><input type="number" id="cTip" value="${tip}" min="0" oninput="$(&#39;dGT&#39;).textContent=fmt(${sub}+(parseInt(this.value)||0))"><button class="atip" onclick="(()=&gt;{const t=Math.round(${sub}*.1);$(&#39;cTip&#39;).value=t;$(&#39;dGT&#39;).textContent=fmt(${sub}+t)})()">10% auto</button></div>
+      <div class="tip-row"><label>Propina:</label><input type="number" id="cTip" value="${tip}" min="0" oninput="$('dGT').textContent=fmt(${sub}+(parseInt(this.value)||0))"><button class="atip" onclick="(()=>{const t=Math.round(${sub}*.1);$('cTip').value=t;$('dGT').textContent=fmt(${sub}+t)})()">10% auto</button></div>
       <div class="dtot"><span>Total a cobrar</span><span id="dGT">${fmt(sub+tip)}</span></div>
     </div>
     <div style="font-size:10px;color:var(--ts);font-weight:600;margin:6px 0 3px">Pago</div>
     <div class="pay-opts">
-      <div class="pb2 ${o.pago===&#39;efectivo&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setOP(&#39;${id}&#39;,&#39;efectivo&#39;,this)"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
-      <div class="pb2 ${o.pago===&#39;tarjeta&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setOP(&#39;${id}&#39;,&#39;tarjeta&#39;,this)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
-      <div class="pb2 ${o.pago===&#39;transferencia&#39;?&#39;active&#39;:&#39;&#39;}" onclick="setOP(&#39;${id}&#39;,&#39;transferencia&#39;,this)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
+      <div class="pb2 ${o.pago==='efectivo'?'active':''}" onclick="setOP('${id}','efectivo',this)"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
+      <div class="pb2 ${o.pago==='tarjeta'?'active':''}" onclick="setOP('${id}','tarjeta',this)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
+      <div class="pb2 ${o.pago==='transferencia'?'active':''}" onclick="setOP('${id}','transferencia',this)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
     </div>
     <div class="aa">
-      ${o.status!=='canceled'?`<button class="ba" onclick="chkSt(&#39;${id}&#39;,&#39;preparing&#39;);closeMod(&#39;odModal&#39;);renderDashboard()"><i class="ti ti-fire" style="font-size:11px" aria-hidden="true"></i> Preparando</button>
-      <button class="ba" onclick="chkSt(&#39;${id}&#39;,&#39;ready&#39;);closeMod(&#39;odModal&#39;);renderDashboard()"><i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i> Listo</button>`:''}
-      ${o.tableId?`<button class="ba info" onclick="closeMod(&#39;odModal&#39;);openSplitBill(&#39;${id}&#39;)"><i class="ti ti-users" style="font-size:11px" aria-hidden="true"></i> Dividir</button>`:''}
-      <button class="ba suc" onclick="closeOrd(&#39;${id}&#39;)"><i class="ti ti-receipt" style="font-size:11px" aria-hidden="true"></i> ${o.status==='canceled'?'Cobrar pedido cancelado':'Cobrar y cerrar'}</button>
+      ${o.status!=='canceled'?`<button class="ba" onclick="chkSt('${id}','preparing');closeMod('odModal');renderDashboard()"><i class="ti ti-fire" style="font-size:11px" aria-hidden="true"></i> Preparando</button>
+      <button class="ba" onclick="chkSt('${id}','ready');closeMod('odModal');renderDashboard()"><i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i> Listo</button>`:''}
+      ${o.tableId?`<button class="ba info" onclick="closeMod('odModal');openSplitBill('${id}')"><i class="ti ti-users" style="font-size:11px" aria-hidden="true"></i> Dividir</button>`:''}
+      <button class="ba suc" onclick="closeOrd('${id}')"><i class="ti ti-receipt" style="font-size:11px" aria-hidden="true"></i> ${o.status==='canceled'?'Cobrar pedido cancelado':'Cobrar y cerrar'}</button>
     </div>
-    <button class="bs2" style="width:100%;margin-top:6px" onclick="closeMod(&#39;odModal&#39;)">Cerrar</button>
+    <button class="bs2" style="width:100%;margin-top:6px" onclick="closeMod('odModal')">Cerrar</button>
   </div>`;
   openMod('odModal');
 }
-function setOP(id,p,el){const o=getOrder(id);if(o)o.pago=p;el.closest('.pay-opts').querySelectorAll('.pb2').forEach(b=&gt;b.classList.remove('active'));el.classList.add('active');}
+function setOP(id,p,el){const o=getOrder(id);if(o)o.pago=p;el.closest('.pay-opts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));el.classList.add('active');}
 function chkSt(id,s){const o=getOrder(id);if(o)o.status=s;showToast('Estado actualizado','ok');}
 function closeOrd(id){
   const o=getOrder(id);if(!o)return;
   const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(oTotal(o)*.1):Math.round(oTotal(o)*.1);
   o.tip=tip;o.status='closed';o.closedAt=Date.now();
-  closedSales.push({...o,items:o.items.map(i=&gt;({...i}))});
+  closedSales.push({...o,items:o.items.map(i=>({...i}))});
   addCajaMov(oTotal(o)+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
   /* Free table only if no other non-closed orders remain */
   const t=getTable(o.tableId);
   if(t){
-    const remaining=orders.filter(ord=&gt;ord.tableId===o.tableId&amp;&amp;ord.status!=='closed');
+    const remaining=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
     if(!remaining.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
   }
   closeMod('odModal');
@@ -1865,7 +1794,7 @@ function closeOrd(id){
 function renderClients(){
   if($('resetClientsBtn'))$('resetClientsBtn').style.display=cRole==='admin'?'':'none';
   if(!clients.length){$('clientsList').innerHTML='<div class="noo"><i class="ti ti-users" aria-hidden="true"></i><p>Sin clientes registrados</p></div>';return;}
-  $('clientsList').innerHTML=clients.map(c=&gt;`<div class="cl-card" onclick="openClientDetail(&#39;${c.id}&#39;)">
+  $('clientsList').innerHTML=clients.map(c=>`<div class="cl-card" onclick="openClientDetail('${c.id}')">
     <div style="display:flex;align-items:center;gap:10px">
       <div class="cl-av">${c.name.charAt(0)}</div>
       <div style="flex:1">
@@ -1874,7 +1803,7 @@ function renderClients(){
         <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
           <span style="font-size:13px;font-weight:700;color:var(--bm)">${fmt(c.totalSpent)}</span>
           <span style="font-size:10px;color:var(--ts)">${c.history.length} visitas</span>
-          ${c.pendings.filter(p=&gt;!p.done).length?`<span class="pending-tag"><i class="ti ti-alert-triangle" style="font-size:10px" aria-hidden="true"></i>${c.pendings.filter(p=&gt;!p.done).length} pendiente(s)</span>`:''}
+          ${c.pendings.filter(p=>!p.done).length?`<span class="pending-tag"><i class="ti ti-alert-triangle" style="font-size:10px" aria-hidden="true"></i>${c.pendings.filter(p=>!p.done).length} pendiente(s)</span>`:''}
         </div>
       </div>
       <i class="ti ti-chevron-right" style="color:var(--tl);font-size:14px" aria-hidden="true"></i>
@@ -1884,18 +1813,18 @@ function renderClients(){
 
 function resetAllClientHistory(){
   if(!confirm('¿Resetear historial y estadísticas de TODOS los clientes?'))return;
-  clients.forEach(c=&gt;{c.history=[];c.totalSpent=0;});
+  clients.forEach(c=>{c.history=[];c.totalSpent=0;});
   showToast('Historial de clientes reseteado','del');renderClients();
 }
 
 function openClientDetail(cid){
-  currentClientId=cid;const c=clients.find(x=&gt;x.id===cid);if(!c)return;
+  currentClientId=cid;const c=clients.find(x=>x.id===cid);if(!c)return;
   const avg=c.history.length?Math.round(c.totalSpent/c.history.length):0;
   $('clientDetailContent').innerHTML=`<div style="padding:1.2rem">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">
       <div class="cl-av" style="width:48px;height:48px;font-size:20px">${c.name.charAt(0)}</div>
       <div>
-        <div style="font-size:17px;font-weight:700;font-family:&#39;Playfair Display&#39;,serif;color:var(--bd)">${c.name}</div>
+        <div style="font-size:17px;font-weight:700;font-family:'Playfair Display',serif;color:var(--bd)">${c.name}</div>
         <div style="font-size:11px;color:var(--ts)">${c.phone||''} ${c.email?'· '+c.email:''}</div>
         ${c.notes?`<div style="font-size:11px;color:var(--inf);margin-top:2px">${c.notes}</div>`:''}
       </div>
@@ -1904,38 +1833,38 @@ function openClientDetail(cid){
       <div class="sc"><div class="sl">Total consumido</div><div class="sv">${fmt(c.totalSpent)}</div></div>
       <div class="sc"><div class="sl">Ticket promedio</div><div class="sv">${fmt(avg)}</div></div>
       <div class="sc"><div class="sl">Visitas</div><div class="sv">${c.history.length}</div></div>
-      <div class="sc"><div class="sl">Pendientes</div><div class="sv" style="color:${c.pendings.filter(p=&gt;!p.done).length?&#39;var(--wn)&#39;:&#39;var(--ok)&#39;}">${c.pendings.filter(p=&gt;!p.done).length}</div></div>
+      <div class="sc"><div class="sl">Pendientes</div><div class="sv" style="color:${c.pendings.filter(p=>!p.done).length?'var(--wn)':'var(--ok)'}">${c.pendings.filter(p=>!p.done).length}</div></div>
     </div>
     <div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:.4rem;display:flex;align-items:center;justify-content:space-between">
       Pendientes que les debo
       <div style="display:flex;gap:5px">
-        <button onclick="openAddPending(&#39;${cid}&#39;)" style="padding:3px 8px;border:1px solid var(--wn);color:var(--wn);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600"><i class="ti ti-plus" style="font-size:10px;vertical-align:-1px" aria-hidden="true"></i> Agregar</button>
-        ${cRole==='admin'?`<button onclick="resetClientHistory(&#39;${cid}&#39;)" style="padding:3px 8px;border:1px solid var(--ts);color:var(--ts);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600"><i class="ti ti-refresh" style="font-size:10px;vertical-align:-1px" aria-hidden="true"></i> Reset</button>`:''}
+        <button onclick="openAddPending('${cid}')" style="padding:3px 8px;border:1px solid var(--wn);color:var(--wn);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600"><i class="ti ti-plus" style="font-size:10px;vertical-align:-1px" aria-hidden="true"></i> Agregar</button>
+        ${cRole==='admin'?`<button onclick="resetClientHistory('${cid}')" style="padding:3px 8px;border:1px solid var(--ts);color:var(--ts);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600"><i class="ti ti-refresh" style="font-size:10px;vertical-align:-1px" aria-hidden="true"></i> Reset</button>`:''}
       </div>
     </div>
-    ${c.pendings.length?c.pendings.map((p,pi)=&gt;`<div class="pend-item">
-      <input type="checkbox" ${p.done?'checked':''}="" onchange="togglePending(&#39;${cid}&#39;,${pi})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
-      <div style="flex:1"><span style="${p.done?&#39;text-decoration:line-through;color:var(--tl)&#39;:&#39;&#39;}">${p.desc}</span><div style="font-size:10px;color:var(--ts)">${p.val||''}</div></div>
+    ${c.pendings.length?c.pendings.map((p,pi)=>`<div class="pend-item">
+      <input type="checkbox" ${p.done?'checked':''} onchange="togglePending('${cid}',${pi})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
+      <div style="flex:1"><span style="${p.done?'text-decoration:line-through;color:var(--tl)':''}">${p.desc}</span><div style="font-size:10px;color:var(--ts)">${p.val||''}</div></div>
       <div style="display:flex;gap:4px;align-items:center">
-        ${!p.done&amp;&amp;p.unitVal?`<button style="display:flex;align-items:center;gap:3px;padding:3px 7px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap" title="Cobrar este ítem" onclick="chargeClientItem(&#39;${cid}&#39;,${pi})"><i class="ti ti-cash" style="font-size:11px" aria-hidden="true"></i> Cobrar</button>`:''}
-        <button class="icon-btn" onclick="openEditPending(&#39;${cid}&#39;,${pi})" title="Editar pendiente"><i class="ti ti-pencil" style="font-size:12px" aria-hidden="true"></i></button>
-        <button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar pendiente" onclick="deletePending(&#39;${cid}&#39;,${pi})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
+        ${!p.done&&p.unitVal?`<button style="display:flex;align-items:center;gap:3px;padding:3px 7px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap" title="Cobrar este ítem" onclick="chargeClientItem('${cid}',${pi})"><i class="ti ti-cash" style="font-size:11px" aria-hidden="true"></i> Cobrar</button>`:''}
+        <button class="icon-btn" onclick="openEditPending('${cid}',${pi})" title="Editar pendiente"><i class="ti ti-pencil" style="font-size:12px" aria-hidden="true"></i></button>
+        <button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar pendiente" onclick="deletePending('${cid}',${pi})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
       </div>
     </div>`).join(''):`<div style="font-size:12px;color:var(--tl);padding:.5rem 0">Sin pendientes registrados</div>`}
     <div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.8rem 0 .4rem">Historial de consumo</div>
-    ${c.history.length?c.history.slice().reverse().map(h=&gt;`<div class="history-row"><span style="color:var(--ts);font-size:11px">${fdate(h.date)}</span><span>${h.desc}</span><span style="color:var(--bm);font-weight:700">${fmt(h.total)}</span></div>`).join(''):`<div style="font-size:12px;color:var(--tl);padding:.5rem 0">Sin historial de consumo</div>`}
+    ${c.history.length?c.history.slice().reverse().map(h=>`<div class="history-row"><span style="color:var(--ts);font-size:11px">${fdate(h.date)}</span><span>${h.desc}</span><span style="color:var(--bm);font-weight:700">${fmt(h.total)}</span></div>`).join(''):`<div style="font-size:12px;color:var(--tl);padding:.5rem 0">Sin historial de consumo</div>`}
     <div style="margin-top:.8rem;display:grid;grid-template-columns:1fr 1fr;gap:6px">
-      <button onclick="assignClientToTable(&#39;${cid}&#39;)" style="padding:9px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ti-table" style="font-size:13px" aria-hidden="true"></i> Asignar mesa</button>
-      ${cRole==='admin'?`<button onclick="deleteClient(&#39;${cid}&#39;)" style="padding:9px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ti-trash" style="font-size:13px" aria-hidden="true"></i> Eliminar</button>`:''}
+      <button onclick="assignClientToTable('${cid}')" style="padding:9px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ti-table" style="font-size:13px" aria-hidden="true"></i> Asignar mesa</button>
+      ${cRole==='admin'?`<button onclick="deleteClient('${cid}')" style="padding:9px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ti-trash" style="font-size:13px" aria-hidden="true"></i> Eliminar</button>`:''}
     </div>
-    <button class="bs2" style="width:100%;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:5px" onclick="closeMod(&#39;clientDetailModal&#39;)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i> Cerrar</button>
+    <button class="bs2" style="width:100%;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:5px" onclick="closeMod('clientDetailModal')"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i> Cerrar</button>
   </div>`;
   openMod('clientDetailModal');
 }
 
 /* Fix 2: Charge individual client item */
 function chargeClientItem(cid,pi){
-  const c=clients.find(x=&gt;x.id===cid);if(!c)return;
+  const c=clients.find(x=>x.id===cid);if(!c)return;
   const p=c.pendings[pi];
   if(!p||p.done){showToast('Pendiente ya liquidado');return;}
   const total=p.unitVal*(p.qty||1);
@@ -1959,7 +1888,7 @@ function chargeClientItem(cid,pi){
 }
 function resetClientHistory(cid){
   if(!confirm('¿Resetear historial y estadísticas de este cliente?'))return;
-  const c=clients.find(x=&gt;x.id===cid);if(!c)return;
+  const c=clients.find(x=>x.id===cid);if(!c)return;
   c.history=[];c.totalSpent=0;showToast('Historial reseteado','del');
   closeMod('clientDetailModal');openClientDetail(cid);
 }
@@ -1967,7 +1896,7 @@ function resetClientHistory(cid){
 /* Pending — with cart search, qty × unit price = total */
 function openAddPending(cid){
   currentClientId=cid;editingPendingIdx=-1;
-  const c=clients.find(x=&gt;x.id===cid);
+  const c=clients.find(x=>x.id===cid);
   $('pendingModalTitle').textContent='Agregar pendiente';
   $('pendingClientName').textContent='Para: '+c.name;
   $('pendingDesc').value='';$('pendingQty').value=1;$('pendingUnit').value='';$('pendingTotal').value='';
@@ -1976,7 +1905,7 @@ function openAddPending(cid){
 }
 function openEditPending(cid,pi){
   currentClientId=cid;editingPendingIdx=pi;
-  const c=clients.find(x=&gt;x.id===cid);const p=c.pendings[pi];
+  const c=clients.find(x=>x.id===cid);const p=c.pendings[pi];
   $('pendingModalTitle').textContent='Editar pendiente';
   $('pendingClientName').textContent='Para: '+c.name;
   $('pendingDesc').value=p.desc||'';$('pendingQty').value=p.qty||1;$('pendingUnit').value=p.unitVal||'';
@@ -1990,10 +1919,10 @@ function renderPendingSearch(){
   const res=$('pendingSearchResults');
   if(!q){res.style.display='none';res.innerHTML='';return;}
   let found=[];
-  Object.entries(menuData).forEach(([,subs])=&gt;Object.entries(subs).forEach(([,items])=&gt;items.forEach(item=&gt;{if(item.active&amp;&amp;item.name.toLowerCase().includes(q))found.push(item);})));
+  Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
   if(!found.length){res.style.display='none';return;}
   res.style.display='block';
-  res.innerHTML=found.slice(0,6).map(item=&gt;`<div class="pend-search-result" onclick="selectPendingProduct(&#39;${item.name.replace(/&#39;/g," \\'")}',${item.price})"=""><span>${item.name}</span><span style="color:var(--bm);font-weight:700">${fmt(item.price)}</span></div>`).join('');
+  res.innerHTML=found.slice(0,6).map(item=>`<div class="pend-search-result" onclick="selectPendingProduct('${item.name.replace(/'/g," \\'")}',${item.price})"=""><span>${item.name}</span><span style="color:var(--bm);font-weight:700">${fmt(item.price)}</span></div>`).join('');
 }
 function selectPendingProduct(name,price){
   $('pendingDesc').value=name;$('pendingUnit').value=price;
@@ -2006,24 +1935,24 @@ function calcPendingVal(){
   $('pendingTotal').value=unit?fmt(qty*unit):'';
 }
 function savePending(){
-  const c=clients.find(x=&gt;x.id===currentClientId);if(!c)return;
+  const c=clients.find(x=>x.id===currentClientId);if(!c)return;
   const desc=($('pendingDesc').value||'').trim();if(!desc){showToast('Describe el pendiente');return;}
   const qty=parseInt($('pendingQty').value)||1,unitVal=parseInt($('pendingUnit').value)||0;
   const val=unitVal?fmt(qty*unitVal):($('pendingTotal').value||'');
   const obj={id:'P'+Date.now(),desc,qty,unitVal,val,done:false};
-  if(editingPendingIdx&gt;=0){Object.assign(c.pendings[editingPendingIdx],obj);}
+  if(editingPendingIdx>=0){Object.assign(c.pendings[editingPendingIdx],obj);}
   else{c.pendings.push(obj);}
   /* Toast disappears automatically via setTimeout in showToast */
-  showToast(editingPendingIdx&gt;=0?'Pendiente actualizado':'Pendiente agregado','ok');
+  showToast(editingPendingIdx>=0?'Pendiente actualizado':'Pendiente agregado','ok');
   closeMod('pendingModal');openClientDetail(currentClientId);
 }
-function togglePending(cid,pi){const c=clients.find(x=&gt;x.id===cid);if(c){c.pendings[pi].done=!c.pendings[pi].done;openClientDetail(cid);}}
+function togglePending(cid,pi){const c=clients.find(x=>x.id===cid);if(c){c.pendings[pi].done=!c.pendings[pi].done;openClientDetail(cid);}}
 function deletePending(cid,pi){
-  const c=clients.find(x=&gt;x.id===cid);if(!c||!confirm('¿Eliminar este pendiente?'))return;
+  const c=clients.find(x=>x.id===cid);if(!c||!confirm('¿Eliminar este pendiente?'))return;
   c.pendings.splice(pi,1);showToast('Pendiente eliminado','del');openClientDetail(cid);
 }
 function assignClientToTable(cid){
-  const c=clients.find(x=&gt;x.id===cid);if(!c)return;
+  const c=clients.find(x=>x.id===cid);if(!c)return;
   const tNum=prompt('¿A qué mesa asignar a '+c.name+'? (1-'+tables.length+')');
   if(!tNum||isNaN(tNum))return;
   const tid=parseInt(tNum);
@@ -2033,7 +1962,7 @@ function assignClientToTable(cid){
   t.clientId=cid;t.clientName=c.name;
   if(t.status==='free')t.status='occupied';
   /* If no active order yet for that table, create a placeholder entry */
-  const existingOrder=orders.find(o=&gt;o.tableId===tid&amp;&amp;o.status!=='closed');
+  const existingOrder=orders.find(o=>o.tableId===tid&&o.status!=='closed');
   if(!existingOrder){
     orders.push({id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:tid,type:'mesa',waiter:cUser||'Admin',time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientId:cid,clientName:c.name});
     totalOrdsIn++;
@@ -2043,7 +1972,7 @@ function assignClientToTable(cid){
 }
 function deleteClient(cid){
   if(!confirm('¿Eliminar este cliente?'))return;
-  clients=clients.filter(c=&gt;c.id!==cid);closeMod('clientDetailModal');showToast('Cliente eliminado','del');renderClients();
+  clients=clients.filter(c=>c.id!==cid);closeMod('clientDetailModal');showToast('Cliente eliminado','del');renderClients();
 }
 function saveClient(){
   const name=($('cliName').value||'').trim();if(!name){showToast('Ingresa un nombre');return;}
@@ -2056,7 +1985,7 @@ function renderCaja(){
   const ef=cajaByPago('efectivo'),tj=cajaByPago('tarjeta'),tr=cajaByPago('transferencia'),tv=cajaTotal();
   $('cajaContent').innerHTML=`
     <div class="caja-card"><h3>Estado de Caja</h3>
-      <div class="cj-status ${caja.open?&#39;open&#39;:&#39;closed&#39;}"><i class="ti ti-${caja.open?&#39;lock-open&#39;:&#39;lock&#39;}" style="font-size:18px" aria-hidden="true"></i><div><div style="font-weight:700">${caja.open?'Caja Abierta':'Caja Cerrada'}</div><div style="font-size:10px;font-weight:400">${caja.open?'Desde: '+ftime(caja.openTime):'Sin turno activo'}</div></div></div>
+      <div class="cj-status ${caja.open?'open':'closed'}"><i class="ti ti-${caja.open?'lock-open':'lock'}" style="font-size:18px" aria-hidden="true"></i><div><div style="font-weight:700">${caja.open?'Caja Abierta':'Caja Cerrada'}</div><div style="font-size:10px;font-weight:400">${caja.open?'Desde: '+ftime(caja.openTime):'Sin turno activo'}</div></div></div>
       ${!caja.open
         ?`<div class="form-item"><label>Fondo inicial (efectivo)</label><input type="number" id="fInp" value="50000" step="1000"></div><button class="btn-cj open" onclick="abrirCaja()"><i class="ti ti-lock-open" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Abrir Caja</button>`
         :`<div class="form-item"><label>Nota de cierre</label><input type="text" id="nCierre" placeholder="Turno sin novedades"></div><button class="btn-cj close" onclick="cerrarCaja()"><i class="ti ti-lock" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Cerrar Caja</button>`}
@@ -2070,7 +1999,7 @@ function renderCaja(){
       <div class="cj-row"><span style="font-weight:700;color:var(--tm)">Total ventas</span><span style="font-weight:700;color:var(--ol)">${fmt(tv)}</span></div>
       <div class="cj-total"><span>Efectivo en caja</span><span>${fmt(caja.fondo+ef)}</span></div>
     </div>
-    ${caja.log.length?`<div class="caja-card"><h3>Movimientos recientes</h3>${[...caja.log].reverse().slice(0,10).map(l=&gt;`<div style="font-size:11px;color:var(--ts);padding:5px 0;border-bottom:1px solid var(--cr2)"><span style="color:var(--tl)">${ftime(l.time)}</span> · ${l.msg}</div>`).join('')}</div>`:''}`;
+    ${caja.log.length?`<div class="caja-card"><h3>Movimientos recientes</h3>${[...caja.log].reverse().slice(0,10).map(l=>`<div style="font-size:11px;color:var(--ts);padding:5px 0;border-bottom:1px solid var(--cr2)"><span style="color:var(--tl)">${ftime(l.time)}</span> · ${l.msg}</div>`).join('')}</div>`:''}`;
 }
 function abrirCaja(){const f=parseInt($('fInp').value)||0;caja.open=true;caja.openTime=Date.now();caja.fondo=f;caja.movements=[];caja.log=[{time:Date.now(),msg:`Apertura · Fondo: ${fmt(f)}`}];showToast('Caja abierta · '+fmt(f),'ok');renderCaja();}
 function cerrarCaja(){
@@ -2079,23 +2008,23 @@ function cerrarCaja(){
 }
 
 /* ── STATS ── */
-function setStatsPeriod(p,el){document.querySelectorAll('.st2').forEach(t=&gt;t.classList.remove('active'));el.classList.add('active');renderStats();}
+function setStatsPeriod(p,el){document.querySelectorAll('.st2').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderStats();}
 function renderStats(){
   const all=closedSales;
   if(!all.length){$('statsContent').innerHTML='<div class="noo"><i class="ti ti-chart-bar" aria-hidden="true"></i><p>Sin datos aún</p></div>';return;}
-  const tv=all.reduce((s,o)=&gt;s+oTotal(o),0);
-  const tips=all.reduce((s,o)=&gt;s+(o.tip||0),0);
+  const tv=all.reduce((s,o)=>s+oTotal(o),0);
+  const tips=all.reduce((s,o)=>s+(o.tip||0),0);
   const ticket=Math.round(tv/(all.length||1));
-  const mcv=all.filter(o=&gt;o.type==='mostrador').reduce((s,o)=&gt;s+oTotal(o),0);
-  const pm={efectivo:0,tarjeta:0,transferencia:0};all.forEach(o=&gt;{pm[o.pago]=(pm[o.pago]||0)+oTotal(o);});
-  const prodC={};all.forEach(o=&gt;o.items.forEach(i=&gt;{prodC[i.name]=(prodC[i.name]||0)+i.qty;}));
-  const top=Object.entries(prodC).sort((a,b)=&gt;b[1]-a[1]).slice(0,6);const mx=top[0]?top[0][1]:1;
-  const wMap={};all.forEach(o=&gt;{wMap[o.waiter]=(wMap[o.waiter]||0)+oTotal(o);});
-  const topW=Object.entries(wMap).sort((a,b)=&gt;b[1]-a[1]);const mxW=topW[0]?topW[0][1]:1;
-  const consumoPromCliente=clients.length?Math.round(clients.reduce((s,c)=&gt;s+c.totalSpent,0)/clients.length):0;
+  const mcv=all.filter(o=>o.type==='mostrador').reduce((s,o)=>s+oTotal(o),0);
+  const pm={efectivo:0,tarjeta:0,transferencia:0};all.forEach(o=>{pm[o.pago]=(pm[o.pago]||0)+oTotal(o);});
+  const prodC={};all.forEach(o=>o.items.forEach(i=>{prodC[i.name]=(prodC[i.name]||0)+i.qty;}));
+  const top=Object.entries(prodC).sort((a,b)=>b[1]-a[1]).slice(0,6);const mx=top[0]?top[0][1]:1;
+  const wMap={};all.forEach(o=>{wMap[o.waiter]=(wMap[o.waiter]||0)+oTotal(o);});
+  const topW=Object.entries(wMap).sort((a,b)=>b[1]-a[1]);const mxW=topW[0]?topW[0][1]:1;
+  const consumoPromCliente=clients.length?Math.round(clients.reduce((s,c)=>s+c.totalSpent,0)/clients.length):0;
 
-  const mesaSales=all.filter(o=&gt;o.type==='mesa');
-  const mcSales=all.filter(o=&gt;o.type==='mostrador');
+  const mesaSales=all.filter(o=>o.type==='mesa');
+  const mcSales=all.filter(o=>o.type==='mostrador');
 
   $('statsContent').innerHTML=`
     <div class="sg">
@@ -2108,39 +2037,39 @@ function renderStats(){
     </div>
 
     <div class="chart-card"><h3>Método de pago</h3>
-      ${['efectivo','tarjeta','transferencia'].map((p,i)=&gt;`<div class="pg-row"><span><span class="pg-dot" style="background:${[&#39;var(--ok)&#39;,&#39;var(--inf)&#39;,&#39;var(--wn)&#39;][i]}"></span>${{efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia'}[p]}</span>
-      <div style="display:flex;gap:7px;align-items:center"><span style="color:var(--ts);font-size:11px">${fmt(pm[p])}</span><div style="width:60px;height:7px;background:var(--cr2);border-radius:20px;overflow:hidden"><div style="height:100%;width:${tv?Math.round(pm[p]/tv*100):0}%;background:${[&#39;var(--ok)&#39;,&#39;var(--inf)&#39;,&#39;var(--wn)&#39;][i]};border-radius:20px"></div></div></div></div>`).join('')}
+      ${['efectivo','tarjeta','transferencia'].map((p,i)=>`<div class="pg-row"><span><span class="pg-dot" style="background:${['var(--ok)','var(--inf)','var(--wn)'][i]}"></span>${{efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia'}[p]}</span>
+      <div style="display:flex;gap:7px;align-items:center"><span style="color:var(--ts);font-size:11px">${fmt(pm[p])}</span><div style="width:60px;height:7px;background:var(--cr2);border-radius:20px;overflow:hidden"><div style="height:100%;width:${tv?Math.round(pm[p]/tv*100):0}%;background:${['var(--ok)','var(--inf)','var(--wn)'][i]};border-radius:20px"></div></div></div></div>`).join('')}
     </div>
 
     <div class="chart-card"><h3>Productos más vendidos</h3>
-      <div class="hbars">${top.map(([name,qty])=&gt;`<div class="hbr"><div class="hbl">${name.length&gt;16?name.slice(0,15)+'…':name}</div><div class="hbt"><div class="hbf" style="width:${Math.round(qty/mx*100)}%"></div></div><div class="hbv">${qty} uds</div></div>`).join('')}</div>
+      <div class="hbars">${top.map(([name,qty])=>`<div class="hbr"><div class="hbl">${name.length>16?name.slice(0,15)+'…':name}</div><div class="hbt"><div class="hbf" style="width:${Math.round(qty/mx*100)}%"></div></div><div class="hbv">${qty} uds</div></div>`).join('')}</div>
     </div>
 
     <div class="chart-card"><h3>Ventas por garzón</h3>
-      <div class="hbars">${topW.map(([w,v])=&gt;`<div class="hbr"><div class="hbl">${w.split(' ')[0]}</div><div class="hbt"><div class="hbf" style="width:${Math.round(v/mxW*100)}%;background:var(--bm)"></div></div><div class="hbv">${fmt(v)}</div></div>`).join('')}</div>
+      <div class="hbars">${topW.map(([w,v])=>`<div class="hbr"><div class="hbl">${w.split(' ')[0]}</div><div class="hbt"><div class="hbf" style="width:${Math.round(v/mxW*100)}%;background:var(--bm)"></div></div><div class="hbv">${fmt(v)}</div></div>`).join('')}</div>
     </div>
 
     <!-- Fix 2: Tips by waiter -->
     <div class="chart-card">
       <h3>Propinas por garzón</h3>
-      ${(()=&gt;{
+      ${(()=>{
         const tMap={};
-        all.forEach(o=&gt;{if(o.tip){tMap[o.waiter]=(tMap[o.waiter]||0)+(o.tip||0);}});
-        const tList=Object.entries(tMap).sort((a,b)=&gt;b[1]-a[1]);
+        all.forEach(o=>{if(o.tip){tMap[o.waiter]=(tMap[o.waiter]||0)+(o.tip||0);}});
+        const tList=Object.entries(tMap).sort((a,b)=>b[1]-a[1]);
         const mxT=tList[0]?tList[0][1]:1;
         if(!tList.length)return '<div style="font-size:12px;color:var(--tl);padding:.5rem 0">Sin propinas registradas</div>';
-        return `<div class="hbars">${tList.map(([w,v])=&gt;`<div class="hbr"><div class="hbl">${w.split(' ')[0]}</div><div class="hbt"><div class="hbf" style="width:${Math.round(v/mxT*100)}%;background:var(--ol)"></div></div><div class="hbv">${fmt(v)}</div></div>`).join('')}</div>`;
+        return `<div class="hbars">${tList.map(([w,v])=>`<div class="hbr"><div class="hbl">${w.split(' ')[0]}</div><div class="hbt"><div class="hbf" style="width:${Math.round(v/mxT*100)}%;background:var(--ol)"></div></div><div class="hbv">${fmt(v)}</div></div>`).join('')}</div>`;
       })()}
     </div>
 
     <!-- Historial completo por Mesas -->
     <div class="chart-card">
       <h3>Historial de ventas — Mesas (${mesaSales.length})</h3>
-      ${mesaSales.length?[...mesaSales].sort((a,b)=&gt;(b.closedAt||b.time)-(a.closedAt||a.time)).map(s=&gt;`<div class="sale-row">
+      ${mesaSales.length?[...mesaSales].sort((a,b)=>(b.closedAt||b.time)-(a.closedAt||a.time)).map(s=>`<div class="sale-row">
         <div>
           <div style="font-size:12px;font-weight:700">Mesa ${s.tableId} <span class="sale-badge sb-mesa">Mesa</span></div>
           <div style="font-size:10px;color:var(--ts)">${s.waiter} · ${ftime(s.closedAt||s.time)} · ${s.pago}</div>
-          <div style="font-size:10px;color:var(--ts)">${s.items.map(i=&gt;i.name+(i.qty&gt;1?' ×'+i.qty:'')).join(', ')}</div>
+          <div style="font-size:10px;color:var(--ts)">${s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join(', ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="color:var(--bm);font-weight:700">${fmt(oTotal(s))}</div>
@@ -2152,11 +2081,11 @@ function renderStats(){
     <!-- Historial completo por Mostrador -->
     <div class="chart-card">
       <h3>Historial de ventas — Mostrador (${mcSales.length})</h3>
-      ${mcSales.length?[...mcSales].sort((a,b)=&gt;(b.closedAt||b.time)-(a.closedAt||a.time)).map(s=&gt;`<div class="sale-row">
+      ${mcSales.length?[...mcSales].sort((a,b)=>(b.closedAt||b.time)-(a.closedAt||a.time)).map(s=>`<div class="sale-row">
         <div>
           <div style="font-size:12px;font-weight:700">Mostrador <span class="sale-badge sb-mc">MC</span></div>
           <div style="font-size:10px;color:var(--ts)">${s.waiter} · ${ftime(s.closedAt||s.time)} · ${s.pago}</div>
-          <div style="font-size:10px;color:var(--ts)">${s.items.map(i=&gt;i.name+(i.qty&gt;1?' ×'+i.qty:'')).join(', ')}</div>
+          <div style="font-size:10px;color:var(--ts)">${s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join(', ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0"><div style="color:var(--bm);font-weight:700">${fmt(oTotal(s))}</div></div>
       </div>`).join(''):`<div style="color:var(--tl);font-size:12px;padding:.5rem 0">Sin ventas de mostrador</div>`}
@@ -2175,27 +2104,27 @@ function downloadExcel(){
   if(!closedSales.length){showToast('Sin datos para exportar');return;}
   const wb=XLSX.utils.book_new();
   /* Resumen */
-  const tv=closedSales.reduce((s,o)=&gt;s+oTotal(o),0);
+  const tv=closedSales.reduce((s,o)=>s+oTotal(o),0);
   const resumen=[
     ['EcoNativo — Reporte de Ventas','','',new Date().toLocaleString('es-CL')],
     [],
     ['RESUMEN GENERAL'],
-    ['Total Ventas',tv],['Propinas Totales',closedSales.reduce((s,o)=&gt;s+(o.tip||0),0)],
+    ['Total Ventas',tv],['Propinas Totales',closedSales.reduce((s,o)=>s+(o.tip||0),0)],
     ['Transacciones',closedSales.length],['Ticket Promedio',Math.round(tv/(closedSales.length||1))],
     [],['VENTAS POR MÉTODO DE PAGO'],
-    ['Efectivo',closedSales.filter(s=&gt;s.pago==='efectivo').reduce((s,o)=&gt;s+oTotal(o),0)],
-    ['Tarjeta',closedSales.filter(s=&gt;s.pago==='tarjeta').reduce((s,o)=&gt;s+oTotal(o),0)],
-    ['Transferencia',closedSales.filter(s=&gt;s.pago==='transferencia').reduce((s,o)=&gt;s+oTotal(o),0)],
+    ['Efectivo',closedSales.filter(s=>s.pago==='efectivo').reduce((s,o)=>s+oTotal(o),0)],
+    ['Tarjeta',closedSales.filter(s=>s.pago==='tarjeta').reduce((s,o)=>s+oTotal(o),0)],
+    ['Transferencia',closedSales.filter(s=>s.pago==='transferencia').reduce((s,o)=>s+oTotal(o),0)],
     [],['Fondo inicial caja',caja.fondo],['Efectivo en caja',caja.fondo+cajaByPago('efectivo')],
   ];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(resumen),'Resumen');
   /* Ventas detalle */
   const header=['ID','Tipo','Mesa/Mostrador','Garzón','Hora','Productos','Subtotal','Propina','Total','Método Pago'];
-  const rows=closedSales.map(s=&gt;[s.id,s.type,s.tableId||'Mostrador',s.waiter,ftime(s.closedAt||s.time),s.items.map(i=&gt;i.name+(i.qty&gt;1?' ×'+i.qty:'')).join('; '),oTotal(s),s.tip||0,oTotal(s)+(s.tip||0),s.pago]);
+  const rows=closedSales.map(s=>[s.id,s.type,s.tableId||'Mostrador',s.waiter,ftime(s.closedAt||s.time),s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),oTotal(s),s.tip||0,oTotal(s)+(s.tip||0),s.pago]);
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([header,...rows]),'Ventas detalle');
   /* Productos */
-  const prodC={};closedSales.forEach(o=&gt;o.items.forEach(i=&gt;{if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=i.qty;prodC[i.name].total+=i.price*i.qty;}));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Producto','Unidades vendidas','Ingresos'],...Object.entries(prodC).sort((a,b)=&gt;b[1].qty-a[1].qty).map(([n,d])=&gt;[n,d.qty,d.total])]),'Productos');
+  const prodC={};closedSales.forEach(o=>o.items.forEach(i=>{if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=i.qty;prodC[i.name].total+=i.price*i.qty;}));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Producto','Unidades vendidas','Ingresos'],...Object.entries(prodC).sort((a,b)=>b[1].qty-a[1].qty).map(([n,d])=>[n,d.qty,d.total])]),'Productos');
   XLSX.writeFile(wb,'EcoNativo_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('Excel descargado ✓','ok');
 }
@@ -2203,34 +2132,34 @@ function downloadExcel(){
 /* ── RECIPES — full CRUD ── */
 function renderRecipes(){
   buildRecipes();
-  const cats=[...new Set(Object.values(recipes).map(r=&gt;r.cat))].sort();
-  $('recipesCatPills').innerHTML=cats.map(c=&gt;`<button class="cp2 ${c===aRecipeCat?&#39;active&#39;:&#39;&#39;}" onclick="setRecipeCat(&#39;${c}&#39;)">${c}</button>`).join('');
+  const cats=[...new Set(Object.values(recipes).map(r=>r.cat))].sort();
+  $('recipesCatPills').innerHTML=cats.map(c=>`<button class="cp2 ${c===aRecipeCat?'active':''}" onclick="setRecipeCat('${c}')">${c}</button>`).join('');
    /* Botón Guardar solo admin */
   const btnRec=$('btnConfirmRecipes');
   if(btnRec)btnRec.style.display=cRole==='admin'?'':'none';
-  const catRecipes=Object.entries(recipes).filter(([,r])=&gt;r.cat===aRecipeCat);
+  const catRecipes=Object.entries(recipes).filter(([,r])=>r.cat===aRecipeCat);
   if(!catRecipes.length){$('recipesContent').innerHTML='<div class="noo"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i><p>Sin recetas en esta categoría</p></div>';return;}
-  $('recipesContent').innerHTML=catRecipes.map(([name,recipe])=&gt;{
-    const totalCost=recipe.ingredients.reduce((s,i)=&gt;s+(parseInt(i.cost)||0),0);
-    const margin=recipe.price&gt;0?Math.round((recipe.price-totalCost)/recipe.price*100):0;
-    const colorMargin=margin&gt;=60?'var(--ok)':margin&gt;=40?'var(--wn)':'var(--er)';
+  $('recipesContent').innerHTML=catRecipes.map(([name,recipe])=>{
+    const totalCost=recipe.ingredients.reduce((s,i)=>s+(parseInt(i.cost)||0),0);
+    const margin=recipe.price>0?Math.round((recipe.price-totalCost)/recipe.price*100):0;
+    const colorMargin=margin>=60?'var(--ok)':margin>=40?'var(--wn)':'var(--er)';
     return `<div class="recipe-card">
       <h4>
         <span>${name}</span>
         <span style="font-size:11px;font-weight:400;color:var(--ts)">${fmt(recipe.price)} precio venta</span>
       </h4>
-      ${recipe.ingredients.length?`<div class="table-scroll-wrap">${recipe.ingredients.map((ing,ii)=&gt;``).join('')}<table class="ingr-table">
+      ${recipe.ingredients.length?`<div class="table-scroll-wrap">${recipe.ingredients.map((ing,ii)=>``).join('')}<table class="ingr-table">
         <thead><tr><th>Ingrediente</th><th style="text-align:right">Cant.</th><th>Ud.</th><th style="text-align:right">Costo $</th><th></th></tr></thead>
         <tbody><tr>
-          <td><input class="ingr-name-input" type="text" value="${ing.name}" onchange="recipes[decodeURIComponent(&#39;${encodeURIComponent(name)}&#39;)].ingredients[${ii}].name=this.value"></td>
-          <td><input class="ingr-input" type="number" value="${ing.qty}" step="0.1" onchange="recipes[decodeURIComponent(&#39;${encodeURIComponent(name)}&#39;)].ingredients[${ii}].qty=parseFloat(this.value)||0;renderRecipes()"></td>
-          <td><input type="text" value="${ing.unit}" style="border:none;background:none;font-size:11px;color:var(--ts);width:32px;font-family:inherit" onchange="recipes[decodeURIComponent(&#39;${encodeURIComponent(name)}&#39;)].ingredients[${ii}].unit=this.value"></td>
-          <td><input class="ingr-input" type="number" value="${ing.cost}" onchange="recipes[decodeURIComponent(&#39;${encodeURIComponent(name)}&#39;)].ingredients[${ii}].cost=parseInt(this.value)||0;renderRecipes()"></td>
-          <td><button class="icon-btn" style="width:22px;height:22px;border-color:var(--er);color:var(--er)" onclick="delIngredient(&#39;${encodeURIComponent(name)}&#39;,${ii})"><i class="ti ti-x" style="font-size:11px" aria-hidden="true"></i></button></td>
+          <td><input class="ingr-name-input" type="text" value="${ing.name}" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].name=this.value"></td>
+          <td><input class="ingr-input" type="number" value="${ing.qty}" step="0.1" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].qty=parseFloat(this.value)||0;renderRecipes()"></td>
+          <td><input type="text" value="${ing.unit}" style="border:none;background:none;font-size:11px;color:var(--ts);width:32px;font-family:inherit" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].unit=this.value"></td>
+          <td><input class="ingr-input" type="number" value="${ing.cost}" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].cost=parseInt(this.value)||0;renderRecipes()"></td>
+          <td><button class="icon-btn" style="width:22px;height:22px;border-color:var(--er);color:var(--er)" onclick="delIngredient('${encodeURIComponent(name)}',${ii})"><i class="ti ti-x" style="font-size:11px" aria-hidden="true"></i></button></td>
         </tr></tbody>
       </table></div>`:`<div style="font-size:11px;color:var(--tl);padding:4px 0 8px">Sin ingredientes — agrega el primero</div>`}
       <div class="recipe-footer">
-        <button onclick="openAddIngredient(&#39;${encodeURIComponent(name)}&#39;)" style="display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px dashed var(--br);background:transparent;color:var(--ts);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Ingrediente</button>
+        <button onclick="openAddIngredient('${encodeURIComponent(name)}')" style="display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px dashed var(--br);background:transparent;color:var(--ts);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Ingrediente</button>
         <div class="recipe-costs">
           <span class="recipe-cost-pill">Costo: <strong style="color:var(--er)">${fmt(totalCost)}</strong></span>
           <span class="recipe-cost-pill">Margen: <strong style="color:${colorMargin}">${margin}%</strong></span>
@@ -2262,26 +2191,26 @@ function delIngredient(encodedName,ii){
 
 /* ── CARTA ── */
 function renderCarta(){
-  $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=&gt;`<button class="cp2 ${c===aCartaCat?&#39;active&#39;:&#39;&#39;}" onclick="setAC(&#39;${c}&#39;)">${c}</button>`).join('');
+  $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
   const btnCarta=$('btnConfirmCarta');
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
   const cd=menuData[aCartaCat];
-  let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod(&#39;addProdModal&#39;)"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
-  Object.entries(cd).forEach(([sub,items])=&gt;{
+  let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod('addProdModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
+  Object.entries(cd).forEach(([sub,items])=>{
     html+=`<div style="font-size:10px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.6rem 0 .3rem">${sub}</div>
     <div class="table-scroll-wrap">
-    ${items.map((item,i)=&gt;``).join('')}
+    ${items.map((item,i)=>``).join('')}
     <table class="p-table"><thead><tr><th>Nombre</th><th>Precio</th><th>Activo</th><th></th></tr></thead><tbody><tr>
       <td style="font-weight:600;font-size:11px">${item.name}${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;margin-left:3px">pizza</span>':''}</td>
-      <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP(&#39;${aCartaCat}&#39;,&#39;${sub}&#39;,${i},this)" onblur="this.classList.add(&#39;saved&#39;);setTimeout(()=&gt;this.classList.remove(&#39;saved&#39;),1200)"></td>
-      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''}="" onchange="menuData[&#39;${aCartaCat}&#39;][&#39;${sub}&#39;][${i}].active=this.checked;showToast(this.checked?&#39;Activado&#39;:&#39;Desactivado&#39;)"><span class="tsl"></span></label></td>
-      <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP(&#39;${aCartaCat}&#39;,&#39;${sub}&#39;,${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
+      <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
+      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="menuData['${aCartaCat}']['${sub}'][${i}].active=this.checked;showToast(this.checked?'Activado':'Desactivado')"><span class="tsl"></span></label></td>
+      <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${aCartaCat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
     </tr></tbody></table></div>`;
   });
   $('cartaMain').innerHTML=html;
 }
 function setAC(c){aCartaCat=c;renderCarta();}
-function saveP(cat,sub,i,input){const v=parseInt(input.value);if(isNaN(v)||v&lt;0){input.value=menuData[cat][sub][i].price;return;}menuData[cat][sub][i].price=v;if(recipes[menuData[cat][sub][i].name])recipes[menuData[cat][sub][i].name].price=v;showToast('Precio actualizado','ok');}
+function saveP(cat,sub,i,input){const v=parseInt(input.value);if(isNaN(v)||v<0){input.value=menuData[cat][sub][i].price;return;}menuData[cat][sub][i].price=v;if(recipes[menuData[cat][sub][i].name])recipes[menuData[cat][sub][i].name].price=v;showToast('Precio actualizado','ok');}
 function delP(cat,sub,i){if(!confirm('¿Eliminar "'+menuData[cat][sub][i].name+'"?'))return;menuData[cat][sub].splice(i,1);showToast('Eliminado','del');renderCarta();}
 function saveNewProd(){
   const name=($('npName').value||'').trim(),price=parseInt($('npPrice').value||'0'),sub=($('npSub').value||'').trim();
@@ -2299,17 +2228,17 @@ let _invDirty=new Set(); /* nombres de ítems modificados desde el snapshot */
 function renderInv(){
   /* Tomar snapshot inicial si aún no existe */
   if(Object.keys(_invSnapshot).length===0){
-    inventoryItems.forEach(item=&gt;{ _invSnapshot[item.name]=item.stock; });
+    inventoryItems.forEach(item=>{ _invSnapshot[item.name]=item.stock; });
   }
   $('invContent').innerHTML=
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
-      <button class="btn-add-sm" onclick="openMod(&#39;addInvModal&#39;)"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
-      <button id="btnActualizarInv" class="bgrn" style="font-size:12px;padding:7px 14px;opacity:.5;cursor:not-allowed" disabled="" onclick="syncInventoryToSupabase()">
+      <button class="btn-add-sm" onclick="openMod('addInvModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
+      <button id="btnActualizarInv" class="bgrn" style="font-size:12px;padding:7px 14px;opacity:.5;cursor:not-allowed" disabled onclick="syncInventoryToSupabase()">
         <i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario
       </button>
     </div>`+
-  inventoryItems.map((item,i)=&gt;{
-    const lv=item.stock&lt;=0?'out':item.stock<item.min?'low':'ok'; const="" isdirty="_invDirty.has(item.name);" return="" `<div="" class="inv-item" style="${isDirty?&#39;border-left:3px solid var(--bm);&#39;:&#39;&#39;}">
+  inventoryItems.map((item,i)=>{
+    const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok'; const isDirty=_invDirty.has(item.name); return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
       <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><div class="inv-cat">${item.cat}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
       <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
       <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
@@ -2343,7 +2272,7 @@ function invDeleteItem(i){
 function _refreshActualizarBtn(){
   const btn=$('btnActualizarInv');
   if(!btn)return;
-  if(_invDirty.size&gt;0){
+  if(_invDirty.size>0){
     btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
     btn.innerHTML=`<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario (${_invDirty.size})`;
   } else {
@@ -2360,7 +2289,7 @@ async function syncInventoryToSupabase(){
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   let ok=0,err=0;
   for(const name of [..._invDirty]){
-    const item=inventoryItems.find(x=&gt;x.name===name);
+    const item=inventoryItems.find(x=>x.name===name);
     if(!item)continue;
     try{
       const {error}=await _sb.from('inventory').update({
@@ -2393,18 +2322,18 @@ function saveInvItem(){
 
 /* ── STAFF (includes kitchen password edit) ── */
 function renderStaff(){
-  const kitchenUser=SYSTEM_USERS.find(u=&gt;u.id==='U1');
+  const kitchenUser=SYSTEM_USERS.find(u=>u.id==='U1');
   const all=[...SYSTEM_USERS,...waiters];
   /* Botón Guardar solo admin */
   const btnStf=$('btnConfirmStaff');
   if(btnStf)btnStf.style.display=cRole==='admin'?'':'none';
-  const roleLabel=r=&gt;r==='kitchen'?'Cocina':r==='admin'?'Admin':'Garzón';
+  const roleLabel=r=>r==='kitchen'?'Cocina':r==='admin'?'Admin':'Garzón';
   $('staffContent').innerHTML=(cRole==='admin'?`<div style="display:flex;justify-content:flex-end;margin-bottom:.6rem">
-    <button class="btn-add-sm" style="background:var(--bm);color:#fff;border-color:var(--bm)" onclick="openMod(&#39;addStaffUserModal&#39;)"><i class="ti ti-user-plus" style="font-size:11px" aria-hidden="true"></i> Nuevo usuario</button>
+    <button class="btn-add-sm" style="background:var(--bm);color:#fff;border-color:var(--bm)" onclick="openMod('addStaffUserModal')"><i class="ti ti-user-plus" style="font-size:11px" aria-hidden="true"></i> Nuevo usuario</button>
   </div>`:'') +
-  all.map(w=&gt;{
-    const isSystem=SYSTEM_USERS.some(s=&gt;s.id===w.id);
-    const canEdit=cRole==='admin'&amp;&amp;!isSystem;
+  all.map(w=>{
+    const isSystem=SYSTEM_USERS.some(s=>s.id===w.id);
+    const canEdit=cRole==='admin'&&!isSystem;
     return `<div class="waiter-card">
       <div class="waiter-av">${(w.name||w.user).charAt(0).toUpperCase()}</div>
       <div style="flex:1">
@@ -2412,8 +2341,8 @@ function renderStaff(){
         <div style="font-size:11px;color:var(--ts)">@${w.user} · ${roleLabel(w.role)}</div>
       </div>
       ${canEdit?`<div style="display:flex;gap:4px">
-        <button onclick="editStaffUser(&#39;${w.id}&#39;)" style="padding:4px 8px;font-size:10px;background:var(--cr);border:1px solid var(--br);border-radius:var(--r);cursor:pointer;color:var(--tm)"><i class="ti ti-pencil" style="font-size:10px"></i></button>
-        <button onclick="deleteStaffUser(&#39;${w.id}&#39;)" style="padding:4px 8px;font-size:10px;background:var(--er);border:none;border-radius:var(--r);cursor:pointer;color:#fff"><i class="ti ti-trash" style="font-size:10px"></i></button>
+        <button onclick="editStaffUser('${w.id}')" style="padding:4px 8px;font-size:10px;background:var(--cr);border:1px solid var(--br);border-radius:var(--r);cursor:pointer;color:var(--tm)"><i class="ti ti-pencil" style="font-size:10px"></i></button>
+        <button onclick="deleteStaffUser('${w.id}')" style="padding:4px 8px;font-size:10px;background:var(--er);border:none;border-radius:var(--r);cursor:pointer;color:#fff"><i class="ti ti-trash" style="font-size:10px"></i></button>
       </div>`:''}
     </div>`;
   }).join('');
@@ -2422,15 +2351,15 @@ function renderStaff(){
 function openWaiterDetail(wid){
   currentWaiterId=wid;
   const allPersonnel=[...SYSTEM_USERS,...waiters];
-  const w=allPersonnel.find(x=&gt;x.id===wid);if(!w)return;
-  const wSales=closedSales.filter(s=&gt;s.waiter===w.name);
-  const totalVentas=wSales.reduce((s,o)=&gt;s+oTotal(o),0);
-  const totalPropinas=wSales.reduce((s,o)=&gt;s+(o.tip||0),0);
+  const w=allPersonnel.find(x=>x.id===wid);if(!w)return;
+  const wSales=closedSales.filter(s=>s.waiter===w.name);
+  const totalVentas=wSales.reduce((s,o)=>s+oTotal(o),0);
+  const totalPropinas=wSales.reduce((s,o)=>s+(o.tip||0),0);
   const isWaiter=waiters.includes(w);
   $('waiterDetailContent').innerHTML=`<div style="padding:1.2rem">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">
       <div class="waiter-av" style="width:48px;height:48px;font-size:20px">${w.name.charAt(0)}</div>
-      <div><div style="font-size:17px;font-weight:700;font-family:&#39;Playfair Display&#39;,serif;color:var(--bd)">${w.name}</div><div style="font-size:11px;color:var(--ts)">@${w.user} · ${w.role==='kitchen'?'Cocina':'Garzón'}</div></div>
+      <div><div style="font-size:17px;font-weight:700;font-family:'Playfair Display',serif;color:var(--bd)">${w.name}</div><div style="font-size:11px;color:var(--ts)">@${w.user} · ${w.role==='kitchen'?'Cocina':'Garzón'}</div></div>
     </div>
     ${w.role!=='kitchen'?`<div class="sg" style="margin-bottom:.8rem">
       <div class="sc"><div class="sl">Ventas hoy</div><div class="sv">${fmt(totalVentas)}</div></div>
@@ -2440,41 +2369,41 @@ function openWaiterDetail(wid){
     </div>`:''}
     <div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:.5rem">Cambiar contraseña</div>
     <div class="form-item"><input type="text" id="newWPass" value="${w.pass}" placeholder="Nueva contraseña"></div>
-    <button class="bgrn" style="margin-bottom:1rem" onclick="saveWaiterPass(&#39;${wid}&#39;)">Guardar contraseña</button>
-    ${w.role!=='kitchen'&amp;&amp;wSales.length?`<div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:.4rem">Historial de ventas</div>
-    ${[...wSales].sort((a,b)=&gt;(b.closedAt||b.time)-(a.closedAt||a.time)).slice(0,8).map(s=&gt;`<div class="history-row"><span style="color:var(--ts);font-size:11px">${ftime(s.closedAt||s.time)}</span><span>${s.tableId?'Mesa '+s.tableId:'Mostrador'}</span><div style="text-align:right"><div style="color:var(--bm);font-weight:700">${fmt(oTotal(s))}</div>${s.tip?`<div style="font-size:10px;color:var(--ts)">+${fmt(s.tip)} propina</div>`:''}</div></div>`).join('')}`:''}
+    <button class="bgrn" style="margin-bottom:1rem" onclick="saveWaiterPass('${wid}')">Guardar contraseña</button>
+    ${w.role!=='kitchen'&&wSales.length?`<div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:.4rem">Historial de ventas</div>
+    ${[...wSales].sort((a,b)=>(b.closedAt||b.time)-(a.closedAt||a.time)).slice(0,8).map(s=>`<div class="history-row"><span style="color:var(--ts);font-size:11px">${ftime(s.closedAt||s.time)}</span><span>${s.tableId?'Mesa '+s.tableId:'Mostrador'}</span><div style="text-align:right"><div style="color:var(--bm);font-weight:700">${fmt(oTotal(s))}</div>${s.tip?`<div style="font-size:10px;color:var(--ts)">+${fmt(s.tip)} propina</div>`:''}</div></div>`).join('')}`:''}
     <div style="display:flex;gap:6px;margin-top:1rem">
-      <button class="bs2" style="flex:1" onclick="closeMod(&#39;waiterDetailModal&#39;)">Cerrar</button>
-      ${isWaiter?`<button style="flex:1;padding:10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:var(--r);cursor:pointer;font-weight:600;font-size:13px" onclick="delWaiter(&#39;${wid}&#39;)"><i class="ti ti-trash" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Eliminar</button>`:''}
+      <button class="bs2" style="flex:1" onclick="closeMod('waiterDetailModal')">Cerrar</button>
+      ${isWaiter?`<button style="flex:1;padding:10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:var(--r);cursor:pointer;font-weight:600;font-size:13px" onclick="delWaiter('${wid}')"><i class="ti ti-trash" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Eliminar</button>`:''}
     </div>
   </div>`;
   openMod('waiterDetailModal');
 }
 function saveWaiterPass(wid){
   const allP=[...SYSTEM_USERS,...waiters];
-  const w=allP.find(x=&gt;x.id===wid);if(!w)return;
+  const w=allP.find(x=>x.id===wid);if(!w)return;
   const np=($('newWPass').value||'').trim();if(!np){showToast('Ingresa una contraseña');return;}
   w.pass=np;showToast('Contraseña actualizada ✓','ok');
 }
 function saveWaiter(){
   const name=($('wName').value||'').trim(),user=($('wUser').value||'').trim(),pass=($('wPass').value||'').trim();
   if(!name||!user||!pass){showToast('Completa todos los campos');return;}
-  if([...SYSTEM_USERS,...waiters].some(u=&gt;u.user.toLowerCase()===user.toLowerCase())){showToast('Usuario ya existe');return;}
+  if([...SYSTEM_USERS,...waiters].some(u=>u.user.toLowerCase()===user.toLowerCase())){showToast('Usuario ya existe');return;}
   waiters.push({id:'W'+Date.now(),user,pass,role:'waiter',name});
   showToast(name+' agregado como garzón','ok');closeMod('addWaiterModal');renderStaff();
 }
 function delWaiter(wid){
   if(!confirm('¿Eliminar a este garzón?'))return;
-  waiters=waiters.filter(w=&gt;w.id!==wid);
+  waiters=waiters.filter(w=>w.id!==wid);
   closeMod('waiterDetailModal');showToast('Garzón eliminado','del');renderStaff();
 }
 
 /* ── KITCHEN ── */
 function renderKitchen(){
-  const active=orders.filter(o=&gt;o.status!=='closed'&amp;&amp;!o.kitchenHidden);
+  const active=orders.filter(o=>o.status!=='closed'&&!o.kitchenHidden);
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
-  $('kitchenGrid').innerHTML=active.map(o=&gt;{
+  $('kitchenGrid').innerHTML=active.map(o=>{
     if(!kDone[o.id])kDone[o.id]=[];const done=kDone[o.id];
     const statusLabels={pending:'Pendiente',preparing:'Preparando',ready:'Listo',canceled:'Cancelado'};
     return `<div class="kc ${o.status}">
@@ -2486,16 +2415,16 @@ function renderKitchen(){
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
-      <div class="ki">${o.items.map((item,i)=&gt;`<div class="ki-row">
-        ${o.status!=='canceled'?`<div class="kck ${done.includes(i)?&#39;done&#39;:&#39;&#39;}" onclick="tkI(&#39;${o.id}&#39;,${i})">${done.includes(i)?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
-        <div class="kn ${done.includes(i)?&#39;done&#39;:&#39;&#39;}">${item.qty&gt;1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:10px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:9px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
+      <div class="ki">${o.items.map((item,i)=>`<div class="ki-row">
+        ${o.status!=='canceled'?`<div class="kck ${done.includes(i)?'done':''}" onclick="tkI('${o.id}',${i})">${done.includes(i)?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
+        <div class="kn ${done.includes(i)?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:10px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:9px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
       </div>`).join('')}</div>
       <div class="kac">
-        ${o.status==='pending'?`<button class="bks" onclick="kStart(&#39;${o.id}&#39;)"><i class="ti ti-player-play" style="font-size:11px" aria-hidden="true"></i> Iniciar</button>`:''}
-        ${o.status==='preparing'?`<button class="bkr" onclick="kReady(&#39;${o.id}&#39;)"><i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i> Completado</button>`:''}
+        ${o.status==='pending'?`<button class="bks" onclick="kStart('${o.id}')"><i class="ti ti-player-play" style="font-size:11px" aria-hidden="true"></i> Iniciar</button>`:''}
+        ${o.status==='preparing'?`<button class="bkr" onclick="kReady('${o.id}')"><i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i> Completado</button>`:''}
         ${o.status==='ready'?`<div style="flex:1;text-align:center;font-size:11px;color:var(--ok);font-weight:700"><i class="ti ti-check-circle" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Listo para servir</div>`:''}
         ${o.status==='canceled'?`<div style="flex:1;text-align:center;font-size:11px;color:var(--er);font-weight:700"><i class="ti ti-x-circle" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Cancelado por Cocina</div>`:''}
-        <button class="bkd" onclick="kDel(&#39;${o.id}&#39;)" style="${o.status===&#39;canceled&#39;?&#39;background:var(--er);color:#fff&#39;:&#39;&#39;}" title="${o.status===&#39;canceled&#39;?&#39;Eliminar de cocina&#39;:&#39;Eliminar de cocina&#39;}"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>
+        <button class="bkd" onclick="kDel('${o.id}')" style="${o.status==='canceled'?'background:var(--er);color:#fff':''}" title="${o.status==='canceled'?'Eliminar de cocina':'Eliminar de cocina'}"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>
       </div>
     </div>`;
   }).join('');
@@ -2504,7 +2433,7 @@ function tkI(oid,i){
   if(!kDone[oid])kDone[oid]=[];
   const d=kDone[oid];
   const idx=d.indexOf(i);
-  if(idx&gt;=0)d.splice(idx,1);else d.push(i);
+  if(idx>=0)d.splice(idx,1);else d.push(i);
   renderKitchen();
   broadcastState(); /* persiste kDone en Supabase via broadcastState → pushToSupabase */
 }
@@ -2515,7 +2444,7 @@ function kStart(oid){
   showToast('Preparación iniciada','ok');
   renderKitchen();broadcastState();
   /* Guardar en Supabase si disponible */
-  if(_sb){_sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(getSerializableState()),updated_at:new Date().toISOString()}).catch(()=&gt;{});}
+  if(_sb){_sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(getSerializableState()),updated_at:new Date().toISOString()}).catch(()=>{});}
 }
 function kReady(oid){const o=getOrder(oid);if(o){o.status='ready';showBell('✅ Listo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));showToast('Pedido listo ✓','ok');renderKitchen();broadcastState();}}
 function kDel(oid){
@@ -2536,7 +2465,7 @@ async function syncRecipesToSupabase(){
   const btn=$('btnConfirmRecipes');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   try{
-    const rows=Object.entries(recipes).map(([name,r])=&gt;({
+    const rows=Object.entries(recipes).map(([name,r])=>({
       name,
       cat:r.cat,
       price:r.price,
@@ -2561,7 +2490,7 @@ async function syncStaffToSupabase(){
   const btn=$('btnConfirmStaff');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   try{
-    const rows=waiters.map(w=&gt;({
+    const rows=waiters.map(w=>({
       id:w.id,
       username:w.user,
       pass:w.pass,
@@ -2591,11 +2520,11 @@ async function syncCartaToSupabase(){
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
   try{
     const rows=[];
-    Object.entries(menuData).forEach(([cat,subs])=&gt;{
-      Object.entries(subs).forEach(([sub,items])=&gt;{
-        items.forEach(item=&gt;{
+    Object.entries(menuData).forEach(([cat,subs])=>{
+      Object.entries(subs).forEach(([sub,items])=>{
+        items.forEach(item=>{
           rows.push({name:item.name,cat,sub,price:item.price,active:!!item.active,
-            extra_data:JSON.stringify(Object.fromEntries(Object.entries(item).filter(([k])=&gt;!['name','price','active'].includes(k)))),
+            extra_data:JSON.stringify(Object.fromEntries(Object.entries(item).filter(([k])=>!['name','price','active'].includes(k)))),
             updated_at:new Date().toISOString()});
         });
       });
@@ -2616,33 +2545,33 @@ async function loadPersistentData(){
   try{
     /* Inventario */
     const {data:inv}=await _sb.from('inventory').select('*');
-    if(inv&amp;&amp;inv.length){
+    if(inv&&inv.length){
       inventoryItems.length=0;
-      inv.forEach(r=&gt;inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1}));
-      _invSnapshot={};inventoryItems.forEach(x=&gt;{ _invSnapshot[x.name]=x.stock; });
+      inv.forEach(r=>inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1}));
+      _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
       console.log('[EcoNativo] Inventario cargado desde Supabase');
     }
     /* Recetas */
     const {data:recs}=await _sb.from('recipes').select('*');
-    if(recs&amp;&amp;recs.length){
-      recs.forEach(r=&gt;{
+    if(recs&&recs.length){
+      recs.forEach(r=>{
         try{ recipes[r.name]={cat:r.cat,price:r.price,ingredients:JSON.parse(r.ingredients||'[]')}; }catch(e){}
       });
       console.log('[EcoNativo] Recetas cargadas desde Supabase');
     }
     /* Personal (garzones) */
     const {data:staff}=await _sb.from('staff').select('*');
-    if(staff&amp;&amp;staff.length){
+    if(staff&&staff.length){
       waiters.length=0;
-      staff.filter(w=&gt;w.role==='waiter'||w.role==='kitchen'||w.role==='admin').forEach(w=&gt;waiters.push({id:w.id,user:w.username||w.user,pass:w.pass_plain||w.pass,role:w.role,name:w.name}));
+      staff.filter(w=>w.role==='waiter'||w.role==='kitchen'||w.role==='admin').forEach(w=>waiters.push({id:w.id,user:w.username||w.user,pass:w.pass_plain||w.pass,role:w.role,name:w.name}));
       console.log('[EcoNativo] Personal cargado desde Supabase');
     }
     /* Carta (menuData) desde Supabase */
     const {data:menu}=await _sb.from('menu').select('*');
-    if(menu&amp;&amp;menu.length){
-      menu.forEach(r=&gt;{
-        if(menuData[r.cat]&amp;&amp;menuData[r.cat][r.sub]){
-          const ex=menuData[r.cat][r.sub].find(x=&gt;x.name===r.name);
+    if(menu&&menu.length){
+      menu.forEach(r=>{
+        if(menuData[r.cat]&&menuData[r.cat][r.sub]){
+          const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
           if(ex){ex.price=r.price;ex.active=r.active;}
         }
       });
@@ -2658,7 +2587,7 @@ async function loadPersistentData(){
 /* ─── Hash simple para contraseñas (sin Auth de Supabase) ─── */
 async function hashPass(pass){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pass+'_econativo'));
-  return Array.from(new Uint8Array(buf)).map(b=&gt;b.toString(16).padStart(2,'0')).join('');
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
 async function createStaffUser(){
@@ -2670,11 +2599,11 @@ async function createStaffUser(){
   if(!name){showToast('Falta el nombre completo','del');return;}
   if(!username){showToast('Falta el nombre de usuario','del');return;}
   if(!pass){showToast('Falta la contraseña','del');return;}
-  if(pass.length&lt;4){showToast('La contraseña debe tener al menos 4 caracteres','del');return;}
+  if(pass.length<4){showToast('La contraseña debe tener al menos 4 caracteres','del');return;}
   if(!/^[a-z0-9_]+$/.test(username)){showToast('Usuario: solo letras, números y guión bajo','del');return;}
   /* Verificar duplicado local */
   const allUsers=[...SYSTEM_USERS,...waiters];
-  if(allUsers.find(x=&gt;x.user.toLowerCase()===username)){
+  if(allUsers.find(x=>x.user.toLowerCase()===username)){
     showToast('El usuario "'+username+'" ya existe','del');return;
   }
   /* Conectar Supabase */
@@ -2688,7 +2617,7 @@ async function createStaffUser(){
     if(_sb){
       /* Verificar duplicado en Supabase */
       const {data:exist}=await _sb.from('staff').select('id').eq('username',username).limit(1);
-      if(exist&amp;&amp;exist.length){showToast('El usuario "'+username+'" ya existe en la base de datos','del');return;}
+      if(exist&&exist.length){showToast('El usuario "'+username+'" ya existe en la base de datos','del');return;}
       const {error}=await _sb.from('staff').insert(row);
       if(error){
         console.error('[Staff] Supabase insert error:',error);
@@ -2715,7 +2644,7 @@ async function createStaffUser(){
 }
 
 async function editStaffUser(uid){
-  const w=waiters.find(x=&gt;x.id===uid);if(!w)return;
+  const w=waiters.find(x=>x.id===uid);if(!w)return;
   const newName=prompt('Nombre completo:',w.name);if(!newName)return;
   const newUser=prompt('Nombre de usuario:',w.user);if(!newUser)return;
   const newPass=prompt('Nueva contraseña (dejar vacío para no cambiar):','');
@@ -2724,26 +2653,26 @@ async function editStaffUser(uid){
   if(!_sb){showToast('Sin conexión a Supabase','del');return;}
   try{
     const row={id:uid,username:newUser.toLowerCase(),role:newRole,name:newName,updated_at:new Date().toISOString()};
-    if(newPass&amp;&amp;newPass.length&gt;=4){row.pass=newPass;row.pass_plain=newPass;w.pass=newPass;}
+    if(newPass&&newPass.length>=4){row.pass=newPass;row.pass_plain=newPass;w.pass=newPass;}
     const {error}=await _sb.from('staff').upsert(row,{onConflict:'id'});
     if(error)throw error;
     w.name=newName;w.user=newUser.toLowerCase();w.role=newRole;
-    if(newPass&amp;&amp;newPass.length&gt;=4)w.pass=newPass;
+    if(newPass&&newPass.length>=4)w.pass=newPass;
     showToast('✅ Usuario actualizado','ok');
     renderStaff();
   }catch(e){showToast('Error al actualizar: '+e.message,'del');}
 }
 
 async function deleteStaffUser(uid){
-  const w=waiters.find(x=&gt;x.id===uid);if(!w)return;
+  const w=waiters.find(x=>x.id===uid);if(!w)return;
   if(!confirm('¿Eliminar usuario "'+w.name+'"?'))return;
   if(!_sb){await initSupabase();}
   if(!_sb){showToast('Sin conexión a Supabase','del');return;}
   try{
     const {error}=await _sb.from('staff').delete().eq('id',uid);
     if(error)throw error;
-    const idx=waiters.findIndex(x=&gt;x.id===uid);
-    if(idx&gt;=0)waiters.splice(idx,1);
+    const idx=waiters.findIndex(x=>x.id===uid);
+    if(idx>=0)waiters.splice(idx,1);
     showToast('Usuario eliminado','ok');
     renderStaff();
   }catch(e){showToast('Error al eliminar: '+e.message,'del');}
@@ -2784,30 +2713,30 @@ async function initSupabase(){
     /* Subscribe to Realtime changes on the state row */
     _sbChannel=_sb.channel('econativo-realtime')
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'econativo_state'},
-        payload=&gt;{
+        payload=>{
           if(payload.new?.key!==SYNC_ROW_KEY)return;
           const incoming=payload.new?.payload;
-          if(incoming&amp;&amp;incoming.ts&gt;(_lastSyncTs||0)+300){
+          if(incoming&&incoming.ts>(_lastSyncTs||0)+300){
             _lastSyncTs=incoming.ts;
             applyRemoteState(incoming);
           }
         })
       /* Realtime: inventario */
-      .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},payload=&gt;{
+      .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},payload=>{
         if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
           const r=payload.new;
-          const ex=inventoryItems.find(x=&gt;x.name===r.name);
+          const ex=inventoryItems.find(x=>x.name===r.name);
           if(ex){ex.stock=r.stock;ex.cat=r.cat;ex.unit=r.unit;ex.min=r.min_stock||r.min||1;}
           else inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1});
         }else if(payload.eventType==='DELETE'){
-          const idx=inventoryItems.findIndex(x=&gt;x.name===payload.old?.name);
-          if(idx&gt;=0)inventoryItems.splice(idx,1);
+          const idx=inventoryItems.findIndex(x=>x.name===payload.old?.name);
+          if(idx>=0)inventoryItems.splice(idx,1);
         }
         const ap=document.querySelector('.page.active');
         if(ap?.id==='page-inventory')renderInv();
       })
       /* Realtime: recetas */
-      .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},payload=&gt;{
+      .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},payload=>{
         if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
           const r=payload.new;
           try{recipes[r.name]={cat:r.cat,price:r.price,ingredients:JSON.parse(r.ingredients||'[]')};}catch(e){}
@@ -2816,21 +2745,21 @@ async function initSupabase(){
         if(ap?.id==='page-recipes')renderRecipes();
       })
       /* Realtime: personal */
-      .on('postgres_changes',{event:'*',schema:'public',table:'staff'},payload=&gt;{
+      .on('postgres_changes',{event:'*',schema:'public',table:'staff'},payload=>{
         if(payload.eventType==='INSERT'){
           const r=payload.new;
-          if(!waiters.find(w=&gt;w.id===r.id))waiters.push({id:r.id,user:r.username||r.user,pass:r.pass_plain||r.pass,role:r.role,name:r.name});
+          if(!waiters.find(w=>w.id===r.id))waiters.push({id:r.id,user:r.username||r.user,pass:r.pass_plain||r.pass,role:r.role,name:r.name});
         }else if(payload.eventType==='UPDATE'){
-          const w=waiters.find(x=&gt;x.id===payload.new?.id);
+          const w=waiters.find(x=>x.id===payload.new?.id);
           if(w)Object.assign(w,{user:payload.new.username||payload.new.user,pass:payload.new.pass_plain||payload.new.pass,role:payload.new.role,name:payload.new.name});
         }else if(payload.eventType==='DELETE'){
-          const idx=waiters.findIndex(x=&gt;x.id===payload.old?.id);
-          if(idx&gt;=0)waiters.splice(idx,1);
+          const idx=waiters.findIndex(x=>x.id===payload.old?.id);
+          if(idx>=0)waiters.splice(idx,1);
         }
         const ap=document.querySelector('.page.active');
         if(ap?.id==='page-staff')renderStaff();
       })
-      .subscribe(status=&gt;{
+      .subscribe(status=>{
         if(status==='SUBSCRIBED'){
           _updateSyncIndicator(true);
           console.log('%c[EcoNativo] Realtime activo ✓','color:#4A7C59;font-weight:bold');
@@ -2839,16 +2768,16 @@ async function initSupabase(){
           _updateSyncIndicator('partial');
           console.warn('[EcoNativo] Realtime falló:',status);
           /* Reintentar suscripción en 5s */
-          setTimeout(()=&gt;{
+          setTimeout(()=>{
             if(_sbChannel){try{_sbChannel.unsubscribe();}catch(e){}}
-            initSupabase().catch(()=&gt;{});
+            initSupabase().catch(()=>{});
           },5000);
         }
       });
 
     /* Load initial state from DB */
     const {data}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).single();
-    if(data?.payload&amp;&amp;data.payload.ts&gt;0){
+    if(data?.payload&&data.payload.ts>0){
       _lastSyncTs=data.payload.ts;
       applyRemoteState(data.payload);
     }
@@ -2868,10 +2797,10 @@ async function pushToSupabase(payload){
 /* ── Serialización del estado completo ── */
 function getSerializableState(){
   return JSON.stringify({
-    orders:orders.map(o=&gt;({...o})),
-    tables:tables.map(t=&gt;({...t})),
-    closedSales:closedSales.map(s=&gt;({...s})),
-    clients:clients.map(c=&gt;({...c,history:[...c.history],pendings:[...c.pendings]})),
+    orders:orders.map(o=>({...o})),
+    tables:tables.map(t=>({...t})),
+    closedSales:closedSales.map(s=>({...s})),
+    clients:clients.map(c=>({...c,history:[...c.history],pendings:[...c.pendings]})),
     ordCnt,totalOrdsIn,clientCnt,
     kDone:JSON.parse(JSON.stringify(kDone)),
     caja:{...caja,movements:[...caja.movements],log:[...caja.log]},
@@ -2896,15 +2825,15 @@ function applyRemoteState(data){
   try{
     const s=typeof data==='string'?JSON.parse(data):data;
     /* Si el timestamp entrante es más antiguo que el nuestro, ignorar */
-    if(s.ts&amp;&amp;_lastSyncTs&amp;&amp;s.ts&lt;_lastSyncTs-200)return;
+    if(s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
 
-    orders.length=0;(s.orders||[]).forEach(o=&gt;orders.push(o));
-    tables.forEach(t=&gt;{
-      const rt=(s.tables||[]).find(x=&gt;x.id===t.id);
+    orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
+    tables.forEach(t=>{
+      const rt=(s.tables||[]).find(x=>x.id===t.id);
       if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;}
     });
-    closedSales.length=0;(s.closedSales||[]).forEach(x=&gt;closedSales.push(x));
-    clients.length=0;(s.clients||[]).forEach(c=&gt;clients.push(c));
+    closedSales.length=0;(s.closedSales||[]).forEach(x=>closedSales.push(x));
+    clients.length=0;(s.clients||[]).forEach(c=>clients.push(c));
     if(s.ordCnt!==undefined)ordCnt=s.ordCnt;
     if(s.totalOrdsIn!==undefined)totalOrdsIn=s.totalOrdsIn;
     if(s.clientCnt!==undefined)clientCnt=s.clientCnt;
@@ -2931,23 +2860,23 @@ function _refreshActiveView(){
 
 /* ── Capa 1: BroadcastChannel listener ── */
 if(bc){
-  bc.onmessage=e=&gt;{
+  bc.onmessage=e=>{
     if(e.data?.type==='STATE_UPDATE'){
       const s=JSON.parse(e.data.payload);
-      if(s.ts&gt;(_lastSyncTs||0)+200){_lastSyncTs=s.ts;applyRemoteState(s);}
+      if(s.ts>(_lastSyncTs||0)+200){_lastSyncTs=s.ts;applyRemoteState(s);}
     }
   };
 }
 
 /* ── Capa 2a: localStorage polling (fallback para cross-domain/mobile) ── */
 let _lastSyncTs=0;
-setInterval(()=&gt;{
+setInterval(()=>{
   try{
     const raw=localStorage.getItem(SYNC_KEY);
     if(!raw)return;
     let s;
     try{s=JSON.parse(raw);}catch(parseErr){localStorage.removeItem(SYNC_KEY);return;}
-    if(s.ts&amp;&amp;s.ts&gt;_lastSyncTs+800){_lastSyncTs=s.ts;applyRemoteState(s);}
+    if(s.ts&&s.ts>_lastSyncTs+800){_lastSyncTs=s.ts;applyRemoteState(s);}
   }catch(e){}
 },2000);
 
@@ -2970,14 +2899,14 @@ function _updateSyncIndicator(connected){
 /* ── Init Supabase después de login ── */
 /* Called at end of doLogin once app is visible */
 function postLoginInit(){
-  initSupabase().then(()=&gt;{
+  initSupabase().then(()=>{
     _updateSyncIndicator(!!_sb);
     if(_sb) loadPersistentData();
     else {
       /* Reintentar conexión cada 3s hasta lograrla */
-      const retryInterval = setInterval(()=&gt;{
+      const retryInterval = setInterval(()=>{
         if(_sb){clearInterval(retryInterval);return;}
-        initSupabase().then(()=&gt;{
+        initSupabase().then(()=>{
           if(_sb){_updateSyncIndicator(true);loadPersistentData();clearInterval(retryInterval);}
         });
       },3000);
@@ -3005,8 +2934,8 @@ function nuevoDia(){
   /* 1. Save today's stats to history before reset */
   const yesterday={
     date:new Date().toLocaleDateString('es-CL'),
-    ventas:closedSales.reduce((s,o)=&gt;s+oTotal(o),0),
-    propinas:closedSales.reduce((s,o)=&gt;s+(o.tip||0),0),
+    ventas:closedSales.reduce((s,o)=>s+oTotal(o),0),
+    propinas:closedSales.reduce((s,o)=>s+(o.tip||0),0),
     transacciones:closedSales.length
   };
   /* Archive closed sales — keep them in a separate bucket so stats history is preserved */
@@ -3021,7 +2950,7 @@ function nuevoDia(){
       hist=[];
       localStorage.removeItem('econativo_history');
     }
-    hist.push({...yesterday,sales:closedSales.map(s=&gt;({...s}))});
+    hist.push({...yesterday,sales:closedSales.map(s=>({...s}))});
     localStorage.setItem('econativo_history',JSON.stringify(hist.slice(-90)));/* keep 90 days */
   }catch(e){console.warn('EcoNativo: no se pudo guardar historial.',e);}
 
@@ -3030,10 +2959,10 @@ function nuevoDia(){
   ordCnt=1;totalOrdsIn=0;prevOrderCount=0;
 
   /* 3. Free all tables */
-  tables.forEach(t=&gt;{t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;});
+  tables.forEach(t=>{t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;});
 
   /* 4. Clear kitchen done-markers */
-  Object.keys(kDone).forEach(k=&gt;delete kDone[k]);
+  Object.keys(kDone).forEach(k=>delete kDone[k]);
 
   /* 5. Reset caja */
   caja.open=false;caja.openTime=null;caja.fondo=0;caja.movements=[];
@@ -3056,24 +2985,24 @@ function nuevoDia(){
 
 /* Kitchen new-order bell (polls every 5s) */
 let _bellReady=false;
-setTimeout(()=&gt;{
+setTimeout(()=>{
   /* Esperar 6s después de cargar para inicializar el conteo base,
      así no dispara por órdenes ya existentes al iniciar */
-  prevOrderCount=orders.filter(o=&gt;o.status!=='closed').length;
+  prevOrderCount=orders.filter(o=>o.status!=='closed').length;
   _bellReady=true;
 },6000);
-setInterval(()=&gt;{
+setInterval(()=>{
   if(!_bellReady||!cRole)return; /* no disparar antes de login o antes de inicializar */
-  const cur=orders.filter(o=&gt;o.status!=='closed').length;
-  if(cur&gt;prevOrderCount&amp;&amp;(cRole==='kitchen'||cRole==='admin'))showBell('🔔 Nuevo pedido ingresado');
+  const cur=orders.filter(o=>o.status!=='closed').length;
+  if(cur>prevOrderCount&&(cRole==='kitchen'||cRole==='admin'))showBell('🔔 Nuevo pedido ingresado');
   prevOrderCount=cur;
 },5000);
 
 /* Actualizar cronómetros de cocina cada 30 segundos */
-setInterval(()=&gt;{
+setInterval(()=>{
   const ap=document.querySelector('.page.active');
   if(ap?.id==='page-kitchen'){
-    orders.filter(o=&gt;o.status!=='closed'&amp;&amp;o.kitchenStartTime).forEach(o=&gt;{
+    orders.filter(o=>o.status!=='closed'&&o.kitchenStartTime).forEach(o=>{
       const el=document.getElementById('ktimer-'+o.id);
       if(el)el.innerHTML='<i class="ti ti-clock" style="font-size:9px"></i> '+elapsed(o.kitchenStartTime);
     });
@@ -3081,8 +3010,7 @@ setInterval(()=&gt;{
 },30000);
 
 renderTables();
-les();
 
+</script>
 
-
-</item.min?'low':'ok';></item.qty;q++)items.push({...item,qty:1});});></body></html>
+</body></html>
