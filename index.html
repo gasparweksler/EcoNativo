@@ -1433,9 +1433,7 @@ function renderCart(){
         <div style="font-size:11px;color:var(--ts);text-align:center">
           ${sentItems.length} ítem${sentItems.length>1?'s':''} · ${fmt(sentTotal)}
         </div>
-        <button onclick="agregarMasProductos()" style="width:100%;padding:11px;background:var(--cr);border:1.5px dashed var(--bm);border-radius:var(--r);color:var(--bm);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-          <i class="ti ti-plus" style="font-size:13px"></i> Agregar más productos
-        </button>
+        <div style="font-size:10px;color:var(--tl);text-align:center">Toca un producto de la carta para agregarlo a este pedido</div>
       </div>`;
     $('cartSummary').innerHTML=`<div class="crow"><span>Total pedido</span><span style="color:var(--bm);font-weight:700">${fmt(sentTotal)}</span></div>`;
     return;
@@ -1620,13 +1618,6 @@ function sendOrder(){
   gestionarPedidoCocina(cart.map(i=>({...i})), cTable?.id);
 }
 
-function agregarMasProductos(){
-  /* Limpiar carrito para agregar nuevos productos */
-  cart=[];
-  renderCart();
-  renderMenu();
-  showToast('Agrega productos y vuelve a enviar a cocina','ok');
-}
 
 function _refreshOrderView(order){
   /* Actualizar badge */
