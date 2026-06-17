@@ -808,7 +808,7 @@ button:active{transform:scale(.97)}
 <div class="ov" id="addInvModal"><div class="mb">
   <h3>Agregar al inventario</h3>
   <div class="form-item"><label>Nombre *</label><input type="text" id="invName"></div>
-  <div class="form-item"><label>Categoría *</label><input type="text" id="invCat"></div>
+  <div class="form-item"><label>Categoría *</label><select id="invCat" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Selecciona…</option><option value="Bebidas">Bebidas</option><option value="Bebidas Frías">Bebidas Frías</option><option value="Cafetería Caliente">Cafetería Caliente</option><option value="Extras">Extras</option><option value="Fiambres">Fiambres</option><option value="Frescos">Frescos</option><option value="Frutas">Frutas</option><option value="Insumos">Insumos</option><option value="Licores">Licores</option><option value="Lácteos">Lácteos</option><option value="Panadería">Panadería</option><option value="Pizzas">Pizzas</option><option value="Platos">Platos</option><option value="Repostería">Repostería</option><option value="Tés">Tés</option><option value="Verduras">Verduras</option></select></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="form-item"><label>Stock inicial</label><input type="number" id="invStock" placeholder="0"></div>
     <div class="form-item"><label>Unidad *</label><input type="text" id="invUnit" placeholder="kg / lt / un"></div>
@@ -825,6 +825,13 @@ button:active{transform:scale(.97)}
   <div class="form-item"><label>Subcategoría *</label><input type="text" id="npSub" placeholder="Ej: Clásicos"></div>
   <div class="form-item"><label>Área</label><select id="npArea" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Sin área</option><option value="Barra">Barra</option><option value="Cocina">Cocina</option><option value="Desayunos">Desayunos</option></select></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
+</div></div>
+
+<div class="ov" id="editRecipeModal"><div class="mb">
+  <h3>Editar receta</h3>
+  <div class="form-item"><label>Nombre *</label><input type="text" id="erName"></div>
+  <div class="form-item"><label>Precio de venta ($) *</label><input type="number" id="erPrice"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;editRecipeModal&#39;)">Cancelar</button><button class="bc2" onclick="saveEditRecipe()">Guardar</button></div>
 </div></div>
 
 <!-- TOAST NOTIFICATION -->
@@ -2284,7 +2291,11 @@ function renderRecipes(){
     return `<div class="recipe-card">
       <h4>
         <span>${name}</span>
-        <span style="font-size:11px;font-weight:400;color:var(--ts)">${fmt(recipe.price)} precio venta</span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;font-weight:400;color:var(--ts)">${fmt(recipe.price)}</span>
+          <button class="icon-btn" style="width:24px;height:24px;border-color:var(--bm);color:var(--bm)" title="Editar receta" onclick="openEditRecipe('${encodeURIComponent(name)}')"><i class="ti ti-pencil" style="font-size:12px" aria-hidden="true"></i></button>
+          <button class="icon-btn" style="width:24px;height:24px;border-color:var(--er);color:var(--er)" title="Eliminar receta" onclick="delRecipe('${encodeURIComponent(name)}')"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
+        </span>
       </h4>
       ${recipe.ingredients.length?`<div class="table-scroll-wrap"><table class="ingr-table">
         <thead><tr><th>Ingrediente</th><th style="text-align:right">Cant.</th><th>Ud.</th><th style="text-align:right">Costo $</th><th></th></tr></thead>
@@ -2325,6 +2336,59 @@ function delIngredient(encodedName,ii){
   const name=decodeURIComponent(encodedName);
   if(!recipes[name])return;
   recipes[name].ingredients.splice(ii,1);renderRecipes();showToast('Ingrediente eliminado','del');
+}
+/* Ubica un producto en menuData por nombre → {cat,sub,arr,i,item} */
+function _findMenuItem(name){
+  for(const cat of Object.keys(menuData))for(const sub of Object.keys(menuData[cat])){
+    const arr=menuData[cat][sub];const i=arr.findIndex(x=>x.name===name);
+    if(i>=0)return {cat,sub,arr,i,item:arr[i]};
+  }
+  return null;
+}
+/* Eliminar receta — también quita el producto de la Carta (son la misma entidad) */
+function delRecipe(encodedName){
+  const name=decodeURIComponent(encodedName);
+  if(!recipes[name])return;
+  if(!confirm('¿Eliminar la receta y el producto "'+name+'" de la Carta? Esta acción no se puede deshacer.'))return;
+  delete recipes[name];
+  const loc=_findMenuItem(name);
+  if(loc)loc.arr.splice(loc.i,1);
+  if(_sb){
+    _sb.from('recipes').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Receta] delete',error.message);});
+    _sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] delete',error.message);});
+  }
+  showToast('Receta eliminada','del');renderRecipes();
+}
+/* Editar receta — nombre y precio de venta */
+let _editRecipeName='';
+function openEditRecipe(encodedName){
+  _editRecipeName=decodeURIComponent(encodedName);
+  const r=recipes[_editRecipeName];if(!r)return;
+  $('erName').value=_editRecipeName;
+  $('erPrice').value=r.price;
+  openMod('editRecipeModal');
+}
+function saveEditRecipe(){
+  const old=_editRecipeName;const r=recipes[old];if(!r)return;
+  const newName=($('erName').value||'').trim();const price=parseInt($('erPrice').value)||0;
+  if(!newName||!price){showToast('Completa nombre y precio');return;}
+  const loc=_findMenuItem(old);
+  r.price=price;if(loc)loc.item.price=price;
+  if(newName!==old){
+    if(recipes[newName]){showToast('Ya existe una receta "'+newName+'"','del');return;}
+    recipes[newName]={...r};delete recipes[old];
+    if(loc)loc.item.name=newName;
+    if(_sb){
+      _sb.from('recipes').delete().eq('name',old).then(()=>{});
+      _sb.from('menu').delete().eq('name',old).then(()=>{});
+    }
+  }
+  if(_sb){
+    const rr=recipes[newName];
+    _sb.from('recipes').upsert({name:newName,cat:rr.cat,price:rr.price,ingredients:JSON.stringify(rr.ingredients),updated_at:new Date().toISOString()},{onConflict:'name'}).then(()=>{});
+    if(loc)_sb.from('menu').upsert({name:newName,cat:loc.cat,sub:loc.sub,price:rr.price,active:loc.item.active!==false,extra_data:JSON.stringify(Object.fromEntries(Object.entries(loc.item).filter(([k])=>!['name','price','active'].includes(k)))),updated_at:new Date().toISOString()},{onConflict:'name'}).then(()=>{});
+  }
+  showToast('Receta actualizada','ok');closeMod('editRecipeModal');renderRecipes();
 }
 
 /* ── CARTA ── */
