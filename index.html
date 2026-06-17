@@ -911,6 +911,10 @@ let _invQ='';
 let _invCat='';
 function isItemAvailable(itemName){
   if(!Object.keys(recipes).length)buildRecipes();
+  /* 1. Si el producto existe como ítem de inventario y su stock es 0 → agotado */
+  const self=inventoryItems.find(x=>x.name.toLowerCase()===itemName.toLowerCase());
+  if(self&&self.stock<=0)return false;
+  /* 2. Si la receta tiene ingredientes, todos deben tener stock */
   const r=recipes[itemName];
   if(!r||!r.ingredients.length)return true;
   return r.ingredients.every(ing=>{
@@ -974,13 +978,29 @@ function addCajaMov(amount,pago,desc){
 
 /* ── MENU DATA ── */
 const menuData={
-  'Cafetería Caliente':{'Clásicos':[{name:'Espresso',price:2000,active:true},{name:'Macchiato',price:2200,active:true},{name:'Cortado',price:2500,active:true},{name:'Doble Espresso',price:2700,active:true},{name:'Americano',price:2700,active:true},{name:'Americano Cortado',price:2900,active:true},{name:'Café con Leche',price:3200,active:true},{name:'Bombón',price:3800,active:true},{name:'Irish Coffee',price:4200,active:true}],'Cappuccino':[{name:'Cappuccino Clásico',price:2900,active:true},{name:'Cappuccino Vainilla',price:3500,active:true},{name:'Cappuccino Caramelo',price:3500,active:true},{name:'Cappuccino Vienés',price:3800,active:true}],'Latte':[{name:'Latte Clásico',price:3200,active:true},{name:'Latte Macchiato',price:3200,active:true},{name:'Nutelatte',price:3500,active:true},{name:'Nutella Moka',price:3800,active:true}],'Con Chocolate':[{name:'Mocaccino',price:3500,active:true},{name:'Chocolate Caliente',price:3900,active:true},{name:'Cacao Amargo',price:3900,active:true},{name:'Chocolate Vienés',price:4500,active:true}],'Con Té':[{name:'Infusión',price:2200,active:true},{name:'Té con Leche',price:2900,active:true},{name:'Té Mimoso',price:3500,active:true}],'Hierbas':[{name:'Chai Latte',price:3500,active:true},{name:'Matcha Latte',price:3800,active:true},{name:'Latte Dorado',price:3500,active:true},{name:'Rooibos Latte',price:3500,active:true}]},
-  'Bebidas Frías':{'Base café':[{name:'Tónica de Azahar',price:4500,active:true},{name:'Latte en el Jardín',price:4200,active:true},{name:'Caramelo de Gatsby',price:4800,active:true},{name:'Bombón de Macondo',price:4800,active:true},{name:'Affogato de Verona',price:5200,active:true},{name:'El Glacé de Madame',price:5500,active:true}],'Base té':[{name:'Té del Faro',price:3900,active:true},{name:'Mango del Horizonte',price:4800,active:true},{name:'Susurro de Verano',price:5200,active:true},{name:'Sombras de Delhi',price:4900,active:true}],'Matcha':[{name:'Bosque Esmeralda',price:5500,active:true},{name:'Jardín de Kioto',price:5200,active:true},{name:'Cielos de Osaka',price:5500,active:true}],'Frutas':[{name:'Limonada Clásica',price:3900,active:true},{name:'Limonada Jengibre',price:4200,active:true},{name:'Jamaica Berries',price:4800,active:true},{name:'Smoothies del Alba',price:4800,active:true},{name:'Malteadas de Ensueño',price:5500,active:true}],'Otros':[{name:'Ginger Beer 330cc',price:3900,active:true},{name:'Bebidas 330cc',price:2200,active:true},{name:'Agua Mineral',price:1200,active:true}]},
-  'Platos':{'Tostadas':[
-    {name:'Tostadas',price:3500,active:true,isToast:true,toastBase:'Tostadas con Huevo Revuelto',toastExtras:[{name:'Jamón',price:700},{name:'Tocino',price:1000},{name:'Queso Mantecoso',price:700},{name:'Champiñones',price:1000},{name:'Palta',price:800},{name:'Tomate',price:300}]}
-  ],'Sándwich':[{name:'Sándwich 2 ingredientes',price:4900,active:true,isSandwich:true,sandwichMax:2},{name:'Sándwich 3 ingredientes',price:5900,active:true,isSandwich:true,sandwichMax:3},{name:'Sándwich 4 ingredientes',price:6900,active:true,isSandwich:true,sandwichMax:4}],'Pastelería':[{name:'Pastelería del día',price:2500,active:true}]},
-  'Pizzas':{'Pizzas':[{name:'Pizza Tradicional',price:6000,active:true,isPizza:true,pizzaType:'tradicional'},{name:'Pizza Vegana',price:7500,active:true,isPizza:true,pizzaType:'vegana'}]},
-  'Extras':{'Adicionales':[{name:'Para llevar',price:300,active:true},{name:'Café Descafeinado',price:500,active:true},{name:'Bebida Vegetal',price:500,active:true},{name:'Extra Chantilly',price:500,active:true},{name:'Shot Espresso',price:700,active:true}]},
+  'Cafetería Caliente':{
+    'Clásicos':[{name:'Espresso',price:2000,active:true,area:'Barra'},{name:'Macchiato',price:2200,active:true,area:'Barra'},{name:'Cortado',price:2500,active:true,area:'Barra'},{name:'Doble Espresso',price:2700,active:true,area:'Barra'},{name:'Espresso Miel',price:2500,active:true,area:'Barra'},{name:'Espresso Nutella',price:2500,active:true,area:'Barra'},{name:'Americano',price:2700,active:true,area:'Barra'},{name:'Americano Cortado',price:2900,active:true,area:'Barra'},{name:'Café con Leche',price:3200,active:true,area:'Barra'},{name:'Bombón',price:3800,active:true,area:'Barra'},{name:'Irish Coffee',price:4200,active:true,area:'Barra'}],
+    'Cappuccino':[{name:'Cappuccino Clásico',price:2900,active:true,area:'Barra'},{name:'Cappuccino Vainilla',price:3500,active:true,area:'Barra'},{name:'Cappuccino Caramelo',price:3500,active:true,area:'Barra'},{name:'Cappuccino Vienés',price:3800,active:true,area:'Barra'}],
+    'Latte':[{name:'Latte Clásico',price:3200,active:true,area:'Barra'},{name:'Latte Macchiato',price:3200,active:true,area:'Barra'},{name:'Nutelatte',price:3500,active:true,area:'Barra'},{name:'Nutella Moka',price:3800,active:true,area:'Barra'}],
+    'Con Chocolate':[{name:'Mocaccino',price:3500,active:true,area:'Barra'},{name:'Chocolate Caliente',price:3900,active:true,area:'Barra'},{name:'Cacao Amargo',price:3900,active:true,area:'Barra'},{name:'Cacao Bombón',price:4200,active:true,area:'Barra'},{name:'Chocolate Vienés',price:4500,active:true,area:'Barra'}],
+    'Con Té':[{name:'Infusión',price:2200,active:true,area:'Barra'},{name:'Té con Leche',price:2900,active:true,area:'Barra'},{name:'Té Mimoso',price:3500,active:true,area:'Barra'},{name:'Chai Latte',price:3500,active:true,area:'Barra'},{name:'Matcha Latte',price:3800,active:true,area:'Barra'}],
+    'Hierbas y Especias':[{name:'Latte Dorado',price:3500,active:true,area:'Barra'},{name:'Rooibos Latte',price:3500,active:true,area:'Barra'},{name:'Limonada Caliente',price:3500,active:true,area:'Barra'}]
+  },
+  'Bebidas Frías':{
+    'Base Café':[{name:'Tónica de Azahar',price:4500,active:true,area:'Barra'},{name:'Latte en el Jardín',price:4200,active:true,area:'Barra'},{name:'Vainilla de Dorian Gray',price:4800,active:true,area:'Barra'},{name:'Caramelo de Gatsby',price:4800,active:true,area:'Barra'},{name:'Moka del Infinito',price:4800,active:true,area:'Barra'},{name:'Bombón de Macondo',price:4800,active:true,area:'Barra'},{name:'Affogato de Verona',price:5200,active:true,area:'Barra'},{name:'El Glacé de Madame',price:5500,active:true,area:'Barra'},{name:'Irish de Ulises',price:5500,active:true,area:'Barra'}],
+    'Base Té':[{name:'Té del Faro',price:3900,active:true,area:'Barra'},{name:'Mango del Horizonte',price:4800,active:true,area:'Barra'},{name:'Sombras de Delhi',price:4900,active:true,area:'Barra'},{name:'Susurro de Verano',price:5200,active:true,area:'Barra'},{name:'Verde de Estambul',price:4500,active:true,area:'Barra'}],
+    'Matcha':[{name:'Cielos de Osaka',price:5500,active:true,area:'Barra'},{name:'Ecos de Nara',price:5500,active:true,area:'Barra'},{name:'Jardín de Kioto',price:5200,active:true,area:'Barra'},{name:'Bosque Esmeralda',price:5500,active:true,area:'Barra'},{name:'Matcha en el País de las Maravillas',price:5500,active:true,area:'Barra'}],
+    'Frutas':[{name:'Jugos del Jardín Secreto',price:3900,active:true,area:'Barra'},{name:'Smoothies del Alba',price:4800,active:true,area:'Barra'},{name:'Malteadas de Ensueño',price:5500,active:true,area:'Barra'},{name:'Jamaica Berries',price:4800,active:true,area:'Barra'}],
+    'Limonadas':[{name:'Limonada Clásica',price:3900,active:true,area:'Barra'},{name:'Limonada Jengibre',price:4200,active:true,area:'Barra'},{name:'Limonada Menta',price:4200,active:true,area:'Barra'},{name:'Limonada Frambuesa',price:4800,active:true,area:'Barra'},{name:'Limonada Arándano',price:4800,active:true,area:'Barra'},{name:'Limonada Menta Jengibre',price:4800,active:true,area:'Barra'}],
+    'Otros':[{name:'Ginger Beer 330cc',price:3900,active:true,area:'Barra'},{name:'Bebida 330cc',price:2200,active:true,area:'Barra'},{name:'Bebida 500cc',price:2700,active:true,area:'Barra'},{name:'Agua Mineral',price:1200,active:true,area:'Barra'}]
+  },
+  'Platos':{
+    'Tostadas':[{name:'Tostadas Clásicas',price:3500,active:true,area:'Desayunos'},{name:'Tostadas Jamón Colonial',price:4200,active:true,area:'Desayunos'},{name:'Tostadas Tocino',price:4500,active:true,area:'Desayunos'},{name:'Tostadas Queso Mantecoso',price:4200,active:true,area:'Desayunos'},{name:'Tostadas Queso de Cabra',price:4500,active:true,area:'Desayunos'},{name:'Tostadas Tomate Fresco',price:4200,active:true,area:'Desayunos'},{name:'Tostadas Champiñones',price:4500,active:true,area:'Desayunos'}],
+    'Sándwich':[{name:'Sándwich 2 ingredientes',price:4900,active:true,isSandwich:true,sandwichMax:2,area:'Cocina'},{name:'Sándwich 3 ingredientes',price:5900,active:true,isSandwich:true,sandwichMax:3,area:'Cocina'},{name:'Sándwich 4 ingredientes',price:6900,active:true,isSandwich:true,sandwichMax:4,area:'Cocina'}],
+    'Pastelería':[{name:'Pastelería del Día',price:2500,active:true,area:'Cocina'}]
+  },
+  'Pizzas':{'Pizzas':[{name:'Pizza Tradicional',price:6000,active:true,isPizza:true,pizzaType:'tradicional',area:'Cocina'},{name:'Pizza Vegana',price:7500,active:true,isPizza:true,pizzaType:'vegana',area:'Cocina'}]},
+  'Extras':{'Adicionales':[{name:'Para llevar',price:300,active:true,area:'Barra'},{name:'Café Descafeinado',price:500,active:true,area:'Barra'},{name:'Bebida Vegetal',price:500,active:true,area:'Barra'},{name:'Extra Chantilly',price:500,active:true,area:'Barra'},{name:'Shot Espresso',price:700,active:true,area:'Barra'},{name:'Ingrediente Extra',price:900,active:true,area:'Cocina'},{name:'Salsa Adicional',price:1500,active:true,area:'Cocina'}]},
 };
 
 /* ── RECIPES (CRUD) ── */
@@ -1010,12 +1030,70 @@ function buildRecipes(){
   })));
 }
 
-let inventoryItems=[
-  {name:'Café (grano)',cat:'Insumos',stock:5,unit:'kg',min:2},{name:'Leche entera',cat:'Lácteos',stock:12,unit:'lt',min:5},
-  {name:'Matcha orgánico',cat:'Tés',stock:1.2,unit:'kg',min:0.5},{name:'Queso mozzarella',cat:'Pizzas',stock:6,unit:'kg',min:3},
-  {name:'Passata italiana',cat:'Pizzas',stock:0,unit:'lt',min:2},{name:'Harina pizzera',cat:'Pizzas',stock:10,unit:'kg',min:5},
-  {name:'Crema chantilly',cat:'Repostería',stock:1.5,unit:'lt',min:2},
-];
+/* Inventario = productos terminados (derivados de la Carta) + insumos base.
+   Se construye en seedInventory(); luego loadPersistentData() lo sobreescribe con Supabase si hay datos. */
+let inventoryItems=[];
+function seedInventory(){
+  /* 1. Productos terminados: una línea por cada ítem de la carta */
+  const products=[];
+  Object.entries(menuData).forEach(([cat,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(it=>{
+    products.push({name:it.name,cat,stock:50,unit:'un',min:5,area:it.area||''});
+  })));
+  /* 2. Insumos base (materias primas) */
+  const insumos=[
+    {name:'Café en grano',cat:'Insumos',stock:5,unit:'kg',min:2,area:'Barra'},
+    {name:'Café molido',cat:'Insumos',stock:3,unit:'kg',min:1,area:'Barra'},
+    {name:'Leche entera',cat:'Lácteos',stock:12,unit:'lt',min:5,area:'Barra'},
+    {name:'Leche condensada',cat:'Lácteos',stock:4,unit:'lt',min:2,area:'Barra'},
+    {name:'Bebida vegetal',cat:'Lácteos',stock:6,unit:'lt',min:2,area:'Barra'},
+    {name:'Crema chantilly',cat:'Repostería',stock:1.5,unit:'lt',min:2,area:'Barra'},
+    {name:'Helado de vainilla',cat:'Repostería',stock:4,unit:'lt',min:2,area:'Barra'},
+    {name:'Matcha orgánico',cat:'Tés',stock:1.2,unit:'kg',min:0.5,area:'Barra'},
+    {name:'Té negro',cat:'Tés',stock:2,unit:'kg',min:0.5,area:'Barra'},
+    {name:'Té verde',cat:'Tés',stock:1,unit:'kg',min:0.5,area:'Barra'},
+    {name:'Té Earl Grey',cat:'Tés',stock:1,unit:'kg',min:0.3,area:'Barra'},
+    {name:'Té Chai',cat:'Tés',stock:1,unit:'kg',min:0.3,area:'Barra'},
+    {name:'Rooibos',cat:'Tés',stock:1,unit:'kg',min:0.3,area:'Barra'},
+    {name:'Chocolate cobertura',cat:'Insumos',stock:3,unit:'kg',min:1,area:'Barra'},
+    {name:'Cacao amargo',cat:'Insumos',stock:2,unit:'kg',min:1,area:'Barra'},
+    {name:'Nutella',cat:'Insumos',stock:3,unit:'kg',min:1,area:'Barra'},
+    {name:'Salsa de caramelo',cat:'Insumos',stock:2,unit:'lt',min:1,area:'Barra'},
+    {name:'Sirope de vainilla',cat:'Insumos',stock:2,unit:'lt',min:1,area:'Barra'},
+    {name:'Azúcar',cat:'Insumos',stock:10,unit:'kg',min:3,area:'Barra'},
+    {name:'Miel',cat:'Insumos',stock:2,unit:'kg',min:1,area:'Barra'},
+    {name:'Cúrcuma y especias',cat:'Insumos',stock:1,unit:'kg',min:0.3,area:'Barra'},
+    {name:'Limón',cat:'Frutas',stock:5,unit:'kg',min:2,area:'Barra'},
+    {name:'Menta fresca',cat:'Frutas',stock:1,unit:'kg',min:0.3,area:'Barra'},
+    {name:'Jengibre',cat:'Frutas',stock:2,unit:'kg',min:0.5,area:'Barra'},
+    {name:'Berries surtidos',cat:'Frutas',stock:4,unit:'kg',min:2,area:'Barra'},
+    {name:'Pulpa de mango',cat:'Frutas',stock:3,unit:'kg',min:1,area:'Barra'},
+    {name:'Flor de Jamaica',cat:'Insumos',stock:1,unit:'kg',min:0.3,area:'Barra'},
+    {name:'Agua tónica',cat:'Bebidas',stock:24,unit:'un',min:6,area:'Barra'},
+    {name:'Agua gasificada',cat:'Bebidas',stock:24,unit:'un',min:6,area:'Barra'},
+    {name:'Hielo',cat:'Insumos',stock:20,unit:'kg',min:5,area:'Barra'},
+    {name:'Whisky',cat:'Licores',stock:2,unit:'lt',min:1,area:'Barra'},
+    {name:'Pan de molde',cat:'Panadería',stock:8,unit:'un',min:3,area:'Desayunos'},
+    {name:'Pan ciabatta',cat:'Panadería',stock:10,unit:'un',min:4,area:'Cocina'},
+    {name:'Huevos',cat:'Frescos',stock:60,unit:'un',min:24,area:'Desayunos'},
+    {name:'Mantequilla',cat:'Lácteos',stock:2,unit:'kg',min:1,area:'Desayunos'},
+    {name:'Jamón colonial',cat:'Fiambres',stock:3,unit:'kg',min:1,area:'Cocina'},
+    {name:'Jamón serrano',cat:'Fiambres',stock:1,unit:'kg',min:0.5,area:'Cocina'},
+    {name:'Tocino',cat:'Fiambres',stock:2,unit:'kg',min:1,area:'Cocina'},
+    {name:'Queso mantecoso',cat:'Lácteos',stock:3,unit:'kg',min:1,area:'Cocina'},
+    {name:'Queso de cabra',cat:'Lácteos',stock:1.5,unit:'kg',min:0.5,area:'Cocina'},
+    {name:'Queso mozzarella',cat:'Pizzas',stock:6,unit:'kg',min:3,area:'Cocina'},
+    {name:'Mozzarella vegano',cat:'Pizzas',stock:2,unit:'kg',min:1,area:'Cocina'},
+    {name:'Tomate',cat:'Verduras',stock:5,unit:'kg',min:2,area:'Cocina'},
+    {name:'Champiñones',cat:'Verduras',stock:3,unit:'kg',min:1,area:'Cocina'},
+    {name:'Palta',cat:'Verduras',stock:4,unit:'kg',min:1,area:'Cocina'},
+    {name:'Harina pizzera',cat:'Pizzas',stock:10,unit:'kg',min:5,area:'Cocina'},
+    {name:'Passata italiana',cat:'Pizzas',stock:0,unit:'lt',min:2,area:'Cocina'},
+    {name:'Aceite de oliva',cat:'Insumos',stock:3,unit:'lt',min:1,area:'Cocina'},
+    {name:'Levadura',cat:'Insumos',stock:1,unit:'kg',min:0.3,area:'Cocina'},
+  ];
+  inventoryItems=[...products,...insumos];
+}
+seedInventory();
 
 /* ── SECURITY ── */
 function openSecModal(){$('secAnswer').value='';$('secResult').style.display='none';openMod('secModal');}
@@ -2356,43 +2434,33 @@ function invDeleteItem(i){
 function _refreshActualizarBtn(){
   const btn=$('btnActualizarInv');
   if(!btn)return;
-  if(_invDirty.size>0){
-    btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
-    btn.innerHTML=`<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario (${_invDirty.size})`;
-  } else {
-    btn.disabled=true;btn.style.opacity='.5';btn.style.cursor='not-allowed';
-    btn.innerHTML=`<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario`;
-  }
+  /* Siempre habilitado: el botón hace upsert completo a Supabase */
+  btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
+  const pend=_invDirty.size>0?` (${_invDirty.size} sin guardar)`:'';
+  btn.innerHTML=`<i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Sincronizar inventario${pend}`;
 }
 
 async function syncInventoryToSupabase(){
   if(!_sb){await initSupabase();}
   if(!_sb){showToast('Sin conexión a Supabase — revisa tu conexión','del');return;}
-  if(_invDirty.size===0){showToast('Sin cambios pendientes');return;}
   const btn=$('btnActualizarInv');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="font-size:12px;vertical-align:-1px"></i> Guardando...';}
-  let ok=0,err=0;
-  for(const name of [..._invDirty]){
-    const item=inventoryItems.find(x=>x.name===name);
-    if(!item)continue;
-    try{
-      const {error}=await _sb.from('inventory').update({
-        stock:item.stock,
-        updated_at:new Date().toISOString()
-      }).eq('name',name);
-      if(error)throw error;
-      _invSnapshot[name]=item.stock;
-      _invDirty.delete(name);
-      ok++;
-    }catch(e){
-      console.warn('[Inv] Error actualizando',name,e.message);
-      err++;
-    }
-  }
-  if(err===0){
-    showToast(`✅ ${ok} ítem${ok!==1?'s':''} actualizado${ok!==1?'s':''} en Supabase`,'ok');
-  } else {
-    showToast(`${ok} ok · ${err} con error — revisa consola`,'del');
+  try{
+    /* Upsert completo: sube TODO el inventario (crea los que falten, actualiza el resto) */
+    const rows=inventoryItems.map(it=>({
+      name:it.name,cat:it.cat,stock:it.stock,unit:it.unit,
+      min_stock:it.min,area:it.area||null,
+      updated_at:new Date().toISOString()
+    }));
+    const {error}=await _sb.from('inventory').upsert(rows,{onConflict:'name'});
+    if(error)throw error;
+    /* Sincronizar snapshot y limpiar dirty */
+    _invSnapshot={};inventoryItems.forEach(it=>{ _invSnapshot[it.name]=it.stock; });
+    _invDirty.clear();
+    showToast(`✅ ${rows.length} ítems sincronizados en Supabase`,'ok');
+  }catch(e){
+    console.warn('[Inv] Error al sincronizar',e.message);
+    showToast('Error al sincronizar inventario — revisa consola','del');
   }
   renderInv();
 }
