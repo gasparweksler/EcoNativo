@@ -1234,6 +1234,10 @@ function loadTableOrder(id,order){
   /* Ocultar botones de mostrador, mostrar botones de mesa */
   const ma=$('mesaActions');if(ma)ma.style.display='flex';
   const mcw=$('mcSendWrap');if(mcw)mcw.style.display='none';
+  /* Ocultar wrap de Mostrador (Enviar a Cocina / Cobrar Pedido) para que no se filtre a la vista de mesa */
+  const kcw=$('kitchenCheckWrap');if(kcw)kcw.style.display='none';
+  const mcsb=$('mcSplitBtns');if(mcsb)mcsb.style.display='none';
+  const mcob=$('mcOrderBtns');if(mcob)mcob.style.display='none';
   /* Mostrar botón agregar cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
   /* Mostrar cobrar solo si hay ítems enviados a cocina */
@@ -1586,6 +1590,13 @@ function gestionarPedidoCocina(items, tableId){
     : orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
   if(order&&order.status!=='closed'){
     order.items=[...order.items,...itemsToSend];
+    if(order.kitchenHidden){
+      /* La cocina lo había despachado: reaparece mostrando solo los productos nuevos */
+      order.kitchenHidden=false;
+      order.status='pending';
+      order.kitchenStartTime=null;
+      showBell('🔔 Nuevos productos · '+(order.tableId?'Mesa '+order.tableId:'Mostrador'));
+    }
     showToast('Enviado a cocina 🍳','ok');
   } else {
     order={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:targetTable,type:'mesa',
@@ -2563,7 +2574,7 @@ function renderKitchen(){
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
   $('kitchenGrid').innerHTML=active.map(o=>{
-    if(!kDone[o.id])kDone[o.id]=[];const done=kDone[o.id];
+    if(!kDone[o.id])kDone[o.id]=[];const done=kDone[o.id];const startIdx=o.kitchenSeenCount||0;
     const statusLabels={pending:'Pendiente',preparing:'Preparando',ready:'Listo',canceled:'Cancelado'};
     return `<div class="kc ${o.status}">
       <div class="kcH">
@@ -2574,7 +2585,7 @@ function renderKitchen(){
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
-      <div class="ki">${o.items.map((item,i)=>`<div class="ki-row">
+      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row">
         ${o.status!=='canceled'?`<div class="kck ${done.includes(i)?'done':''}" onclick="tkI('${o.id}',${i})">${done.includes(i)?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
         <div class="kn ${done.includes(i)?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:10px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:9px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
       </div>`).join('')}</div>
@@ -2610,6 +2621,7 @@ function kDel(oid){
   if(!confirm('¿Eliminar de la vista de cocina? El pedido sigue activo para el administrador.'))return;
   const o=getOrder(oid);if(!o)return;
   o.kitchenHidden=true;  /* marca solo para cocina */
+  o.kitchenSeenCount=o.items.length;  /* ítems ya despachados: los nuevos reaparecerán solos */
   showToast('Eliminado de cocina','del');renderKitchen();broadcastState();
 }
 
