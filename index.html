@@ -164,6 +164,7 @@ button:active{transform:scale(.97)}
 .ms h3{font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600}
 .mi-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:.4rem}
 .mi{padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);cursor:pointer;background:var(--cr);transition:all .1s}
+.mi.unavailable{opacity:.45;filter:grayscale(80%);cursor:not-allowed}
 .mi:hover{background:var(--cr2);border-color:var(--bm)}
 .mi-name{font-size:11px;font-weight:600;color:var(--tm);line-height:1.3}
 .mi-price{font-size:12px;color:var(--bm);font-weight:700;margin-top:2px}
@@ -653,6 +654,7 @@ button:active{transform:scale(.97)}
           <div class="pt" style="margin-bottom:0">Recetas &amp; Costeo</div>
           <button id="btnConfirmRecipes" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncRecipesToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
         </div>
+        <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="recipesSearch" type="text" placeholder="Buscar receta..." oninput="_recipesQ=this.value;renderRecipes()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div class="cat-pills" id="recipesCatPills"></div>
         <div id="recipesContent"></div>
       </div>
@@ -663,12 +665,18 @@ button:active{transform:scale(.97)}
           <div class="pt" style="margin-bottom:0">Editor de Carta</div>
           <button id="btnConfirmCarta" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncCartaToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
         </div>
+        <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="cartaSearch" type="text" placeholder="Buscar producto..." oninput="_cartaQ=this.value;renderCarta()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div class="cat-pills" id="cartaCatPills"></div>
         <div id="cartaMain"></div>
       </div>
 
       <!-- INVENTARIO -->
-      <div class="page" id="page-inventory"><div class="pt">Inventario</div><div id="invContent"></div></div>
+      <div class="page" id="page-inventory">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px"><div class="pt" style="margin-bottom:0">Inventario</div></div>
+        <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="invSearch" type="text" placeholder="Buscar insumo..." oninput="_invQ=this.value;renderInv()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
+        <div class="cat-pills" id="invCatPills"></div>
+        <div id="invContent"></div>
+      </div>
 
       <!-- PERSONAL -->
       <div class="page" id="page-staff"><div id="staffPageHeader" class="pt" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">Personal<button id="btnConfirmStaff" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncStaffToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button></div><div id="staffContent"></div></div>
@@ -806,6 +814,7 @@ button:active{transform:scale(.97)}
     <div class="form-item"><label>Unidad *</label><input type="text" id="invUnit" placeholder="kg / lt / un"></div>
   </div>
   <div class="form-item"><label>Stock mínimo</label><input type="number" id="invMin" placeholder="1"></div>
+  <div class="form-item"><label>Área</label><select id="invArea" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Sin área</option><option value="Barra">Barra</option><option value="Cocina">Cocina</option><option value="Desayunos">Desayunos</option></select></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addInvModal&#39;)">Cancelar</button><button class="bc2" onclick="saveInvItem()">Agregar</button></div>
 </div></div>
 
@@ -814,6 +823,7 @@ button:active{transform:scale(.97)}
   <div class="form-item"><label>Nombre *</label><input type="text" id="npName"></div>
   <div class="form-item"><label>Precio ($) *</label><input type="number" id="npPrice"></div>
   <div class="form-item"><label>Subcategoría *</label><input type="text" id="npSub" placeholder="Ej: Clásicos"></div>
+  <div class="form-item"><label>Área</label><select id="npArea" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Sin área</option><option value="Barra">Barra</option><option value="Cocina">Cocina</option><option value="Desayunos">Desayunos</option></select></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
 </div></div>
 
@@ -895,6 +905,19 @@ let pType='',pIngs=[],pSauce=null;
 let sItem=null,sIngs=[],sMax=2;
 let aCartaCat='Cafetería Caliente';
 let aRecipeCat='Cafetería Caliente';
+let _cartaQ='';
+let _recipesQ='';
+let _invQ='';
+let _invCat='';
+function isItemAvailable(itemName){
+  if(!Object.keys(recipes).length)buildRecipes();
+  const r=recipes[itemName];
+  if(!r||!r.ingredients.length)return true;
+  return r.ingredients.every(ing=>{
+    const inv=inventoryItems.find(x=>x.name.toLowerCase()===ing.name.toLowerCase());
+    return !inv||inv.stock>0;
+  });
+}
 let selPay='efectivo';
 let kDone={};
 let noteItemIdx=-1;
@@ -1289,12 +1312,12 @@ function renderMenuItems(){
     let found=[];
     Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
     html=found.length
-      ?`<div class="mi-grid">${found.map(item=>`<div class="mi" onclick="addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')"><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div>`
+      ?`<div class="mi-grid">${found.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div>`
       :`<div style="color:var(--tl);text-align:center;padding:1rem;font-size:12px">Sin resultados para "${q}"</div>`;
   }else{
     Object.entries(menuData[aMenuCat]).forEach(([sec,items])=>{
       const a=items.filter(i=>i.active);if(!a.length)return;
-      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=>`<div class="mi" onclick="addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')"><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}</div>`).join('')}</div></div>`;
+      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div><div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div></div>`;
     });
   }
   $('menuItems').innerHTML=html;
@@ -2166,13 +2189,14 @@ function downloadExcel(){
 /* ── RECIPES — full CRUD ── */
 function renderRecipes(){
   buildRecipes();
+  const q=_recipesQ.toLowerCase().trim();
   const cats=[...new Set(Object.values(recipes).map(r=>r.cat))].sort();
   $('recipesCatPills').innerHTML=cats.map(c=>`<button class="cp2 ${c===aRecipeCat?'active':''}" onclick="setRecipeCat('${c}')">${c}</button>`).join('');
-   /* Botón Guardar solo admin */
   const btnRec=$('btnConfirmRecipes');
   if(btnRec)btnRec.style.display=cRole==='admin'?'':'none';
-  const catRecipes=Object.entries(recipes).filter(([,r])=>r.cat===aRecipeCat);
-  if(!catRecipes.length){$('recipesContent').innerHTML='<div class="noo"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i><p>Sin recetas en esta categoría</p></div>';return;}
+  let catRecipes=Object.entries(recipes).filter(([,r])=>r.cat===aRecipeCat);
+  if(q)catRecipes=catRecipes.filter(([name])=>name.toLowerCase().includes(q));
+  if(!catRecipes.length){$('recipesContent').innerHTML=`<div class="noo"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i><p>${q?'Sin resultados':'Sin recetas en esta categoría'}</p></div>`;return;}
   $('recipesContent').innerHTML=catRecipes.map(([name,recipe])=>{
     const totalCost=recipe.ingredients.reduce((s,i)=>s+(parseInt(i.cost)||0),0);
     const margin=recipe.price>0?Math.round((recipe.price-totalCost)/recipe.price*100):0;
@@ -2182,15 +2206,15 @@ function renderRecipes(){
         <span>${name}</span>
         <span style="font-size:11px;font-weight:400;color:var(--ts)">${fmt(recipe.price)} precio venta</span>
       </h4>
-      ${recipe.ingredients.length?`<div class="table-scroll-wrap">${recipe.ingredients.map((ing,ii)=>``).join('')}<table class="ingr-table">
+      ${recipe.ingredients.length?`<div class="table-scroll-wrap"><table class="ingr-table">
         <thead><tr><th>Ingrediente</th><th style="text-align:right">Cant.</th><th>Ud.</th><th style="text-align:right">Costo $</th><th></th></tr></thead>
-        <tbody><tr>
+        <tbody>${recipe.ingredients.map((ing,ii)=>`<tr>
           <td><input class="ingr-name-input" type="text" value="${ing.name}" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].name=this.value"></td>
           <td><input class="ingr-input" type="number" value="${ing.qty}" step="0.1" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].qty=parseFloat(this.value)||0;renderRecipes()"></td>
           <td><input type="text" value="${ing.unit}" style="border:none;background:none;font-size:11px;color:var(--ts);width:32px;font-family:inherit" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].unit=this.value"></td>
           <td><input class="ingr-input" type="number" value="${ing.cost}" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].cost=parseInt(this.value)||0;renderRecipes()"></td>
           <td><button class="icon-btn" style="width:22px;height:22px;border-color:var(--er);color:var(--er)" onclick="delIngredient('${encodeURIComponent(name)}',${ii})"><i class="ti ti-x" style="font-size:11px" aria-hidden="true"></i></button></td>
-        </tr></tbody>
+        </tr>`).join('')}</tbody>
       </table></div>`:`<div style="font-size:11px;color:var(--tl);padding:4px 0 8px">Sin ingredientes — agrega el primero</div>`}
       <div class="recipe-footer">
         <button onclick="openAddIngredient('${encodeURIComponent(name)}')" style="display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px dashed var(--br);background:transparent;color:var(--ts);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Ingrediente</button>
@@ -2228,29 +2252,39 @@ function renderCarta(){
   $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
   const btnCarta=$('btnConfirmCarta');
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
+  const q=_cartaQ.toLowerCase().trim();
   const cd=menuData[aCartaCat];
   let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod('addProdModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
+  let anyResult=false;
   Object.entries(cd).forEach(([sub,items])=>{
+    const filtered=q?items.filter(item=>item.name.toLowerCase().includes(q)):items;
+    if(!filtered.length)return;
+    anyResult=true;
     html+=`<div style="font-size:10px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.6rem 0 .3rem">${sub}</div>
-    <div class="table-scroll-wrap">
-    ${items.map((item,i)=>``).join('')}
-    <table class="p-table"><thead><tr><th>Nombre</th><th>Precio</th><th>Activo</th><th></th></tr></thead><tbody><tr>
-      <td style="font-weight:600;font-size:11px">${item.name}${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;margin-left:3px">pizza</span>':''}</td>
+    <div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Nombre</th><th>Precio</th><th>Activo</th><th></th></tr></thead><tbody>
+    ${filtered.map((item)=>{
+      const i=items.indexOf(item);
+      return `<tr>
+      <td style="font-weight:600;font-size:11px">${item.name}${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;margin-left:3px">pizza</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);margin-left:4px;background:var(--cr2);padding:1px 5px;border-radius:5px">${item.area}</span>`:''}</td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
       <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="menuData['${aCartaCat}']['${sub}'][${i}].active=this.checked;showToast(this.checked?'Activado':'Desactivado')"><span class="tsl"></span></label></td>
       <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${aCartaCat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
-    </tr></tbody></table></div>`;
+    </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
   });
+  if(!anyResult)html+='<div class="noo"><i class="ti ti-search" aria-hidden="true"></i><p>Sin resultados</p></div>';
   $('cartaMain').innerHTML=html;
 }
 function setAC(c){aCartaCat=c;renderCarta();}
 function saveP(cat,sub,i,input){const v=parseInt(input.value);if(isNaN(v)||v<0){input.value=menuData[cat][sub][i].price;return;}menuData[cat][sub][i].price=v;if(recipes[menuData[cat][sub][i].name])recipes[menuData[cat][sub][i].name].price=v;showToast('Precio actualizado','ok');}
-function delP(cat,sub,i){if(!confirm('¿Eliminar "'+menuData[cat][sub][i].name+'"?'))return;menuData[cat][sub].splice(i,1);showToast('Eliminado','del');renderCarta();}
+function delP(cat,sub,i){const name=menuData[cat][sub][i].name;if(!confirm('¿Eliminar "'+name+'"?'))return;menuData[cat][sub].splice(i,1);if(_sb){_sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] Error al eliminar en Supabase:',error.message);});}showToast('Eliminado','del');renderCarta();}
 function saveNewProd(){
-  const name=($('npName').value||'').trim(),price=parseInt($('npPrice').value||'0'),sub=($('npSub').value||'').trim();
+  const name=($('npName').value||'').trim(),price=parseInt($('npPrice').value||'0'),sub=($('npSub').value||'').trim(),area=($('npArea')?.value||'').trim();
   if(!name||!price||!sub){showToast('Completa todos los campos');return;}
   if(!menuData[aCartaCat][sub])menuData[aCartaCat][sub]=[];
-  menuData[aCartaCat][sub].push({name,price,active:true});
+  const prod={name,price,active:true};if(area)prod.area=area;
+  menuData[aCartaCat][sub].push(prod);
   recipes[name]={cat:aCartaCat,price,ingredients:[]};
   showToast('"'+name+'" agregado','ok');closeMod('addProdModal');renderCarta();
 }
@@ -2264,6 +2298,14 @@ function renderInv(){
   if(Object.keys(_invSnapshot).length===0){
     inventoryItems.forEach(item=>{ _invSnapshot[item.name]=item.stock; });
   }
+  /* Category pills */
+  const cats=['', ...[...new Set(inventoryItems.map(x=>x.cat))].sort()];
+  const pillsEl=$('invCatPills');
+  if(pillsEl)pillsEl.innerHTML=cats.map(c=>`<button class="cp2 ${c===_invCat?'active':''}" onclick="_invCat='${c}';renderInv()">${c||'Todos'}</button>`).join('');
+  const q=_invQ.toLowerCase().trim();
+  let filtered=inventoryItems;
+  if(_invCat)filtered=filtered.filter(x=>x.cat===_invCat);
+  if(q)filtered=filtered.filter(x=>x.name.toLowerCase().includes(q));
   $('invContent').innerHTML=
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
       <button class="btn-add-sm" onclick="openMod('addInvModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
@@ -2271,14 +2313,17 @@ function renderInv(){
         <i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario
       </button>
     </div>`+
-  inventoryItems.map((item,i)=>{
-    const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok'; const isDirty=_invDirty.has(item.name); return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
-      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><div class="inv-cat">${item.cat}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
+  (filtered.length?filtered.map((item)=>{
+    const i=inventoryItems.indexOf(item);
+    const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok';
+    const isDirty=_invDirty.has(item.name);
+    return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
+      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><div class="inv-cat">${item.cat}${item.area?` · ${item.area}`:''}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
       <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
       <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
       <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="invDeleteItem(${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
-    `;
-  }).join('');
+    </div>`;
+  }).join(''):'<div class="noo"><i class="ti ti-search" aria-hidden="true"></i><p>Sin resultados</p></div>');
   _refreshActualizarBtn();
 }
 
@@ -2299,6 +2344,11 @@ function invDeleteItem(i){
   inventoryItems.splice(i,1);
   _invDirty.delete(name);
   delete _invSnapshot[name];
+  /* Write-through a Supabase para multidispositivo */
+  if(_sb){
+    _sb.from('inventory').delete().eq('name',name)
+      .then(({error})=>{if(error)console.warn('[Inv] Error al eliminar en Supabase:',error.message);});
+  }
   renderInv();
   showToast('Eliminado','del');
 }
@@ -2347,10 +2397,17 @@ async function syncInventoryToSupabase(){
   renderInv();
 }
 function saveInvItem(){
-  const name=($('invName').value||'').trim(),cat=($('invCat').value||'').trim(),stock=parseFloat($('invStock').value)||0,unit=($('invUnit').value||'').trim(),min=parseFloat($('invMin').value)||1;
+  const name=($('invName').value||'').trim(),cat=($('invCat').value||'').trim(),stock=parseFloat($('invStock').value)||0,unit=($('invUnit').value||'').trim(),min=parseFloat($('invMin').value)||1,area=($('invArea')?.value||'').trim();
   if(!name||!cat||!unit){showToast('Completa todos los campos');return;}
-  inventoryItems.push({name,cat,stock,unit,min});
+  if(inventoryItems.find(x=>x.name===name)){showToast('Ya existe "'+name+'"','del');return;}
+  const item={name,cat,stock,unit,min};if(area)item.area=area;
+  inventoryItems.push(item);
   _invSnapshot[name]=stock;
+  /* Write-through a Supabase para multidispositivo */
+  if(_sb){
+    _sb.from('inventory').upsert({name,cat,stock,unit,min_stock:min,area:area||null,updated_at:new Date().toISOString()},{onConflict:'name'})
+      .then(({error})=>{if(error)console.warn('[Inv] Error al crear en Supabase:',error.message);});
+  }
   showToast('"'+name+'" agregado','ok');closeMod('addInvModal');renderInv();
 }
 
@@ -2581,7 +2638,7 @@ async function loadPersistentData(){
     const {data:inv}=await _sb.from('inventory').select('*');
     if(inv&&inv.length){
       inventoryItems.length=0;
-      inv.forEach(r=>inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1}));
+      inv.forEach(r=>{const it={name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1};if(r.area)it.area=r.area;inventoryItems.push(it);});
       _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
       console.log('[EcoNativo] Inventario cargado desde Supabase');
     }
@@ -2604,11 +2661,14 @@ async function loadPersistentData(){
     const {data:menu}=await _sb.from('menu').select('*');
     if(menu&&menu.length){
       menu.forEach(r=>{
-        if(menuData[r.cat]&&menuData[r.cat][r.sub]){
-          const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
-          if(ex){ex.price=r.price;ex.active=r.active;}
-        }
+        let extra={};try{extra=JSON.parse(r.extra_data||'{}');}catch(e){}
+        if(!menuData[r.cat])menuData[r.cat]={};
+        if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
+        const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
+        if(ex){ex.price=r.price;ex.active=r.active;Object.assign(ex,extra);}
+        else menuData[r.cat][r.sub].push({name:r.name,price:r.price,active:r.active,...extra});
       });
+      console.log('[EcoNativo] Carta cargada desde Supabase');
     }
   }catch(e){
     console.warn('[EcoNativo] loadPersistentData error:',e.message);
@@ -2760,14 +2820,30 @@ async function initSupabase(){
         if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
           const r=payload.new;
           const ex=inventoryItems.find(x=>x.name===r.name);
-          if(ex){ex.stock=r.stock;ex.cat=r.cat;ex.unit=r.unit;ex.min=r.min_stock||r.min||1;}
-          else inventoryItems.push({name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1});
+          if(ex){ex.stock=r.stock;ex.cat=r.cat;ex.unit=r.unit;ex.min=r.min_stock||r.min||1;if(r.area)ex.area=r.area;}
+          else{const it={name:r.name,cat:r.cat,stock:r.stock,unit:r.unit,min:r.min_stock||r.min||1};if(r.area)it.area=r.area;inventoryItems.push(it);}
         }else if(payload.eventType==='DELETE'){
           const idx=inventoryItems.findIndex(x=>x.name===payload.old?.name);
           if(idx>=0)inventoryItems.splice(idx,1);
         }
         const ap=document.querySelector('.page.active');
         if(ap?.id==='page-inventory')renderInv();
+      })
+      /* Realtime: carta (menu) */
+      .on('postgres_changes',{event:'*',schema:'public',table:'menu'},payload=>{
+        if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
+          const r=payload.new;let extra={};try{extra=JSON.parse(r.extra_data||'{}');}catch(e){}
+          if(!menuData[r.cat])menuData[r.cat]={};
+          if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
+          const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
+          if(ex){ex.price=r.price;ex.active=r.active;Object.assign(ex,extra);}
+          else menuData[r.cat][r.sub].push({name:r.name,price:r.price,active:r.active,...extra});
+        }else if(payload.eventType==='DELETE'){
+          const nm=payload.old?.name;
+          Object.values(menuData).forEach(subs=>Object.values(subs).forEach(items=>{const idx=items.findIndex(x=>x.name===nm);if(idx>=0)items.splice(idx,1);}));
+        }
+        const ap=document.querySelector('.page.active');
+        if(ap?.id==='page-carta')renderCarta();else if(ap?.id==='page-order')renderMenuItems();
       })
       /* Realtime: recetas */
       .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},payload=>{
