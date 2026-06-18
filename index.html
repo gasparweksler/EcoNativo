@@ -2989,7 +2989,11 @@ async function initSupabase(){
   if(!SUPABASE_URL||!SUPABASE_ANON_KEY)return;
   try{
     if(!window.supabase){console.warn('[EcoNativo] Supabase SDK no cargó');return;}
-    _sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    /* Reusar el cliente existente: crear uno nuevo en cada reintento genera
+       "Multiple GoTrueClient instances" e inestabiliza el realtime. */
+    if(!_sb)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    /* Si ya había un canal, removerlo antes de re-suscribir */
+    if(_sbChannel){try{_sb.removeChannel(_sbChannel);}catch(e){}_sbChannel=null;}
 
     /* Subscribe to Realtime changes on the state row */
     _sbChannel=_sb.channel('econativo-realtime')
