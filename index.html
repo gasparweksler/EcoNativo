@@ -2475,7 +2475,9 @@ function renderInv(){
    Tolera dos problemas comunes del esquema de Supabase:
    1) que falte la columna 'area'  → reintenta sin ese campo
    2) que 'name' no tenga restricción única → cae a update‑o‑insert por fila */
-let _invHasAreaCol=true;
+/* Por defecto NO enviamos 'area' a la tabla inventory (muchos esquemas no tienen esa
+   columna y eso hacía fallar todo el guardado). El stock/categoría sí sincronizan. */
+let _invHasAreaCol=false;
 let _invNoUnique=false;
 const _invStrip=arr=>arr.map(({area,...r})=>r);
 async function _invUpdateOrInsert(rows){
@@ -2575,7 +2577,8 @@ async function syncInventoryToSupabase(){
     showToast(`✅ ${rows.length} ítems sincronizados en Supabase`,'ok');
   }catch(e){
     console.warn('[Inv] Error al sincronizar',e.message);
-    showToast('Error al sincronizar inventario — revisa consola','del');
+    showToast('Error al sincronizar inventario','del');
+    alert('No se pudo sincronizar el inventario.\n\nDetalle técnico:\n'+(e.message||e));
   }
   renderInv();
 }
@@ -3076,6 +3079,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: inv-sync-v3 (sin columna area)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
