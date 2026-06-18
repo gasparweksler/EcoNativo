@@ -2471,6 +2471,21 @@ function renderInv(){
   _refreshActualizarBtn();
 }
 
+/* ── Helper de escritura resiliente: reintenta sin 'area' si la columna no existe ── */
+let _invHasAreaCol=true;
+async function _invUpsert(rows){
+  if(!_sb)return {error:{message:'sin conexión'}};
+  const payload=_invHasAreaCol?rows:rows.map(({area,...r})=>r);
+  let {error}=await _sb.from('inventory').upsert(payload,{onConflict:'name'});
+  if(error&&_invHasAreaCol&&/area/i.test(error.message||'')){
+    /* La columna 'area' no existe en la tabla → reintentar sin ella */
+    _invHasAreaCol=false;
+    console.warn("[Inv] Columna 'area' ausente en Supabase; sincronizando sin área. Ejecuta: alter table inventory add column if not exists area text;");
+    ({error}=await _sb.from('inventory').upsert(rows.map(({area,...r})=>r),{onConflict:'name'}));
+  }
+  return {error};
+}
+
 function invStockChanged(i,val){
   const item=inventoryItems[i];
   item.stock=parseFloat(val)||0;
@@ -2479,6 +2494,14 @@ function invStockChanged(i,val){
     _invDirty.add(item.name);
   } else {
     _invDirty.delete(item.name);
+  }
+  /* Write-through inmediato a Supabase para multidispositivo */
+  if(_sb){
+    _invUpsert([{name:item.name,cat:item.cat,stock:item.stock,unit:item.unit,min_stock:item.min,area:item.area||null,updated_at:new Date().toISOString()}])
+      .then(({error})=>{
+        if(error){console.warn('[Inv] Error al sincronizar stock:',error.message);}
+        else{_invSnapshot[item.name]=item.stock;_invDirty.delete(item.name);_refreshActualizarBtn();}
+      });
   }
   renderInv();
 }
@@ -2518,7 +2541,7 @@ async function syncInventoryToSupabase(){
       min_stock:it.min,area:it.area||null,
       updated_at:new Date().toISOString()
     }));
-    const {error}=await _sb.from('inventory').upsert(rows,{onConflict:'name'});
+    const {error}=await _invUpsert(rows);
     if(error)throw error;
     /* Sincronizar snapshot y limpiar dirty */
     _invSnapshot={};inventoryItems.forEach(it=>{ _invSnapshot[it.name]=it.stock; });
@@ -2539,7 +2562,7 @@ function saveInvItem(){
   _invSnapshot[name]=stock;
   /* Write-through a Supabase para multidispositivo */
   if(_sb){
-    _sb.from('inventory').upsert({name,cat,stock,unit,min_stock:min,area:area||null,updated_at:new Date().toISOString()},{onConflict:'name'})
+    _invUpsert([{name,cat,stock,unit,min_stock:min,area:area||null,updated_at:new Date().toISOString()}])
       .then(({error})=>{if(error)console.warn('[Inv] Error al crear en Supabase:',error.message);});
   }
   showToast('"'+name+'" agregado','ok');closeMod('addInvModal');renderInv();
