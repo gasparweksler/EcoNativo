@@ -2471,17 +2471,43 @@ function renderInv(){
   _refreshActualizarBtn();
 }
 
-/* ── Helper de escritura resiliente: reintenta sin 'area' si la columna no existe ── */
+/* ── Helper de escritura resiliente ──
+   Tolera dos problemas comunes del esquema de Supabase:
+   1) que falte la columna 'area'  → reintenta sin ese campo
+   2) que 'name' no tenga restricción única → cae a update‑o‑insert por fila */
 let _invHasAreaCol=true;
+let _invNoUnique=false;
+const _invStrip=arr=>arr.map(({area,...r})=>r);
+async function _invUpdateOrInsert(rows){
+  let error=null;
+  for(const r of rows){
+    const {data,error:eu}=await _sb.from('inventory').update(r).eq('name',r.name).select('name');
+    if(eu){error=eu;break;}
+    if(!data||!data.length){
+      const {error:ei}=await _sb.from('inventory').insert(r);
+      if(ei){error=ei;break;}
+    }
+  }
+  return error;
+}
 async function _invUpsert(rows){
   if(!_sb)return {error:{message:'sin conexión'}};
-  const payload=_invHasAreaCol?rows:rows.map(({area,...r})=>r);
+  let payload=_invHasAreaCol?rows:_invStrip(rows);
+  /* Si ya sabemos que la tabla no tiene constraint único, ir directo a update‑o‑insert */
+  if(_invNoUnique){return {error:await _invUpdateOrInsert(payload)};}
   let {error}=await _sb.from('inventory').upsert(payload,{onConflict:'name'});
+  /* (1) Falta columna 'area' */
   if(error&&_invHasAreaCol&&/area/i.test(error.message||'')){
-    /* La columna 'area' no existe en la tabla → reintentar sin ella */
     _invHasAreaCol=false;
-    console.warn("[Inv] Columna 'area' ausente en Supabase; sincronizando sin área. Ejecuta: alter table inventory add column if not exists area text;");
-    ({error}=await _sb.from('inventory').upsert(rows.map(({area,...r})=>r),{onConflict:'name'}));
+    console.warn("[Inv] Columna 'area' ausente; sincronizando sin área. Ejecuta: alter table inventory add column if not exists area text;");
+    payload=_invStrip(rows);
+    ({error}=await _sb.from('inventory').upsert(payload,{onConflict:'name'}));
+  }
+  /* (2) 'name' sin restricción única → update‑o‑insert por fila */
+  if(error&&/on conflict|unique|exclusion|constraint|42P10/i.test(error.message||'')){
+    _invNoUnique=true;
+    console.warn("[Inv] La tabla 'inventory' no tiene UNIQUE(name); usando update‑o‑insert. (Recomendado: alter table inventory add constraint inventory_name_key unique(name);)");
+    error=await _invUpdateOrInsert(payload);
   }
   return {error};
 }
