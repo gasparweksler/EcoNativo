@@ -947,23 +947,16 @@ let waiters=[
 
 /* ── TABLES ── */
 const tables=[
-  {id:1,status:'free'},{id:2,status:'occupied',waiter:'Ana',startTime:Date.now()-28*60000},
-  {id:3,status:'free'},{id:4,status:'pending',waiter:'Carlos',startTime:Date.now()-45*60000},
-  {id:5,status:'free'},{id:6,status:'occupied',waiter:'Ana',startTime:Date.now()-12*60000},
+  {id:1,status:'free'},{id:2,status:'free'},
+  {id:3,status:'free'},{id:4,status:'free'},
+  {id:5,status:'free'},{id:6,status:'free'},
   {id:7,status:'free'},{id:8,status:'free'},
 ];
 
-let orders=[
-  {id:'ORD001',tableId:2,type:'mesa',waiter:'Ana',time:Date.now()-28*60000,status:'preparing',tip:0,pago:'efectivo',items:[{name:'Latte Clásico',price:3200,qty:2,detail:'',note:''},{name:'Pizza Tradicional',price:6900,qty:1,detail:'Pepperoni, Cheddar',note:'sin cebolla'}]},
-  {id:'ORD002',tableId:4,type:'mesa',waiter:'Carlos',time:Date.now()-45*60000,status:'ready',tip:0,pago:'efectivo',items:[{name:'Americano',price:2700,qty:2,detail:'',note:''},{name:'Tostadas',price:4500,qty:1,detail:'Huevo Revuelto, Tocino',note:''}]},
-  {id:'ORD003',tableId:6,type:'mesa',waiter:'Ana',time:Date.now()-12*60000,status:'pending',tip:0,pago:'efectivo',items:[{name:'Cappuccino Vienés',price:3800,qty:2,detail:'',note:''}]},
-];
-let ordCnt=4;
+let orders=[];
+let ordCnt=1;
 
-let closedSales=[
-  {id:'C001',tableId:2,type:'mesa',waiter:'Ana',time:Date.now()-3*3600000,closedAt:Date.now()-2.5*3600000,pago:'efectivo',tip:1200,items:[{name:'Latte Clásico',price:3200,qty:2},{name:'Pizza Tradicional',price:6000,qty:1}]},
-  {id:'C002',tableId:null,type:'mostrador',waiter:'Carlos',time:Date.now()-4*3600000,closedAt:Date.now()-3.9*3600000,pago:'tarjeta',tip:0,items:[{name:'Espresso',price:2000,qty:1},{name:'Pastelería del día',price:2500,qty:2}]},
-];
+let closedSales=[];
 
 /* ── CLIENTS ── */
 let clients=[
@@ -3155,7 +3148,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v8 (recetas sync instantaneo + sin botones guardar)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v9 (sin pedidos demo, nombres reales)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
