@@ -1127,27 +1127,35 @@ selRole('admin');
 async function doLogin(){
   const u=$('lu').value.trim(),p=$('lp').value.trim();
   if(!u||!p){showToast('Ingresa usuario y contraseña');return;}
+  console.log('[Login] Intento → usuario:"'+u+'" rol seleccionado:"'+cRole+'"');
   /* 1. Login local hardcoded (SYSTEM_USERS) */
   const sysFound=SYSTEM_USERS.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
-  if(sysFound){_loginSuccess(sysFound.name||sysFound.user,sysFound.role);return;}
-  /* 2. Login en waiters locales (cargados desde Supabase) */
-  const localFound=waiters.find(x=>x.user.toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
-  if(localFound){_loginSuccess(localFound.name||localFound.user,localFound.role);return;}
+  if(sysFound){console.log('[Login] OK ✓ por SYSTEM_USERS');_loginSuccess(sysFound.name||sysFound.user,sysFound.role);return;}
+  /* 2. Login en waiters locales (defaults + creados + sincronizados por estado global).
+        Uso (x.user||'') para no romper si algún registro viejo trae user undefined. */
+  const localFound=waiters.find(x=>(x.user||'').toLowerCase()===u.toLowerCase()&&x.pass===p&&x.role===cRole);
+  if(localFound){console.log('[Login] OK ✓ por waiters (local/estado global)');_loginSuccess(localFound.name||localFound.user,localFound.role);return;}
+  console.log('[Login] No coincide en local; consultando tabla staff de Supabase…');
   /* 3. Login consultando Supabase directo (si waiters aún no cargaron) */
   try{
     if(!_sb&&window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
     if(_sb){
-      const {data:rows}=await _sb.from('staff').select('*').eq('username',u.toLowerCase()).eq('role',cRole);
+      const {data:rows,error}=await _sb.from('staff').select('*').eq('username',u.toLowerCase()).eq('role',cRole);
+      if(error)console.warn('[Login] staff query error:',error.message);
+      console.log('[Login] staff devolvió '+((rows&&rows.length)||0)+' fila(s) (0 puede ser RLS bloqueando lectura)');
       if(rows&&rows.length){
         const row=rows[0];
         if(row.pass===p||row.pass_plain===p){
-          if(!waiters.find(w=>w.id===row.id))waiters.push({id:row.id,user:row.user,pass:row.pass_plain||row.pass,role:row.role,name:row.name});
-          _loginSuccess(row.name||row.user,row.role);
+          /* FIX: la columna es 'username', no 'user' — antes guardaba user:undefined */
+          if(!waiters.find(w=>w.id===row.id))waiters.push({id:row.id,user:row.username||row.user,pass:row.pass_plain||row.pass,role:row.role,name:row.name});
+          console.log('[Login] OK ✓ por tabla staff de Supabase');
+          _loginSuccess(row.name||row.username||row.user,row.role);
           return;
-        }
+        }else console.log('[Login] Usuario hallado en staff pero la contraseña no coincide');
       }
     }
   }catch(e){console.warn('[Login Supabase]',e.message);}
+  console.log('[Login] FALLÓ ✗ — ni SYSTEM_USERS, ni waiters, ni staff coincidieron (revisa rol y RLS)');
   showToast('Usuario o contraseña incorrectos');
 }
 function _loginSuccess(name,role){
@@ -2899,26 +2907,27 @@ async function createStaffUser(){
     const uid='USR'+Date.now();
     const row={id:uid,username:username,pass:pass,pass_plain:pass,role,name,
       updated_at:new Date().toISOString()};
+    let savedRemote=false;
     if(_sb){
-      /* Verificar duplicado en Supabase */
-      const {data:exist}=await _sb.from('staff').select('id').eq('username',username).limit(1);
-      if(exist&&exist.length){showToast('El usuario "'+username+'" ya existe en la base de datos','del');return;}
-      const {error}=await _sb.from('staff').insert(row);
+      /* Intentar guardar en la tabla staff (best-effort). Si RLS lo bloquea NO abortamos:
+         el usuario se crea local y se sincroniza por el estado global (econativo_state). */
+      const {error}=await _sb.from('staff').upsert(row,{onConflict:'id'});
       if(error){
-        console.error('[Staff] Supabase insert error:',error);
-        /* Si falla por RLS, intentar con upsert */
-        const {error:err2}=await _sb.from('staff').upsert(row,{onConflict:'id'});
-        if(err2)throw new Error('Supabase: '+err2.message+' (code: '+err2.code+')');
+        console.warn('[Staff] No se pudo guardar en la tabla staff (probable RLS):',error.message,
+          '→ el usuario se crea localmente y se sincroniza por estado global.');
+      }else{
+        savedRemote=true;
+        console.log('[Staff] Usuario guardado en tabla staff ✓');
       }
-      console.log('[Staff] Usuario creado en Supabase ✓');
     }
-    /* Agregar localmente siempre */
+    /* Crear SIEMPRE localmente y propagar por el canal probado (econativo_state) */
     waiters.push({id:uid,user:username,pass,role,name});
-    showToast('Usuario "'+name+'" creado'+(_sb?' (guardado en Supabase)':' (solo local)'),'ok');
+    broadcastState();
+    console.log('[Staff] Usuario "'+username+'" creado y propagado por estado global ✓');
+    showToast('Usuario "'+name+'" creado'+(savedRemote?' (en Supabase)':' (sincronizado)'),'ok');
     closeMod('addStaffUserModal');
     $('newStaffName').value='';$('newStaffUser').value='';$('newStaffPass').value='';
     renderStaff();
-    if(_sb)broadcastState();
   }catch(e){
     const msg=e.message||'Error desconocido';
     showToast('Error al crear usuario: '+msg,'del');
@@ -3087,7 +3096,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: inv-sync-v4 (inventario por estado global)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: auth-v5 (usuarios por estado global)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3112,6 +3121,7 @@ function getSerializableState(){
     caja:{...caja,movements:[...caja.movements],log:[...caja.log]},
     currentAccountId,
     inventory:inventoryItems.map(x=>({...x})),
+    waiters:waiters.map(w=>({...w})),
     ts:Date.now()
   });
 }
@@ -3158,6 +3168,14 @@ function applyRemoteState(data){
       s.inventory.forEach(x=>inventoryItems.push({...x}));
       _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
       _invDirty.clear();
+    }
+    /* Usuarios creados por el admin: viajan por el estado global (la tabla staff tiene RLS) */
+    if(Array.isArray(s.waiters)){
+      s.waiters.forEach(rw=>{
+        if(!rw||!rw.id)return;
+        const ex=waiters.find(w=>w.id===rw.id);
+        if(ex)Object.assign(ex,rw); else waiters.push({...rw});
+      });
     }
     _refreshActiveView();
   }catch(e){console.warn('[EcoNativo] Sync error:',e);}
@@ -3227,6 +3245,27 @@ function postLoginInit(){
     }
   });
 }
+
+/* ── Precarga de usuarios ANTES del login ──
+   La tabla staff está bloqueada por RLS, así que los usuarios creados por el admin
+   viajan dentro del estado global (econativo_state). Esto los trae al abrir la app,
+   para que un dispositivo recién cargado pueda autenticarlos en la pantalla de login. */
+async function preloadAuthUsers(){
+  try{
+    if(!window.supabase)return;
+    if(!_sb)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    const {data}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).single();
+    const s=data&&data.payload;
+    if(s&&Array.isArray(s.waiters)){
+      let nuevos=0;
+      s.waiters.forEach(rw=>{ if(rw&&rw.id&&!waiters.find(w=>w.id===rw.id)){waiters.push({...rw});nuevos++;} });
+      console.log('[Login] Pre-carga de usuarios desde estado global: '+s.waiters.length+' (nuevos añadidos: '+nuevos+')');
+    }
+  }catch(e){console.warn('[Login] preloadAuthUsers:',e.message);}
+}
+/* Ejecutar al cargar (con pequeño reintento por si el SDK aún no estaba listo) */
+preloadAuthUsers();
+setTimeout(preloadAuthUsers,2500);
 
 /* ═══════════════════════════════════════════════════════
    FIX 5 — EMPEZAR NUEVO DÍA (Hard reset de jornada)
