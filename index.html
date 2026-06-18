@@ -2523,7 +2523,7 @@ function invStockChanged(i,val){
   } else {
     _invDirty.delete(item.name);
   }
-  /* Write-through inmediato a Supabase para multidispositivo */
+  /* Write-through inmediato a Supabase (persistencia en tabla inventory) */
   if(_sb){
     _invUpsert([{name:item.name,cat:item.cat,stock:item.stock,unit:item.unit,min_stock:item.min,area:item.area||null,updated_at:new Date().toISOString()}])
       .then(({error})=>{
@@ -2531,6 +2531,8 @@ function invStockChanged(i,val){
         else{_invSnapshot[item.name]=item.stock;_invDirty.delete(item.name);_refreshActualizarBtn();}
       });
   }
+  /* Propagación en vivo por el canal probado del estado global (econativo_state) */
+  broadcastState();
   renderInv();
 }
 
@@ -2544,6 +2546,7 @@ function invDeleteItem(i){
     _sb.from('inventory').delete().eq('name',name)
       .then(({error})=>{if(error)console.warn('[Inv] Error al eliminar en Supabase:',error.message);});
   }
+  broadcastState();
   renderInv();
   showToast('Eliminado','del');
 }
@@ -2594,6 +2597,7 @@ function saveInvItem(){
     _invUpsert([{name,cat,stock,unit,min_stock:min,area:area||null,updated_at:new Date().toISOString()}])
       .then(({error})=>{if(error)console.warn('[Inv] Error al crear en Supabase:',error.message);});
   }
+  broadcastState();
   showToast('"'+name+'" agregado','ok');closeMod('addInvModal');renderInv();
 }
 
@@ -3083,7 +3087,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: inv-sync-v3 (sin columna area)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: inv-sync-v4 (inventario por estado global)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3107,6 +3111,7 @@ function getSerializableState(){
     kDone:JSON.parse(JSON.stringify(kDone)),
     caja:{...caja,movements:[...caja.movements],log:[...caja.log]},
     currentAccountId,
+    inventory:inventoryItems.map(x=>({...x})),
     ts:Date.now()
   });
 }
@@ -3146,6 +3151,13 @@ function applyRemoteState(data){
       caja.fondo=s.caja.fondo;
       caja.movements=[...(s.caja.movements||[])];
       caja.log=[...(s.caja.log||[])];
+    }
+    /* Inventario: sincroniza por el mismo canal probado del estado global */
+    if(Array.isArray(s.inventory)&&s.inventory.length){
+      inventoryItems.length=0;
+      s.inventory.forEach(x=>inventoryItems.push({...x}));
+      _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
+      _invDirty.clear();
     }
     _refreshActiveView();
   }catch(e){console.warn('[EcoNativo] Sync error:',e);}
