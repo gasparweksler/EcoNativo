@@ -1615,6 +1615,9 @@ function gestionarPedidoCocina(items, tableId){
     order={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:targetTable,type:'mesa',
       waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',
       items:itemsToSend,clientName:''};
+    /* FIX: limpiar cualquier marca de "completado" heredada de un id reutilizado,
+       para que el pedido recién enviado NO aparezca tachado en cocina */
+    kDone[order.id]=[];
     orders.push(order);totalOrdsIn++;
     showToast('Pedido enviado a cocina 🍳','ok');
     showBell('🔔 Nuevo pedido · Mesa '+targetTable);
@@ -1826,9 +1829,14 @@ function paySplitPerson(pi){
 /* ── DASHBOARD ── */
 function renderDashboard(){
   const active=orders.filter(o=>o.status!=='closed');
-  const pending=active.filter(o=>o.status==='pending');
-  const preparing=active.filter(o=>o.status==='preparing');
-  const readyOrds=active.filter(o=>o.status==='ready');
+  /* "Mesas activas - Sin cobrar aún": pedidos que ya salieron del flujo de cocina
+     (eliminados por cocina o cancelados) pero todavía no se cobran. */
+  const sinCobrar=active.filter(o=>o.kitchenHidden||o.status==='canceled');
+  /* El flujo de cocina (pendiente/preparación/listo) excluye los ya retirados por cocina */
+  const inKitchen=active.filter(o=>!o.kitchenHidden&&o.status!=='canceled');
+  const pending=inKitchen.filter(o=>o.status==='pending');
+  const preparing=inKitchen.filter(o=>o.status==='preparing');
+  const readyOrds=inKitchen.filter(o=>o.status==='ready');
   const tv=closedSales.reduce((s,o)=>s+oTotal(o),0);
   const mcv=closedSales.filter(s=>s.type==='mostrador').reduce((s,o)=>s+oTotal(o),0);
   const ticket=closedSales.length?Math.round(tv/closedSales.length):0;
@@ -1882,16 +1890,14 @@ function renderDashboard(){
     :`<div style="padding:.7rem .9rem;font-size:12px;color:var(--tl);font-style:italic">Sin ventas cerradas aún</div>`}
   </div>`;
 
-  const canceledOrds=active.filter(o=>o.status==='canceled');
-
   $('adminOrdersList').innerHTML=
     pipelineHTML('Pendientes — En espera de cocina','ti-clock','var(--wn)',pending,'Sin comandas pendientes ✓')+
     pipelineHTML('En Preparación — Cocina activa','ti-flame','var(--inf)',preparing,'Cocina sin pedidos activos')+
     pipelineHTML('Listos para servir','ti-check-circle','var(--ol)',readyOrds,'Sin platos listos esperando')+
-    pipelineHTML('Cancelados — Cobro pendiente','ti-x-circle','var(--er)',canceledOrds,'Sin pedidos cancelados')+
+    pipelineHTML('Mesas activas - Sin cobrar aún','ti-cash','var(--er)',sinCobrar,'Sin mesas pendientes de cobro')+
     closedHTML;
 
-  $('actCount').textContent=active.length+' activos · '+pending.length+' pend · '+preparing.length+' prep · '+readyOrds.length+' listos · '+canceledOrds.length+' cancel';
+  $('actCount').textContent=active.length+' activos · '+pending.length+' pend · '+preparing.length+' prep · '+readyOrds.length+' listos · '+sinCobrar.length+' sin cobrar';
 }
 
 function openOD(id){
@@ -3096,7 +3102,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: auth-v5 (usuarios por estado global)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v6 (fix tachado cocina + sin cobrar)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
