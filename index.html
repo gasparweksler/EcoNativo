@@ -652,7 +652,6 @@ button:active{transform:scale(.97)}
       <div class="page" id="page-recipes">
         <div id="recipesPageHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Recetas &amp; Costeo</div>
-          <button id="btnConfirmRecipes" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncRecipesToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
         </div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="recipesSearch" type="text" placeholder="Buscar receta..." oninput="_recipesQ=this.value;renderRecipes()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div class="cat-pills" id="recipesCatPills"></div>
@@ -663,7 +662,6 @@ button:active{transform:scale(.97)}
       <div class="page" id="page-carta">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Editor de Carta</div>
-          <button id="btnConfirmCarta" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncCartaToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button>
         </div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="cartaSearch" type="text" placeholder="Buscar producto..." oninput="_cartaQ=this.value;renderCarta()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div class="cat-pills" id="cartaCatPills"></div>
@@ -2314,10 +2312,10 @@ function renderRecipes(){
       ${recipe.ingredients.length?`<div class="table-scroll-wrap"><table class="ingr-table">
         <thead><tr><th>Ingrediente</th><th style="text-align:right">Cant.</th><th>Ud.</th><th style="text-align:right">Costo $</th><th></th></tr></thead>
         <tbody>${recipe.ingredients.map((ing,ii)=>`<tr>
-          <td><input class="ingr-name-input" type="text" value="${ing.name}" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].name=this.value"></td>
-          <td><input class="ingr-input" type="number" value="${ing.qty}" step="0.1" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].qty=parseFloat(this.value)||0;renderRecipes()"></td>
-          <td><input type="text" value="${ing.unit}" style="border:none;background:none;font-size:11px;color:var(--ts);width:32px;font-family:inherit" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].unit=this.value"></td>
-          <td><input class="ingr-input" type="number" value="${ing.cost}" onchange="recipes[decodeURIComponent('${encodeURIComponent(name)}')].ingredients[${ii}].cost=parseInt(this.value)||0;renderRecipes()"></td>
+          <td><input class="ingr-name-input" type="text" value="${ing.name}" onchange="editIngredient('${encodeURIComponent(name)}',${ii},'name',this.value)"></td>
+          <td><input class="ingr-input" type="number" value="${ing.qty}" step="0.1" onchange="editIngredient('${encodeURIComponent(name)}',${ii},'qty',this.value)"></td>
+          <td><input type="text" value="${ing.unit}" style="border:none;background:none;font-size:11px;color:var(--ts);width:32px;font-family:inherit" onchange="editIngredient('${encodeURIComponent(name)}',${ii},'unit',this.value)"></td>
+          <td><input class="ingr-input" type="number" value="${ing.cost}" onchange="editIngredient('${encodeURIComponent(name)}',${ii},'cost',this.value)"></td>
           <td><button class="icon-btn" style="width:22px;height:22px;border-color:var(--er);color:var(--er)" onclick="delIngredient('${encodeURIComponent(name)}',${ii})"><i class="ti ti-x" style="font-size:11px" aria-hidden="true"></i></button></td>
         </tr>`).join('')}</tbody>
       </table></div>`:`<div style="font-size:11px;color:var(--tl);padding:4px 0 8px">Sin ingredientes — agrega el primero</div>`}
@@ -2339,17 +2337,33 @@ function openAddIngredient(encodedName){
   $('ingrName').value='';$('ingrQty').value='';$('ingrUnit').value='';$('ingrCost').value='';
   openMod('addIngrModal');
 }
+/* Write-through best-effort de una receta a la tabla `recipes` (vía confiable: estado global) */
+function _recipeUpsert(name){
+  if(!_sb)return;const r=recipes[name];if(!r)return;
+  _sb.from('recipes').upsert({name,cat:r.cat,price:r.price,ingredients:JSON.stringify(r.ingredients),updated_at:new Date().toISOString()},{onConflict:'name'}).then(({error})=>{if(error)console.warn('[Receta] upsert:',error.message);});
+}
+/* Edición inline de un ingrediente con sincronización instantánea */
+function editIngredient(encodedName,ii,field,value){
+  const name=decodeURIComponent(encodedName);
+  const r=recipes[name];if(!r||!r.ingredients[ii])return;
+  if(field==='qty')r.ingredients[ii].qty=parseFloat(value)||0;
+  else if(field==='cost')r.ingredients[ii].cost=parseInt(value)||0;
+  else r.ingredients[ii][field]=value;
+  _recipeUpsert(name);broadcastState();renderRecipes();
+}
 function saveIngredient(){
   const name=($('ingrName').value||'').trim();if(!name){showToast('Ingresa el ingrediente');return;}
   const qty=parseFloat($('ingrQty').value)||0,unit=($('ingrUnit').value||'').trim(),cost=parseInt($('ingrCost').value)||0;
   if(!recipes[currentRecipeName])return;
   recipes[currentRecipeName].ingredients.push({name,qty,unit,cost});
+  _recipeUpsert(currentRecipeName);broadcastState();
   showToast('Ingrediente agregado','ok');closeMod('addIngrModal');renderRecipes();
 }
 function delIngredient(encodedName,ii){
   const name=decodeURIComponent(encodedName);
   if(!recipes[name])return;
-  recipes[name].ingredients.splice(ii,1);renderRecipes();showToast('Ingrediente eliminado','del');
+  recipes[name].ingredients.splice(ii,1);
+  _recipeUpsert(name);broadcastState();renderRecipes();showToast('Ingrediente eliminado','del');
 }
 /* Ubica un producto en menuData por nombre → {cat,sub,arr,i,item} */
 function _findMenuItem(name){
@@ -2371,6 +2385,7 @@ function delRecipe(encodedName){
     _sb.from('recipes').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Receta] delete',error.message);});
     _sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] delete',error.message);});
   }
+  broadcastState();
   showToast('Receta eliminada','del');renderRecipes();
 }
 /* Editar receta — nombre y precio de venta */
@@ -2402,6 +2417,7 @@ function saveEditRecipe(){
     _sb.from('recipes').upsert({name:newName,cat:rr.cat,price:rr.price,ingredients:JSON.stringify(rr.ingredients),updated_at:new Date().toISOString()},{onConflict:'name'}).then(()=>{});
     if(loc)_sb.from('menu').upsert({name:newName,cat:loc.cat,sub:loc.sub,price:rr.price,active:loc.item.active!==false,extra_data:JSON.stringify(Object.fromEntries(Object.entries(loc.item).filter(([k])=>!['name','price','active'].includes(k)))),updated_at:new Date().toISOString()},{onConflict:'name'}).then(()=>{});
   }
+  broadcastState();
   showToast('Receta actualizada','ok');closeMod('editRecipeModal');renderRecipes();
 }
 
@@ -2423,9 +2439,15 @@ function renderCarta(){
     ${filtered.map((item)=>{
       const i=items.indexOf(item);
       return `<tr>
-      <td style="font-weight:600;font-size:11px">${item.name}${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;margin-left:3px">pizza</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);margin-left:4px;background:var(--cr2);padding:1px 5px;border-radius:5px">${item.area}</span>`:''}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:3px">
+          <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${aCartaCat}','${sub}',${i},this.value)" style="font-weight:600;font-size:11px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
+          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
+        </div>
+        <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${aCartaCat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
+      </td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
-      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="menuData['${aCartaCat}']['${sub}'][${i}].active=this.checked;showToast(this.checked?'Activado':'Desactivado')"><span class="tsl"></span></label></td>
+      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${aCartaCat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
       <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${aCartaCat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
     </tr>`;
     }).join('')}
@@ -2435,8 +2457,35 @@ function renderCarta(){
   $('cartaMain').innerHTML=html;
 }
 function setAC(c){aCartaCat=c;renderCarta();}
-function saveP(cat,sub,i,input){const v=parseInt(input.value);if(isNaN(v)||v<0){input.value=menuData[cat][sub][i].price;return;}menuData[cat][sub][i].price=v;if(recipes[menuData[cat][sub][i].name])recipes[menuData[cat][sub][i].name].price=v;showToast('Precio actualizado','ok');}
-function delP(cat,sub,i){const name=menuData[cat][sub][i].name;if(!confirm('¿Eliminar "'+name+'"?'))return;menuData[cat][sub].splice(i,1);if(_sb){_sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] Error al eliminar en Supabase:',error.message);});}showToast('Eliminado','del');renderCarta();}
+/* Write-through best-effort de un ítem de carta a la tabla `menu` (igual patrón que _invUpsert).
+   La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
+function _cartaUpsertItem(cat,sub,item){
+  if(!_sb)return;
+  const row={name:item.name,cat,sub,price:item.price,active:!!item.active,
+    extra_data:JSON.stringify(Object.fromEntries(Object.entries(item).filter(([k])=>!['name','price','active'].includes(k)))),
+    updated_at:new Date().toISOString()};
+  _sb.from('menu').upsert(row,{onConflict:'name'}).then(({error})=>{if(error)console.warn('[Carta] upsert menu:',error.message);});
+}
+function saveP(cat,sub,i,input){const v=parseInt(input.value);if(isNaN(v)||v<0){input.value=menuData[cat][sub][i].price;return;}const item=menuData[cat][sub][i];item.price=v;if(recipes[item.name])recipes[item.name].price=v;_cartaUpsertItem(cat,sub,item);broadcastState();showToast('Precio actualizado','ok');}
+/* Edición inline de campos de carta (descripción, activo) con guardado directo + sync */
+function editCartaField(cat,sub,i,field,value){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  if(field==='desc'){item.desc=(value||'').trim();showToast('Descripción actualizada','ok');}
+  else if(field==='active'){item.active=!!value;showToast(value?'Activado':'Desactivado');}
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+}
+/* Renombrar producto: actualiza receta y mueve la fila en la tabla menu */
+function editCartaName(cat,sub,i,value){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  const v=(value||'').trim(),old=item.name;
+  if(!v||v===old){renderCarta();return;}
+  if(recipes[old]){recipes[v]={...recipes[old]};delete recipes[old];}
+  item.name=v;
+  if(_sb){_sb.from('menu').delete().eq('name',old).then(()=>{});}
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+  showToast('Nombre actualizado','ok');renderCarta();
+}
+function delP(cat,sub,i){const name=menuData[cat][sub][i].name;if(!confirm('¿Eliminar "'+name+'"?'))return;menuData[cat][sub].splice(i,1);if(_sb){_sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] Error al eliminar en Supabase:',error.message);});}broadcastState();showToast('Eliminado','del');renderCarta();}
 function saveNewProd(){
   const name=($('npName').value||'').trim(),price=parseInt($('npPrice').value||'0'),sub=($('npSub').value||'').trim(),area=($('npArea')?.value||'').trim();
   if(!name||!price||!sub){showToast('Completa todos los campos');return;}
@@ -2444,7 +2493,14 @@ function saveNewProd(){
   const prod={name,price,active:true};if(area)prod.area=area;
   menuData[aCartaCat][sub].push(prod);
   recipes[name]={cat:aCartaCat,price,ingredients:[]};
-  showToast('"'+name+'" agregado','ok');closeMod('addProdModal');renderCarta();
+  /* ── Punto 6: vínculo unidireccional Carta → Inventario ──
+     Crear el producto en Inventario dentro de su categoría si no existe; si ya existe, no duplicar. */
+  if(!inventoryItems.find(x=>x.name.toLowerCase()===name.toLowerCase())){
+    inventoryItems.push({name,cat:aCartaCat,stock:50,unit:'un',min:5,area:area||''});
+  }
+  _cartaUpsertItem(aCartaCat,sub,prod);
+  broadcastState();
+  showToast('"'+name+'" agregado a Carta e Inventario','ok');closeMod('addProdModal');renderCarta();
 }
 
 /* ── INVENTORY — seguimiento de cambios para update selectivo ── */
@@ -2465,11 +2521,8 @@ function renderInv(){
   if(_invCat)filtered=filtered.filter(x=>x.cat===_invCat);
   if(q)filtered=filtered.filter(x=>x.name.toLowerCase().includes(q));
   $('invContent').innerHTML=
-    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
+    `<div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
       <button class="btn-add-sm" onclick="openMod('addInvModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
-      <button id="btnActualizarInv" class="bgrn" style="font-size:12px;padding:7px 14px;opacity:.5;cursor:not-allowed" disabled="" onclick="syncInventoryToSupabase()">
-        <i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Actualizar inventario
-      </button>
     </div>`+
   (filtered.length?filtered.map((item)=>{
     const i=inventoryItems.indexOf(item);
@@ -3102,7 +3155,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v6 (fix tachado cocina + sin cobrar)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v8 (recetas sync instantaneo + sin botones guardar)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3128,6 +3181,8 @@ function getSerializableState(){
     currentAccountId,
     inventory:inventoryItems.map(x=>({...x})),
     waiters:waiters.map(w=>({...w})),
+    menu:JSON.parse(JSON.stringify(menuData)),
+    recipes:JSON.parse(JSON.stringify(recipes)),
     ts:Date.now()
   });
 }
@@ -3182,6 +3237,16 @@ function applyRemoteState(data){
         const ex=waiters.find(w=>w.id===rw.id);
         if(ex)Object.assign(ex,rw); else waiters.push({...rw});
       });
+    }
+    /* Carta: sincroniza por el mismo canal probado del estado global (igual que inventario) */
+    if(s.menu&&typeof s.menu==='object'){
+      Object.keys(menuData).forEach(k=>delete menuData[k]);
+      Object.entries(s.menu).forEach(([cat,subs])=>{ menuData[cat]=subs; });
+    }
+    /* Recetas: misma sincronización instantánea por estado global */
+    if(s.recipes&&typeof s.recipes==='object'){
+      Object.keys(recipes).forEach(k=>delete recipes[k]);
+      Object.entries(s.recipes).forEach(([k,v])=>{ recipes[k]=v; });
     }
     _refreshActiveView();
   }catch(e){console.warn('[EcoNativo] Sync error:',e);}
