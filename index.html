@@ -887,9 +887,14 @@ function showToast(msg,type=''){
 
 /* Bell — slides up from bottom, auto-hides */
 let bellTm=null;
+let _audioCtx=null;
 function playBell(){
   try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    /* Reutilizar UN solo AudioContext (crear uno nuevo cada vez agota el límite
+       del navegador y el sonido deja de reproducirse). */
+    if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx;
+    if(ctx.state==='suspended')ctx.resume();
     [0,.15,.3].forEach((d,i)=>{
       const o=ctx.createOscillator(),g=ctx.createGain();
       o.connect(g);g.connect(ctx.destination);
@@ -901,13 +906,18 @@ function playBell(){
     });
   }catch(e){}
 }
+/* Popup visual SIN sonido (para avisos que no son "Enviar a cocina") */
 function showBell(msg){
   $('bellText').textContent=msg;
   const b=$('bellPopup');
   b.classList.add('show');
-  playBell();
   if(bellTm)clearTimeout(bellTm);
   bellTm=setTimeout(()=>{b.classList.remove('show');bellTm=null},3500);
+}
+/* Campana CON sonido — exclusiva del envío a cocina ("Enviar a cocina") */
+function bellKitchen(msg){
+  showBell(msg);
+  playBell();
 }
 
 /* ── STATE ── */
@@ -1569,7 +1579,7 @@ function mcSendKitchen(){
   const {id}=_mcBuildOrder();
   orders.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:cart.map(i=>({...i}))});
   totalOrdsIn++;
-  showBell('🔔 Mostrador → Cocina');
+  bellKitchen('🔔 Mostrador → Cocina');
   showToast('Pedido enviado a cocina ✓','ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();
   navTo('tables');
@@ -1601,7 +1611,6 @@ function gestionarPedidoCocina(items, tableId){
       order.kitchenHidden=false;
       order.status='pending';
       order.kitchenStartTime=null;
-      showBell('🔔 Nuevos productos · '+(order.tableId?'Mesa '+order.tableId:'Mostrador'));
     }
     showToast('Enviado a cocina 🍳','ok');
   } else {
@@ -1613,8 +1622,9 @@ function gestionarPedidoCocina(items, tableId){
     kDone[order.id]=[];
     orders.push(order);totalOrdsIn++;
     showToast('Pedido enviado a cocina 🍳','ok');
-    showBell('🔔 Nuevo pedido · Mesa '+targetTable);
   }
+  /* 🔔 Campana CON sonido — exclusiva del envío a cocina */
+  bellKitchen('🔔 Pedido enviado a cocina'+(order.tableId?' · Mesa '+order.tableId:''));
   currentAccountId=order.id;
   cart=[];
   updateOCBadge();
@@ -2832,6 +2842,8 @@ function saveWaiter(){
 function delWaiter(wid){
   if(!confirm('¿Eliminar a este garzón?'))return;
   waiters=waiters.filter(w=>w.id!==wid);
+  if(_sb)_sb.from('staff').delete().eq('id',wid).then(({error})=>{if(error)console.warn('[Staff] delete:',error.message);});
+  broadcastState();
   closeMod('waiterDetailModal');showToast('Garzón eliminado','del');renderStaff();
 }
 
@@ -3108,16 +3120,14 @@ async function editStaffUser(uid){
 async function deleteStaffUser(uid){
   const w=waiters.find(x=>x.id===uid);if(!w)return;
   if(!confirm('¿Eliminar usuario "'+w.name+'"?'))return;
-  if(!_sb){await initSupabase();}
-  if(!_sb){showToast('Sin conexión a Supabase','del');return;}
-  try{
-    const {error}=await _sb.from('staff').delete().eq('id',uid);
-    if(error)throw error;
-    const idx=waiters.findIndex(x=>x.id===uid);
-    if(idx>=0)waiters.splice(idx,1);
-    showToast('Usuario eliminado','ok');
-    renderStaff();
-  }catch(e){showToast('Error al eliminar: '+e.message,'del');}
+  /* Quitar localmente y propagar por el estado global (autoritativo) */
+  const idx=waiters.findIndex(x=>x.id===uid);
+  if(idx>=0)waiters.splice(idx,1);
+  /* Borrado best-effort en la tabla staff (no bloquea si hay RLS / sin conexión) */
+  if(_sb)_sb.from('staff').delete().eq('id',uid).then(({error})=>{if(error)console.warn('[Staff] delete:',error.message);});
+  broadcastState();
+  showToast('Usuario eliminado','ok');
+  renderStaff();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -3244,7 +3254,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v10 (descuento inventario + subcategorias + cliente select + campana)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v12 (personal autoritativo, sin usuarios fantasma)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3300,7 +3310,7 @@ function applyRemoteState(data){
     orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
     /* Sonar SOLO si llegó un pedido nuevo a cocina (no por resync ni cambios de estado) */
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&orders.some(o=>o.status==='pending'&&!o.kitchenHidden&&!_prevPend.has(o.id))){
-      showBell('🔔 Nuevo pedido en cocina');
+      bellKitchen('🔔 Nuevo pedido en cocina');
     }
     tables.forEach(t=>{
       const rt=(s.tables||[]).find(x=>x.id===t.id);
@@ -3326,13 +3336,11 @@ function applyRemoteState(data){
       _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
       _invDirty.clear();
     }
-    /* Usuarios creados por el admin: viajan por el estado global (la tabla staff tiene RLS) */
+    /* Usuarios (Personal): el estado global es AUTORITATIVO → reemplazar la lista completa,
+       así las eliminaciones se propagan y no quedan usuarios fantasma. */
     if(Array.isArray(s.waiters)){
-      s.waiters.forEach(rw=>{
-        if(!rw||!rw.id)return;
-        const ex=waiters.find(w=>w.id===rw.id);
-        if(ex)Object.assign(ex,rw); else waiters.push({...rw});
-      });
+      waiters.length=0;
+      s.waiters.forEach(rw=>{ if(rw&&rw.id)waiters.push({...rw}); });
     }
     /* Carta: sincroniza por el mismo canal probado del estado global (igual que inventario) */
     if(s.menu&&typeof s.menu==='object'){
@@ -3424,9 +3432,10 @@ async function preloadAuthUsers(){
     const {data}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).single();
     const s=data&&data.payload;
     if(s&&Array.isArray(s.waiters)){
-      let nuevos=0;
-      s.waiters.forEach(rw=>{ if(rw&&rw.id&&!waiters.find(w=>w.id===rw.id)){waiters.push({...rw});nuevos++;} });
-      console.log('[Login] Pre-carga de usuarios desde estado global: '+s.waiters.length+' (nuevos añadidos: '+nuevos+')');
+      /* Reemplazo autoritativo: la lista de Personal del estado global es la vigente */
+      waiters.length=0;
+      s.waiters.forEach(rw=>{ if(rw&&rw.id)waiters.push({...rw}); });
+      console.log('[Login] Usuarios cargados desde estado global: '+waiters.length);
     }
   }catch(e){console.warn('[Login] preloadAuthUsers:',e.message);}
 }
