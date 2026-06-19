@@ -806,7 +806,7 @@ button:active{transform:scale(.97)}
 <div class="ov" id="addInvModal"><div class="mb">
   <h3>Agregar al inventario</h3>
   <div class="form-item"><label>Nombre *</label><input type="text" id="invName"></div>
-  <div class="form-item"><label>Categoría *</label><select id="invCat" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Selecciona…</option><option value="Bebidas">Bebidas</option><option value="Bebidas Frías">Bebidas Frías</option><option value="Cafetería Caliente">Cafetería Caliente</option><option value="Extras">Extras</option><option value="Fiambres">Fiambres</option><option value="Frescos">Frescos</option><option value="Frutas">Frutas</option><option value="Insumos">Insumos</option><option value="Licores">Licores</option><option value="Lácteos">Lácteos</option><option value="Panadería">Panadería</option><option value="Pizzas">Pizzas</option><option value="Platos">Platos</option><option value="Repostería">Repostería</option><option value="Tés">Tés</option><option value="Verduras">Verduras</option></select></div>
+  <div class="form-item"><label>Subcategoría *</label><select id="invCat" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Selecciona…</option></select></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="form-item"><label>Stock inicial</label><input type="number" id="invStock" placeholder="0"></div>
     <div class="form-item"><label>Unidad *</label><input type="text" id="invUnit" placeholder="kg / lt / un"></div>
@@ -820,9 +820,15 @@ button:active{transform:scale(.97)}
   <h3>Nuevo producto en carta</h3>
   <div class="form-item"><label>Nombre *</label><input type="text" id="npName"></div>
   <div class="form-item"><label>Precio ($) *</label><input type="number" id="npPrice"></div>
-  <div class="form-item"><label>Subcategoría *</label><input type="text" id="npSub" placeholder="Ej: Clásicos"></div>
+  <div class="form-item"><label>Subcategoría *</label><select id="npSub" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Selecciona…</option></select></div>
   <div class="form-item"><label>Área</label><select id="npArea" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Sin área</option><option value="Barra">Barra</option><option value="Cocina">Cocina</option><option value="Desayunos">Desayunos</option></select></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
+</div></div>
+
+<div class="ov" id="assignClientModal"><div class="mb">
+  <h3>Asignar cliente a la mesa</h3>
+  <div class="form-item"><label>Cliente</label><select id="assignClientSel" style="width:100%;padding:9px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"></select></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;assignClientModal&#39;)">Cancelar</button><button class="bc2" onclick="confirmAssignClient()">Asignar</button></div>
 </div></div>
 
 <div class="ov" id="editRecipeModal"><div class="mb">
@@ -1265,14 +1271,8 @@ function _updateCobrarBtn(order){
 }
 
 function addClientToOrder(){
-  const order=orders.find(o=>o.id===currentAccountId);if(!order)return;
-  const name=prompt('Nombre del cliente:',order.clientName||'');
-  if(name===null)return;
-  order.clientName=name.trim();
-  const id=cTable?.id||order.tableId;
-  $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;
-  broadcastState();
-  showToast(order.clientName?'Cliente asignado':'Cliente eliminado','ok');
+  /* Ahora usa un select dinámico con los clientes registrados (ver openAssignClient) */
+  openAssignClient();
 }
 
 function cancelarPedido(){
@@ -1535,6 +1535,7 @@ function confirmarCobro(oid,sub){
   const pago=window._cobrarPago||'efectivo';
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
+  descontarInventario(o.items);
   addCajaMov(sub+tip,pago,(o.tableId?'Mesa '+o.tableId:'Mostrador'));
   /* Liberar mesa */
   const t=getTable(o.tableId);
@@ -1577,6 +1578,7 @@ function mcCobrar(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   const {id,sub}=_mcBuildOrder();
   closedSales.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),closedAt:Date.now(),status:'closed',pago:selPay,tip:0,items:cart.map(i=>({...i}))});
+  descontarInventario(cart);
   totalOrdsIn++;addCajaMov(sub,selPay,'Mostrador directo');
   showToast('Venta registrada · '+fmt(sub),'ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();
@@ -1806,6 +1808,7 @@ function paySplitPerson(pi){
   if(splitPeople.every(p=>p.paid)){
     o.status='closed';o.closedAt=Date.now();
     closedSales.push({...o,items:o.items.map(i=>({...i}))});
+    descontarInventario(o.items);
     const t=getTable(o.tableId);
     if(t){
       const remaining=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
@@ -1926,6 +1929,7 @@ function closeOrd(id){
   const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(oTotal(o)*.1):Math.round(oTotal(o)*.1);
   o.tip=tip;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
+  descontarInventario(o.items);
   addCajaMov(oTotal(o)+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
   /* Free table only if no other non-closed orders remain */
   const t=getTable(o.tableId);
@@ -2414,6 +2418,92 @@ function saveEditRecipe(){
   showToast('Receta actualizada','ok');closeMod('editRecipeModal');renderRecipes();
 }
 
+/* ════════ SUBCATEGORÍAS COMPARTIDAS (Carta ↔ Inventario) ════════
+   Lista unificada en tiempo real: subcategorías de la carta + las del inventario
+   + categorías fijas de insumos. Carta e Inventario usan SIEMPRE esta misma lista. */
+const _SUBCAT_EXTRA=['Insumos Cafetería','Insumos Cocina','Extras'];
+function getSubcategorias(){
+  const set=new Set();
+  Object.values(menuData).forEach(subs=>Object.keys(subs).forEach(s=>set.add(s)));
+  inventoryItems.forEach(it=>{ if(it.cat)set.add(it.cat); });
+  _SUBCAT_EXTRA.forEach(s=>set.add(s));
+  return [...set].sort((a,b)=>a.localeCompare(b,'es'));
+}
+function _fillSubcatOptions(selectId,current){
+  const sel=$(selectId);if(!sel)return;
+  sel.innerHTML='<option value="">Selecciona…</option>'+getSubcategorias().map(s=>`<option value="${s}"${s===current?' selected':''}>${s}</option>`).join('');
+}
+function openAddProd(){ _fillSubcatOptions('npSub',''); openMod('addProdModal'); }
+function openAddInv(){ _fillSubcatOptions('invCat',''); openMod('addInvModal'); }
+/* Reasignar subcategoría de un producto de la Carta (mueve el ítem dentro de menuData) */
+function moveCartaSub(cat,oldSub,i,newSub){
+  const arr=menuData[cat]&&menuData[cat][oldSub];if(!arr)return;
+  const item=arr[i];if(!item)return;
+  if(!newSub||newSub===oldSub){renderCarta();return;}
+  arr.splice(i,1);
+  if(!menuData[cat][newSub])menuData[cat][newSub]=[];
+  menuData[cat][newSub].push(item);
+  if(!arr.length)delete menuData[cat][oldSub];
+  _cartaUpsertItem(cat,newSub,item);broadcastState();
+  showToast('Subcategoría actualizada','ok');renderCarta();
+}
+/* Reasignar subcategoría de un ítem de Inventario */
+function editInvSub(i,newSub){
+  const item=inventoryItems[i];if(!item||!newSub)return;
+  item.cat=newSub;
+  if(_sb)_invUpsert([{name:item.name,cat:item.cat,stock:item.stock,unit:item.unit,min_stock:item.min,area:item.area||null,updated_at:new Date().toISOString()}]).then(()=>{});
+  broadcastState();showToast('Subcategoría actualizada','ok');renderInv();
+}
+
+/* ════════ DESCUENTO AUTOMÁTICO DE INVENTARIO AL VENDER ════════
+   Al cobrar/cerrar un pedido descuenta del inventario el producto final
+   y, si existe receta, también sus componentes (ingredientes). */
+function descontarInventario(soldItems){
+  if(!Array.isArray(soldItems)||!soldItems.length)return;
+  let changed=false;
+  soldItems.forEach(si=>{
+    const qtySold=si.qty||1;
+    /* 1. Producto final */
+    const prod=inventoryItems.find(x=>x.name.toLowerCase()===(si.name||'').toLowerCase());
+    if(prod){prod.stock=Math.max(0,(parseFloat(prod.stock)||0)-qtySold);changed=true;}
+    /* 2. Componentes de la receta */
+    const rec=recipes[si.name];
+    if(rec&&Array.isArray(rec.ingredients)){
+      rec.ingredients.forEach(ing=>{
+        const inv=inventoryItems.find(x=>x.name.toLowerCase()===(ing.name||'').toLowerCase());
+        if(!inv)return;
+        let amt=(parseFloat(ing.qty)||0)*qtySold;
+        const iu=(ing.unit||'').toLowerCase(),vu=(inv.unit||'').toLowerCase();
+        if((iu==='g'&&vu==='kg')||(iu==='ml'&&vu==='lt'))amt/=1000; /* conversión simple */
+        inv.stock=Math.max(0,(parseFloat(inv.stock)||0)-amt);changed=true;
+      });
+    }
+  });
+  if(changed){
+    _invSnapshot={};inventoryItems.forEach(x=>{_invSnapshot[x.name]=x.stock;});
+    if(_sb)_invUpsert(inventoryItems.map(it=>({name:it.name,cat:it.cat,stock:it.stock,unit:it.unit,min_stock:it.min,area:it.area||null,updated_at:new Date().toISOString()}))).then(()=>{});
+    /* el broadcastState() del flujo de cobro propaga el inventario actualizado */
+  }
+}
+
+/* ════════ ASIGNAR CLIENTE A LA MESA (select dinámico) ════════ */
+function openAssignClient(){
+  const order=orders.find(o=>o.id===currentAccountId);if(!order){showToast('Sin pedido activo');return;}
+  const sel=$('assignClientSel');if(!sel)return;
+  sel.innerHTML='<option value="">— Sin cliente —</option>'+clients.map(c=>`<option value="${c.id}"${order.clientId===c.id?' selected':''}>${c.name}</option>`).join('');
+  openMod('assignClientModal');
+}
+function confirmAssignClient(){
+  const order=orders.find(o=>o.id===currentAccountId);if(!order)return;
+  const cid=$('assignClientSel').value;
+  const c=clients.find(x=>x.id===cid);
+  order.clientId=cid||null;order.clientName=c?c.name:'';
+  const id=cTable?.id||order.tableId;
+  $('cartBadge').textContent=`Mesa ${id}${order.clientName?' · '+order.clientName:''}`;
+  broadcastState();closeMod('assignClientModal');
+  showToast(order.clientName?'Cliente asignado: '+order.clientName:'Cliente quitado','ok');
+}
+
 /* ── CARTA ── */
 function renderCarta(){
   $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
@@ -2421,7 +2511,9 @@ function renderCarta(){
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
   const q=_cartaQ.toLowerCase().trim();
   const cd=menuData[aCartaCat];
-  let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openMod('addProdModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
+  const _subOpts=getSubcategorias();
+  const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
+  let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
   let anyResult=false;
   Object.entries(cd).forEach(([sub,items])=>{
     const filtered=q?items.filter(item=>item.name.toLowerCase().includes(q)):items;
@@ -2438,6 +2530,7 @@ function renderCarta(){
           ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
         <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${aCartaCat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
+        <select onchange="moveCartaSub('${aCartaCat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:9px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin-top:2px;padding:1px 3px;max-width:140px">${_subSelHtml(sub)}</select>
       </td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
       <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${aCartaCat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
@@ -2489,7 +2582,8 @@ function saveNewProd(){
   /* ── Punto 6: vínculo unidireccional Carta → Inventario ──
      Crear el producto en Inventario dentro de su categoría si no existe; si ya existe, no duplicar. */
   if(!inventoryItems.find(x=>x.name.toLowerCase()===name.toLowerCase())){
-    inventoryItems.push({name,cat:aCartaCat,stock:50,unit:'un',min:5,area:area||''});
+    inventoryItems.push({name,cat:sub,stock:50,unit:'un',min:5,area:area||''});
+    if(_sb)_invUpsert([{name,cat:sub,stock:50,unit:'un',min_stock:5,area:area||null,updated_at:new Date().toISOString()}]).then(()=>{});
   }
   _cartaUpsertItem(aCartaCat,sub,prod);
   broadcastState();
@@ -2513,16 +2607,18 @@ function renderInv(){
   let filtered=inventoryItems;
   if(_invCat)filtered=filtered.filter(x=>x.cat===_invCat);
   if(q)filtered=filtered.filter(x=>x.name.toLowerCase().includes(q));
+  const _subOpts=getSubcategorias();
+  const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
   $('invContent').innerHTML=
     `<div style="display:flex;justify-content:flex-start;align-items:center;margin-bottom:.6rem;gap:6px;flex-wrap:wrap">
-      <button class="btn-add-sm" onclick="openMod('addInvModal')"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
+      <button class="btn-add-sm" onclick="openAddInv()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Agregar</button>
     </div>`+
   (filtered.length?filtered.map((item)=>{
     const i=inventoryItems.indexOf(item);
     const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok';
     const isDirty=_invDirty.has(item.name);
     return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
-      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><div class="inv-cat">${item.cat}${item.area?` · ${item.area}`:''}</div><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}</div></div>
+      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><select onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="font-size:10px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin:1px 0;padding:1px 3px;max-width:150px">${_subSelHtml(item.cat)}</select><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}${item.area?` · ${item.area}`:''}</div></div>
       <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
       <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
       <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="invDeleteItem(${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
@@ -3148,7 +3244,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v9 (sin pedidos demo, nombres reales)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v10 (descuento inventario + subcategorias + cliente select + campana)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3198,7 +3294,14 @@ function applyRemoteState(data){
     /* Si el timestamp entrante es más antiguo que el nuestro, ignorar */
     if(s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
 
+    /* Campana: detectar pedidos NUEVOS en cocina (estado 'pending') que no existían antes */
+    const _prevPend=new Set(orders.filter(o=>o.status==='pending'&&!o.kitchenHidden).map(o=>o.id));
+
     orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
+    /* Sonar SOLO si llegó un pedido nuevo a cocina (no por resync ni cambios de estado) */
+    if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&orders.some(o=>o.status==='pending'&&!o.kitchenHidden&&!_prevPend.has(o.id))){
+      showBell('🔔 Nuevo pedido en cocina');
+    }
     tables.forEach(t=>{
       const rt=(s.tables||[]).find(x=>x.id===t.id);
       if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;}
@@ -3400,20 +3503,14 @@ function nuevoDia(){
   else{renderTables();navTo('tables');}
 }
 
-/* Kitchen new-order bell (polls every 5s) */
+/* Campana de cocina:
+   Se ELIMINA el polling por conteo (disparaba en eventos no deseados: resync, cambios de estado, etc.).
+   Ahora la campana suena SOLO cuando se envía un pedido a cocina:
+   - En el dispositivo emisor: vía showBell() dentro de gestionarPedidoCocina()/mcSendKitchen().
+   - En los demás dispositivos: vía applyRemoteState(), que detecta un pedido NUEVO en estado 'pending'.
+   _bellReady evita que suene durante la carga inicial del estado. */
 let _bellReady=false;
-setTimeout(()=>{
-  /* Esperar 6s después de cargar para inicializar el conteo base,
-     así no dispara por órdenes ya existentes al iniciar */
-  prevOrderCount=orders.filter(o=>o.status!=='closed').length;
-  _bellReady=true;
-},6000);
-setInterval(()=>{
-  if(!_bellReady||!cRole)return; /* no disparar antes de login o antes de inicializar */
-  const cur=orders.filter(o=>o.status!=='closed').length;
-  if(cur>prevOrderCount&&(cRole==='kitchen'||cRole==='admin'))showBell('🔔 Nuevo pedido ingresado');
-  prevOrderCount=cur;
-},5000);
+setTimeout(()=>{ _bellReady=true; },6000);
 
 /* Actualizar cronómetros de cocina cada 30 segundos */
 setInterval(()=>{
