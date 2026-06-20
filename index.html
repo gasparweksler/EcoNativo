@@ -833,6 +833,14 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;assignClientModal&#39;)">Cancelar</button><button class="bc2" onclick="confirmAssignClient()">Asignar</button></div>
 </div></div>
 
+<div class="ov" id="editStockModal"><div class="mb">
+  <h3>Actualizar stock</h3>
+  <div id="editStockName" style="font-size:14px;font-weight:700;color:var(--bd);margin-bottom:2px"></div>
+  <div id="editStockMinInfo" style="font-size:11px;color:var(--ts);margin-bottom:10px"></div>
+  <div class="form-item"><label>Cantidad disponible</label><input type="number" id="editStockVal" step="0.5" min="0"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;editStockModal&#39;)">Cancelar</button><button class="bc2" onclick="saveStockEdit()">Guardar</button></div>
+</div></div>
+
 <div class="ov" id="editRecipeModal"><div class="mb">
   <h3>Editar receta</h3>
   <div class="form-item"><label>Nombre *</label><input type="text" id="erName"></div>
@@ -1292,6 +1300,9 @@ function cancelarPedido(){
   if(!order){goPage('tables');return;}
   const mesa=cTable?.id||order.tableId;
   if(!confirm('¿Cancelar el pedido de Mesa '+mesa+'? Se eliminarán todos los productos y la mesa quedará libre.'))return;
+  /* Reponer stock si el pedido ya había descontado inventario (fue enviado a cocina).
+     Se usa el flag stockDescontado para no reponer de más. */
+  if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
   /* Eliminar orden completamente */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
   if(idx>=0)orders.splice(idx,1);
@@ -1315,6 +1326,8 @@ function cerrarSinCobrar(){
   if(!order){goPage('tables');return;}
   const mesa=cTable?.id||order.tableId;
   if(!confirm('¿Cerrar Mesa '+mesa+' sin cobrar? El pedido no pasará a caja ni a historial.'))return;
+  /* Cierre sin cobro = descarte: reponer stock si ya se había descontado al enviar a cocina */
+  if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
   /* Eliminar orden completamente del array — no queda rastro */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
   if(idx>=0)orders.splice(idx,1);
@@ -1547,7 +1560,7 @@ function confirmarCobro(oid,sub){
   const pago=window._cobrarPago||'efectivo';
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
-  descontarInventario(o.items);
+  /* Stock ya se descontó al enviar a cocina (order.stockDescontado) — NO descontar de nuevo al cobrar */
   addCajaMov(sub+tip,pago,(o.tableId?'Mesa '+o.tableId:'Mostrador'));
   /* Liberar mesa */
   const t=getTable(o.tableId);
@@ -1579,21 +1592,28 @@ function _mcBuildOrder(){
 function mcSendKitchen(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   const {id}=_mcBuildOrder();
-  orders.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:cart.map(i=>({...i}))});
+  const mcItems=cart.map(i=>({...i}));
+  const ord={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:mcItems,stockDescontado:true};
+  orders.push(ord);
   totalOrdsIn++;
+  /* Descuento de inventario al enviar a cocina (mostrador) */
+  descontarInventario(mcItems);
   bellKitchen('🔔 Mostrador → Cocina');
   showToast('Pedido enviado a cocina ✓','ok');
-  cart=[];isMC=false;updateOCBadge();broadcastState();
+  cart=[];isMC=false;updateOCBadge();broadcastState();renderStockAlerts();
   navTo('tables');
 }
 function mcCobrar(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   const {id,sub}=_mcBuildOrder();
-  closedSales.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),closedAt:Date.now(),status:'closed',pago:selPay,tip:0,items:cart.map(i=>({...i}))});
-  descontarInventario(cart);
+  const mcItems=cart.map(i=>({...i}));
+  closedSales.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),closedAt:Date.now(),status:'closed',pago:selPay,tip:0,items:mcItems});
+  /* Venta directa de mostrador (no pasa por cocina): se descuenta aquí. Nunca es doble porque
+     este pedido jamás se envió a cocina (no tiene stockDescontado). */
+  descontarInventario(mcItems);
   totalOrdsIn++;addCajaMov(sub,selPay,'Mostrador directo');
   showToast('Venta registrada · '+fmt(sub),'ok');
-  cart=[];isMC=false;updateOCBadge();broadcastState();
+  cart=[];isMC=false;updateOCBadge();broadcastState();renderStockAlerts();
   navTo('tables');
 }
 
@@ -1625,6 +1645,11 @@ function gestionarPedidoCocina(items, tableId){
     orders.push(order);totalOrdsIn++;
     showToast('Pedido enviado a cocina 🍳','ok');
   }
+  /* ── Descuento de inventario AL ENVIAR A COCINA ──
+     Se descuentan SOLO los ítems recién enviados (itemsToSend), nunca los ya enviados.
+     Se marca el pedido como stock ya descontado para impedir dobles descuentos al cobrar. */
+  descontarInventario(itemsToSend);
+  order.stockDescontado=true;
   /* 🔔 Campana CON sonido — exclusiva del envío a cocina */
   bellKitchen('🔔 Pedido enviado a cocina'+(order.tableId?' · Mesa '+order.tableId:''));
   currentAccountId=order.id;
@@ -1632,6 +1657,7 @@ function gestionarPedidoCocina(items, tableId){
   updateOCBadge();
   broadcastState();
   _refreshOrderView(order);
+  renderStockAlerts();
   return order;
 }
 
@@ -1820,7 +1846,7 @@ function paySplitPerson(pi){
   if(splitPeople.every(p=>p.paid)){
     o.status='closed';o.closedAt=Date.now();
     closedSales.push({...o,items:o.items.map(i=>({...i}))});
-    descontarInventario(o.items);
+    /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al dividir/cerrar */
     const t=getTable(o.tableId);
     if(t){
       const remaining=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
@@ -1852,17 +1878,45 @@ function renderStockAlerts(){
     ? criticos.map(it=>{
         const agotado=(parseFloat(it.stock)||0)<=0;
         const lvl=agotado?'out':'low';
-        return `<div class="or" style="cursor:default">
+        /* Fila clicable → abre el modal para editar la cantidad disponible */
+        return `<div class="or" style="cursor:pointer" onclick="openEditStock('${encodeURIComponent(it.name)}')" title="Clic para actualizar el stock">
           <div class="otb" style="background:var(--er)18;color:var(--er)"><i class="ti ti-package" style="font-size:14px"></i></div>
           <div class="oi">
             <div class="on">${it.name}</div>
             <div class="os">Stock: <strong style="color:var(--er)">${it.stock} ${it.unit||''}</strong> · mínimo: ${it.min}${it.cat?' · '+it.cat:''}</div>
           </div>
           <span class="sbdg ${lvl}">${agotado?'Agotado':'Crítico'}</span>
+          <i class="ti ti-pencil" style="color:var(--tl);font-size:13px;margin-left:4px" aria-hidden="true"></i>
         </div>`;
       }).join('')
     : `<div style="padding:.8rem .9rem;font-size:12px;color:var(--ok);font-style:italic;display:flex;align-items:center;gap:6px"><i class="ti ti-circle-check" aria-hidden="true"></i> No hay emergencias de stock actualmente</div>`;
   el.innerHTML=`<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);overflow:hidden;margin-bottom:8px">${header}${body}</div>`;
+}
+
+/* Edición rápida de stock desde "Emergencias de Stock".
+   Reutiliza invStockChanged() (misma lógica que el módulo Inventario):
+   actualiza el arreglo, escribe en Supabase, hace broadcast y refresca Inventario.
+   Aquí además refrescamos las alertas y el dashboard. */
+let _editStockName='';
+function openEditStock(encodedName){
+  const name=decodeURIComponent(encodedName);
+  const it=inventoryItems.find(x=>x.name===name);if(!it)return;
+  _editStockName=name;
+  $('editStockName').textContent=it.name;
+  $('editStockMinInfo').textContent=`Stock mínimo: ${it.min} ${it.unit||''}  ·  actual: ${it.stock} ${it.unit||''}`;
+  $('editStockVal').value=it.stock;
+  openMod('editStockModal');
+}
+function saveStockEdit(){
+  const it=inventoryItems.find(x=>x.name===_editStockName);if(!it)return;
+  const v=parseFloat($('editStockVal').value);
+  if(isNaN(v)||v<0){showToast('Cantidad inválida','del');return;}
+  const i=inventoryItems.indexOf(it);
+  invStockChanged(i,v);     /* ← única vía de actualización de stock (no se duplica lógica) */
+  renderStockAlerts();      /* refresca emergencias (desaparece si superó el mínimo) */
+  if(document.querySelector('.page.active')?.id==='page-dashboard')renderDashboard();
+  closeMod('editStockModal');
+  showToast(`Stock actualizado: ${it.name} → ${v} ${it.unit||''}`,'ok');
 }
 
 /* ── DASHBOARD ── */
@@ -1975,7 +2029,7 @@ function closeOrd(id){
   const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(oTotal(o)*.1):Math.round(oTotal(o)*.1);
   o.tip=tip;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
-  descontarInventario(o.items);
+  /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al cobrar y cerrar */
   addCajaMov(oTotal(o)+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
   /* Free table only if no other non-closed orders remain */
   const t=getTable(o.tableId);
@@ -2501,36 +2555,43 @@ function editInvSub(i,newSub){
   broadcastState();showToast('Subcategoría actualizada','ok');renderInv();
 }
 
-/* ════════ DESCUENTO AUTOMÁTICO DE INVENTARIO AL VENDER ════════
-   Al cobrar/cerrar un pedido descuenta del inventario el producto final
-   y, si existe receta, también sus componentes (ingredientes). */
-function descontarInventario(soldItems){
-  if(!Array.isArray(soldItems)||!soldItems.length)return;
+/* ════════ AJUSTE DE INVENTARIO (única fuente de lógica) ════════
+   _ajustarStock muta el ÚNICO arreglo de inventario (inventoryItems) y persiste.
+   factor = -1 → descuenta (venta/envío a cocina) · factor = +1 → repone (cancelación).
+   Afecta el producto final y, si tiene receta, sus componentes (con conversión g→kg / ml→lt). */
+function _ajustarStock(items,factor){
+  if(!Array.isArray(items)||!items.length)return false;
   let changed=false;
-  soldItems.forEach(si=>{
-    const qtySold=si.qty||1;
+  items.forEach(si=>{
+    const q=si.qty||1;
     /* 1. Producto final */
     const prod=inventoryItems.find(x=>x.name.toLowerCase()===(si.name||'').toLowerCase());
-    if(prod){prod.stock=Math.max(0,(parseFloat(prod.stock)||0)-qtySold);changed=true;}
+    if(prod){prod.stock=Math.max(0,(parseFloat(prod.stock)||0)+factor*q);changed=true;}
     /* 2. Componentes de la receta */
     const rec=recipes[si.name];
     if(rec&&Array.isArray(rec.ingredients)){
       rec.ingredients.forEach(ing=>{
         const inv=inventoryItems.find(x=>x.name.toLowerCase()===(ing.name||'').toLowerCase());
         if(!inv)return;
-        let amt=(parseFloat(ing.qty)||0)*qtySold;
+        let amt=(parseFloat(ing.qty)||0)*q;
         const iu=(ing.unit||'').toLowerCase(),vu=(inv.unit||'').toLowerCase();
         if((iu==='g'&&vu==='kg')||(iu==='ml'&&vu==='lt'))amt/=1000; /* conversión simple */
-        inv.stock=Math.max(0,(parseFloat(inv.stock)||0)-amt);changed=true;
+        inv.stock=Math.max(0,(parseFloat(inv.stock)||0)+factor*amt);changed=true;
       });
     }
   });
   if(changed){
+    /* Mantener coherente el snapshot del módulo Inventario y persistir en Supabase.
+       El broadcastState() del flujo que llama propaga el inventario actualizado. */
     _invSnapshot={};inventoryItems.forEach(x=>{_invSnapshot[x.name]=x.stock;});
     if(_sb)_invUpsert(inventoryItems.map(it=>({name:it.name,cat:it.cat,stock:it.stock,unit:it.unit,min_stock:it.min,area:it.area||null,updated_at:new Date().toISOString()}))).then(()=>{});
-    /* el broadcastState() del flujo de cobro propaga el inventario actualizado */
   }
+  return changed;
 }
+/* Descontar al vender / enviar a cocina */
+function descontarInventario(soldItems){ return _ajustarStock(soldItems,-1); }
+/* Reponer al cancelar un pedido ya descontado */
+function reponerInventario(items){ return _ajustarStock(items,+1); }
 
 /* ════════ ASIGNAR CLIENTE A LA MESA (select dinámico) ════════ */
 function openAssignClient(){
@@ -3290,7 +3351,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v13 (emergencias de stock + tab Inicio)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v15 (mostrador descuenta + reposicion al cancelar + ajuste unificado)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
