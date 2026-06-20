@@ -612,6 +612,8 @@ button:active{transform:scale(.97)}
       <!-- DASHBOARD -->
       <div class="page" id="page-dashboard">
         <div class="sg" id="adminStats"></div>
+        <!-- Emergencias de Stock: alertas de inventario crítico (stock <= mínimo) -->
+        <div id="stockAlerts"></div>
         <div class="ol-wrap"><div class="ol-hdr"><h3>Pedidos activos</h3><span id="actCount" style="font-size:11px;color:var(--ts)"></span></div><div id="adminOrdersList"></div></div>
       </div>
 
@@ -1181,7 +1183,7 @@ function logout(){$('app').style.display='none';$('loginScreen').style.display='
 /* ── NAV ── */
 const TABS={
   waiter:[{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'clients',label:'Clientes',icon:'ti-users'}],
-  admin:[{id:'dashboard',label:'Pedidos',icon:'ti-receipt'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Stats',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
+  admin:[{id:'dashboard',label:'Inicio',icon:'ti-home'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Stats',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
   kitchen:[{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'}]
 };
 
@@ -1830,8 +1832,42 @@ function paySplitPerson(pi){
   renderSplitModal();
 }
 
+/* ════════ EMERGENCIAS DE STOCK (Alertas de Inventario) ════════
+   Recuadro del panel admin que lista los insumos/productos cuyo stock
+   actual es igual o inferior a su stock mínimo configurable.
+   Se alimenta del mismo arreglo `inventoryItems` (sincronizado por el
+   estado global), por lo que se actualiza en tiempo real: renderDashboard()
+   se vuelve a ejecutar en cada cambio de inventario vía _refreshActiveView(). */
+function renderStockAlerts(){
+  const el=$('stockAlerts');if(!el)return;
+  /* Críticos: stock <= mínimo. Si min no está definido, se asume 1. */
+  const criticos=inventoryItems
+    .filter(it=>(parseFloat(it.stock)||0)<=(parseFloat(it.min)||1))
+    .sort((a,b)=>(a.stock-a.min)-(b.stock-b.min));
+  const header=`<div style="padding:.55rem .9rem;background:var(--er)12;border-bottom:1px solid var(--er)30;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;font-weight:700;color:var(--bd);display:flex;align-items:center;gap:6px"><i class="ti ti-alert-triangle" style="color:var(--er);font-size:15px"></i>Emergencias de Stock</div>
+      <span style="background:var(--er)22;color:var(--er);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${criticos.length}</span>
+    </div>`;
+  const body=criticos.length
+    ? criticos.map(it=>{
+        const agotado=(parseFloat(it.stock)||0)<=0;
+        const lvl=agotado?'out':'low';
+        return `<div class="or" style="cursor:default">
+          <div class="otb" style="background:var(--er)18;color:var(--er)"><i class="ti ti-package" style="font-size:14px"></i></div>
+          <div class="oi">
+            <div class="on">${it.name}</div>
+            <div class="os">Stock: <strong style="color:var(--er)">${it.stock} ${it.unit||''}</strong> · mínimo: ${it.min}${it.cat?' · '+it.cat:''}</div>
+          </div>
+          <span class="sbdg ${lvl}">${agotado?'Agotado':'Crítico'}</span>
+        </div>`;
+      }).join('')
+    : `<div style="padding:.8rem .9rem;font-size:12px;color:var(--ok);font-style:italic;display:flex;align-items:center;gap:6px"><i class="ti ti-circle-check" aria-hidden="true"></i> No hay emergencias de stock actualmente</div>`;
+  el.innerHTML=`<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);overflow:hidden;margin-bottom:8px">${header}${body}</div>`;
+}
+
 /* ── DASHBOARD ── */
 function renderDashboard(){
+  renderStockAlerts();
   const active=orders.filter(o=>o.status!=='closed');
   /* "Mesas activas - Sin cobrar aún": pedidos que ya salieron del flujo de cocina
      (eliminados por cocina o cancelados) pero todavía no se cobran. */
@@ -3254,7 +3290,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v12 (personal autoritativo, sin usuarios fantasma)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v13 (emergencias de stock + tab Inicio)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
