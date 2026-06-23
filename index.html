@@ -1279,6 +1279,7 @@ function tableClick(id){
   if(activeOrds.length===1){loadTableOrder(id,activeOrds[0]);return;}
   /* No active orders — start new (sin prompt de cliente) */
   const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:''};
+  kDone[newOrder.id]=[]; /* pedido nuevo → sin marcas de tachado heredadas */
   orders.push(newOrder);totalOrdsIn++;
   loadTableOrder(id,newOrder);
 }
@@ -1392,6 +1393,7 @@ function addNewTableAccount(){
   closeMod('accountSelectModal');
   const accountName=prompt('Nombre del nuevo cliente para Mesa '+tid+':','')||'Cliente';
   const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:tid,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:accountName};
+  kDone[newOrder.id]=[]; /* pedido nuevo → sin marcas de tachado heredadas */
   orders.push(newOrder);totalOrdsIn++;
   showToast('Cuenta "'+accountName+'" creada en Mesa '+tid,'ok');
   loadTableOrder(tid,newOrder);
@@ -1627,6 +1629,7 @@ function mcSendKitchen(){
   const {id}=_mcBuildOrder();
   const mcItems=cart.map(i=>({...i}));
   const ord={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:mcItems,stockDescontado:true};
+  kDone[id]=[]; /* limpiar marcas heredadas de un id reutilizado → NO tachado al llegar a cocina */
   orders.push(ord);
   totalOrdsIn++;
   /* Descuento de inventario al enviar a cocina (mostrador) */
@@ -1974,15 +1977,18 @@ function renderDashboard(){
     <div class="sc"><div class="sl"><i class="ti ti-receipt" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Ticket Promedio</div><div class="sv">${fmt(ticket)}</div><div class="ss">ventas ÷ transacciones</div></div>
     <div class="sc"><div class="sl"><i class="ti ti-building-store" style="font-size:11px;vertical-align:-1px;margin-right:2px"></i>Ventas Mostrador</div><div class="sv">${fmt(mcv)}</div><div class="ss">${closedSales.filter(s=>s.type==='mostrador').length} ventas takeaway</div></div>`;
 
-  /* ── Kitchen Pipeline ── */
+  /* ── Kitchen Pipeline ──
+     Cada sección y sus tarjetas usan un color hex distinto (tinte de fondo + borde
+     izquierdo) para identificar el estado sin leer el texto. Se sincroniza vía Realtime
+     porque renderDashboard() se re-ejecuta en cada cambio (_refreshActiveView). */
   const pipelineHTML=(label,icon,color,list,emptyMsg)=>{
     return `<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);overflow:hidden;margin-bottom:8px">
-      <div style="padding:.55rem .9rem;background:${color}12;border-bottom:1px solid ${color}30;display:flex;align-items:center;justify-content:space-between">
+      <div style="padding:.55rem .9rem;background:${color}1A;border-bottom:1px solid ${color}45;display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:13px;font-weight:700;color:var(--bd);display:flex;align-items:center;gap:6px"><i class="ti ${icon}" style="color:${color};font-size:15px"></i>${label}</div>
-        <span style="background:${color}22;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${list.length}</span>
+        <span style="background:${color}26;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${list.length}</span>
       </div>
-      ${list.length?list.map(o=>`<div class="or" onclick="openOD('${o.id}')">
-        <div class="otb" style="background:${color}18;color:${color}">${o.tableId||'MC'}</div>
+      ${list.length?list.map(o=>`<div class="or" onclick="openOD('${o.id}')" style="background:${color}1A;border-left:4px solid ${color}">
+        <div class="otb" style="background:${color}30;color:${color}">${o.tableId||'MC'}</div>
         <div class="oi">
           <div class="on">${o.tableId?'Mesa '+o.tableId:'Mostrador'} · <span style="color:var(--ts);font-weight:500">${o.waiter}</span></div>
           <div class="os">${o.items.map(i=>(i.qty>1?i.qty+'× ':'')+i.name).join(' · ')}</div>
@@ -1999,18 +2005,18 @@ function renderDashboard(){
   /* Closed orders today — last 5 */
   const recentClosed=[...closedSales].sort((a,b)=>(b.closedAt||b.time)-(a.closedAt||a.time)).slice(0,5);
   const closedHTML=`<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);overflow:hidden;margin-bottom:8px">
-    <div style="padding:.55rem .9rem;background:#F0F5EA;border-bottom:1px solid var(--ol)30;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-size:13px;font-weight:700;color:var(--bd);display:flex;align-items:center;gap:6px"><i class="ti ti-checks" style="color:var(--ok);font-size:15px"></i>Pedidos Cerrados (hoy)</div>
-      <span style="background:#EEF5E8;color:var(--ok);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${closedSales.length}</span>
+    <div style="padding:.55rem .9rem;background:#5e35351A;border-bottom:1px solid #5e353545;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;font-weight:700;color:var(--bd);display:flex;align-items:center;gap:6px"><i class="ti ti-checks" style="color:#5e3535;font-size:15px"></i>Pedidos Cerrados (hoy)</div>
+      <span style="background:#5e353526;color:#5e3535;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${closedSales.length}</span>
     </div>
-    ${recentClosed.length?recentClosed.map(s=>`<div class="or">
-      <div class="otb" style="background:#EEF5E8;color:var(--ok)">${s.tableId||'MC'}</div>
+    ${recentClosed.length?recentClosed.map(s=>`<div class="or" style="background:#5e35351A;border-left:4px solid #5e3535">
+      <div class="otb" style="background:#5e353530;color:#5e3535">${s.tableId||'MC'}</div>
       <div class="oi">
         <div class="on">${s.tableId?'Mesa '+s.tableId:'Mostrador'} · <span style="color:var(--ts);font-weight:500">${s.waiter}</span></div>
         <div class="os">${s.items.map(i=>(i.qty>1?i.qty+'× ':'')+i.name).join(' · ')}</div>
       </div>
       <div style="text-align:right">
-        <div class="ot" style="color:var(--ok)">${fmt(oTotal(s)+(s.tip||0))}</div>
+        <div class="ot" style="color:#5e3535">${fmt(oTotal(s)+(s.tip||0))}</div>
         <div style="font-size:10px;color:var(--tl)">${ftime(s.closedAt||s.time)}</div>
       </div>
     </div>`).join('')
@@ -2018,10 +2024,10 @@ function renderDashboard(){
   </div>`;
 
   $('adminOrdersList').innerHTML=
-    pipelineHTML('Pendientes — En espera de cocina','ti-clock','var(--wn)',pending,'Sin comandas pendientes ✓')+
-    pipelineHTML('En Preparación — Cocina activa','ti-flame','var(--inf)',preparing,'Cocina sin pedidos activos')+
-    pipelineHTML('Listos para servir','ti-check-circle','var(--ol)',readyOrds,'Sin platos listos esperando')+
-    pipelineHTML('Mesas activas - Sin cobrar aún','ti-cash','var(--er)',sinCobrar,'Sin mesas pendientes de cobro')+
+    pipelineHTML('Pendientes — En espera de cocina','ti-clock','#FFA500',pending,'Sin comandas pendientes ✓')+
+    pipelineHTML('En Preparación — Cocina activa','ti-flame','#4A90E2',preparing,'Cocina sin pedidos activos')+
+    pipelineHTML('Listos para servir','ti-check-circle','#28A745',readyOrds,'Sin platos listos esperando')+
+    pipelineHTML('Mesas activas - Sin cobrar aún','ti-cash','#FF6B6B',sinCobrar,'Sin mesas pendientes de cobro')+
     closedHTML;
 
   $('actCount').textContent=active.length+' activos · '+pending.length+' pend · '+preparing.length+' prep · '+readyOrds.length+' listos · '+sinCobrar.length+' sin cobrar';
@@ -2250,7 +2256,8 @@ function assignClientToTable(cid){
   /* If no active order yet for that table, create a placeholder entry */
   const existingOrder=orders.find(o=>o.tableId===tid&&o.status!=='closed');
   if(!existingOrder){
-    orders.push({id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:tid,type:'mesa',waiter:cUser||'Admin',time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientId:cid,clientName:c.name});
+    const _nid='ORD'+String(ordCnt++).padStart(3,'0');kDone[_nid]=[];
+    orders.push({id:_nid,tableId:tid,type:'mesa',waiter:cUser||'Admin',time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientId:cid,clientName:c.name});
     totalOrdsIn++;
   }else{existingOrder.clientId=cid;existingOrder.clientName=c.name;}
   showToast(c.name+' asignada a Mesa '+tid,'ok');
@@ -3014,7 +3021,9 @@ function renderKitchen(){
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
   $('kitchenGrid').innerHTML=active.map(o=>{
-    if(!kDone[o.id])kDone[o.id]=[];const done=kDone[o.id];const startIdx=o.kitchenSeenCount||0;
+    if(!kDone[o.id])kDone[o.id]=[];
+    /* Red de seguridad: ignorar índices fuera de rango (heredados de un id reutilizado) */
+    const done=kDone[o.id].filter(idx=>idx<o.items.length);const startIdx=o.kitchenSeenCount||0;
     const statusLabels={pending:'Pendiente',preparing:'Preparando',ready:'Listo',canceled:'Cancelado'};
     return `<div class="kc ${o.status}">
       <div class="kcH">
@@ -3416,7 +3425,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v16 (colores mesa + historial pedidos + cocina sin confirm + pendientes cliente)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v17 (colores pipeline Inicio + fix tachado cocina)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
