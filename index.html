@@ -952,8 +952,8 @@ function bellKitchen(msg){
 let cRole='admin',cUser='',cTable=null,cart=[],isMC=false;
 let pType='',pIngs=[],pSauce=null;
 let sItem=null,sIngs=[],sMax=2;
-let aCartaCat='Cafetería Caliente';
-let aRecipeCat='Cafetería Caliente';
+let aCartaCat='Bebidas Calientes';
+let aRecipeCat='Bebidas Calientes';
 let _cartaQ='';
 let _recipesQ='';
 let _invQ='';
@@ -1020,7 +1020,7 @@ function addCajaMov(amount,pago,desc){
 
 /* ── MENU DATA ── */
 const menuData={
-  'Cafetería Caliente':{
+  'Bebidas Calientes':{
     'Clásicos':[{name:'Espresso',price:2000,active:true,area:'Barra'},{name:'Macchiato',price:2200,active:true,area:'Barra'},{name:'Cortado',price:2500,active:true,area:'Barra'},{name:'Doble Espresso',price:2700,active:true,area:'Barra'},{name:'Espresso Miel',price:2500,active:true,area:'Barra'},{name:'Espresso Nutella',price:2500,active:true,area:'Barra'},{name:'Americano',price:2700,active:true,area:'Barra'},{name:'Americano Cortado',price:2900,active:true,area:'Barra'},{name:'Café con Leche',price:3200,active:true,area:'Barra'},{name:'Bombón',price:3800,active:true,area:'Barra'},{name:'Irish Coffee',price:4200,active:true,area:'Barra'}],
     'Cappuccino':[{name:'Cappuccino Clásico',price:2900,active:true,area:'Barra'},{name:'Cappuccino Vainilla',price:3500,active:true,area:'Barra'},{name:'Cappuccino Caramelo',price:3500,active:true,area:'Barra'},{name:'Cappuccino Vienés',price:3800,active:true,area:'Barra'}],
     'Latte':[{name:'Latte Clásico',price:3200,active:true,area:'Barra'},{name:'Latte Macchiato',price:3200,active:true,area:'Barra'},{name:'Nutelatte',price:3500,active:true,area:'Barra'},{name:'Nutella Moka',price:3800,active:true,area:'Barra'}],
@@ -1038,25 +1038,44 @@ const menuData={
   },
   'Platos':{
     'Tostadas':[{name:'Tostadas Clásicas',price:3500,active:true,area:'Desayunos',desc:'Con huevo revuelto'},{name:'Tostadas Jamón Colonial',price:4200,active:true,area:'Desayunos',desc:'Con huevo revuelto + jamón colonial'},{name:'Tostadas Tocino',price:4500,active:true,area:'Desayunos',desc:'Con huevo revuelto + tocino'},{name:'Tostadas Queso Mantecoso',price:4200,active:true,area:'Desayunos',desc:'Con huevo revuelto + queso mantecoso'},{name:'Tostadas Queso de Cabra',price:4500,active:true,area:'Desayunos',desc:'Con huevo revuelto + queso de cabra'},{name:'Tostadas Tomate Fresco',price:4200,active:true,area:'Desayunos',desc:'Con huevo revuelto + tomate fresco'},{name:'Tostadas Champiñones',price:4500,active:true,area:'Desayunos',desc:'Con huevo revuelto + champiñones'}],
-    'Sándwich':[{name:'Sándwich 2 ingredientes',price:4900,active:true,isSandwich:true,sandwichMax:2,area:'Cocina'},{name:'Sándwich 3 ingredientes',price:5900,active:true,isSandwich:true,sandwichMax:3,area:'Cocina'},{name:'Sándwich 4 ingredientes',price:6900,active:true,isSandwich:true,sandwichMax:4,area:'Cocina'}],
     'Pastelería':[{name:'Pastelería del Día',price:2500,active:true,area:'Cocina'}],
     'Alfajores':[{name:'Alfajor',price:2000,active:true,area:'Barra',isVariant:true,variants:[{name:'Alfajor de Maicena',price:2000,active:true},{name:'Alfajor de Chocolate',price:2200,active:true},{name:'Alfajor de Manjar',price:2200,active:true}]}]
   },
+  'Sándwiches':{'Sándwich':[{name:'Sándwich 2 ingredientes',price:4900,active:true,isSandwich:true,sandwichMax:2,area:'Cocina'},{name:'Sándwich 3 ingredientes',price:5900,active:true,isSandwich:true,sandwichMax:3,area:'Cocina'},{name:'Sándwich 4 ingredientes',price:6900,active:true,isSandwich:true,sandwichMax:4,area:'Cocina'}]},
   'Pizzas':{'Pizzas':[{name:'Pizza Tradicional',price:6000,active:true,isPizza:true,pizzaType:'tradicional',area:'Cocina'},{name:'Pizza Vegana',price:7500,active:true,isPizza:true,pizzaType:'vegana',area:'Cocina'}]},
   'Extras':{'Adicionales':[{name:'Para llevar',price:300,active:true,area:'Barra'},{name:'Café Descafeinado',price:500,active:true,area:'Barra'},{name:'Bebida Vegetal',price:500,active:true,area:'Barra'},{name:'Extra Chantilly',price:500,active:true,area:'Barra'},{name:'Shot Espresso',price:700,active:true,area:'Barra'},{name:'Ingrediente Extra',price:900,active:true,area:'Cocina'},{name:'Salsa Adicional',price:1500,active:true,area:'Cocina'}]},
 };
 
+/* Normaliza la estructura del menú aunque el estado global guarde nombres viejos:
+   renombra "Cafetería Caliente"→"Bebidas Calientes" y saca "Sándwich" de Platos a su
+   propia categoría "Sándwiches". Se ejecuta al cargar y tras cada sync. */
+function _migrateMenu(){
+  if(menuData['Cafetería Caliente']){
+    if(!menuData['Bebidas Calientes'])menuData['Bebidas Calientes']={};
+    Object.entries(menuData['Cafetería Caliente']).forEach(([s,arr])=>{ if(!menuData['Bebidas Calientes'][s])menuData['Bebidas Calientes'][s]=arr; });
+    delete menuData['Cafetería Caliente'];
+  }
+  if(menuData['Platos']&&menuData['Platos']['Sándwich']){
+    if(!menuData['Sándwiches'])menuData['Sándwiches']={};
+    if(!menuData['Sándwiches']['Sándwich'])menuData['Sándwiches']['Sándwich']=menuData['Platos']['Sándwich'];
+    delete menuData['Platos']['Sándwich'];
+  }
+  /* recetas: alinear categoría del café (recipes puede no existir aún en la carga inicial) */
+  try{ if(recipes&&typeof recipes==='object')Object.values(recipes).forEach(r=>{ if(r&&r.cat==='Cafetería Caliente')r.cat='Bebidas Calientes'; }); }catch(e){}
+}
+
 /* ── RECIPES (CRUD) ── */
 let recipes={};
+_migrateMenu(); /* normaliza la estructura del menú una vez declaradas menuData y recipes */
 function buildRecipes(){
   const defs={
-    'Espresso':{cat:'Cafetería Caliente',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120}]},
-    'Americano':{cat:'Cafetería Caliente',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120},{name:'Agua caliente',qty:200,unit:'ml',cost:10}]},
-    'Latte Clásico':{cat:'Cafetería Caliente',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120},{name:'Leche entera',qty:180,unit:'ml',cost:150}]},
-    'Cappuccino Clásico':{cat:'Cafetería Caliente',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120},{name:'Leche entera',qty:120,unit:'ml',cost:100}]},
-    'Cappuccino Vienés':{cat:'Cafetería Caliente',ingredients:[{name:'Café molido',qty:14,unit:'g',cost:240},{name:'Leche entera',qty:120,unit:'ml',cost:100},{name:'Crema chantilly',qty:30,unit:'g',cost:120}]},
-    'Matcha Latte':{cat:'Cafetería Caliente',ingredients:[{name:'Matcha orgánico',qty:3,unit:'g',cost:450},{name:'Leche entera',qty:180,unit:'ml',cost:150}]},
-    'Chocolate Caliente':{cat:'Cafetería Caliente',ingredients:[{name:'Chocolate en polvo',qty:20,unit:'g',cost:200},{name:'Leche entera',qty:200,unit:'ml',cost:170},{name:'Azúcar',qty:10,unit:'g',cost:20}]},
+    'Espresso':{cat:'Bebidas Calientes',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120}]},
+    'Americano':{cat:'Bebidas Calientes',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120},{name:'Agua caliente',qty:200,unit:'ml',cost:10}]},
+    'Latte Clásico':{cat:'Bebidas Calientes',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120},{name:'Leche entera',qty:180,unit:'ml',cost:150}]},
+    'Cappuccino Clásico':{cat:'Bebidas Calientes',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120},{name:'Leche entera',qty:120,unit:'ml',cost:100}]},
+    'Cappuccino Vienés':{cat:'Bebidas Calientes',ingredients:[{name:'Café molido',qty:14,unit:'g',cost:240},{name:'Leche entera',qty:120,unit:'ml',cost:100},{name:'Crema chantilly',qty:30,unit:'g',cost:120}]},
+    'Matcha Latte':{cat:'Bebidas Calientes',ingredients:[{name:'Matcha orgánico',qty:3,unit:'g',cost:450},{name:'Leche entera',qty:180,unit:'ml',cost:150}]},
+    'Chocolate Caliente':{cat:'Bebidas Calientes',ingredients:[{name:'Chocolate en polvo',qty:20,unit:'g',cost:200},{name:'Leche entera',qty:200,unit:'ml',cost:170},{name:'Azúcar',qty:10,unit:'g',cost:20}]},
     'Pizza Tradicional':{cat:'Pizzas',ingredients:[{name:'Harina pizzera',qty:200,unit:'g',cost:300},{name:'Passata italiana',qty:80,unit:'ml',cost:200},{name:'Q. Mozzarella',qty:100,unit:'g',cost:600},{name:'Aceite oliva',qty:15,unit:'ml',cost:80},{name:'Sal / levadura',qty:5,unit:'g',cost:30}]},
     'Pizza Vegana':{cat:'Pizzas',ingredients:[{name:'Harina pizzera',qty:200,unit:'g',cost:300},{name:'Passata italiana',qty:80,unit:'ml',cost:200},{name:'Q. Mozzarella vegano',qty:100,unit:'g',cost:1200},{name:'Aceite oliva',qty:15,unit:'ml',cost:80}]},
     'Tostadas':{cat:'Platos',ingredients:[{name:'Pan molde',qty:2,unit:'un',cost:200},{name:'Huevos',qty:2,unit:'un',cost:250},{name:'Mantequilla',qty:10,unit:'g',cost:80}]},
@@ -1457,7 +1476,7 @@ function renderPaySection(){
 function setPayM(m){selPay=m;renderPaySection();}
 
 /* ── MENU ── */
-let aMenuCat='Cafetería Caliente';
+let aMenuCat='Bebidas Calientes';
 function renderMenu(){
   $('menuCats').innerHTML=Object.keys(menuData).map(c=>`<button class="cb ${c===aMenuCat?'active':''}" onclick="setMC('${c}')">${c}</button>`).join('');
   renderMenuItems();
@@ -1808,24 +1827,29 @@ const SANDWICH_INGREDIENTS = [
 ];
 function openSM(item){
   sItem=item;sIngs=[];sMax=item.sandwichMax||2;
-  $('sandwichSub').textContent=`${item.name} · ${fmt(item.price)} · Elige ${sMax} ingredientes`;
-  $('sandwichMaxMsg').textContent=`Máximo: ${sMax} ingredientes`;
+  $('sandwichSub').textContent=`${item.name} · ${fmt(item.price)} · Incluye ${sMax}, extra +$900 c/u`;
+  $('sandwichMaxMsg').textContent=`Incluye ${sMax} · sin extras`;
   $('sandwichChips').innerHTML=SANDWICH_INGREDIENTS.map(g=>`<div style="margin-bottom:5px"><h4>${g.cat}</h4><div class="chips">${g.items.map(n=>`<div class="chip" onclick="toggleSI(this,'${n}')">${n}</div>`).join('')}</div></div>`).join('');
   updSandwichTotal();openMod('sandwichModal');
 }
 function toggleSI(el,n){
+  /* El valor base es fijo; cada ingrediente por sobre los incluidos suma $900 */
   if(el.classList.contains('sel')){el.classList.remove('sel');sIngs=sIngs.filter(i=>i!==n);}
-  else{if(sIngs.length>=sMax){showToast('Máximo '+sMax+' ingredientes');return;}el.classList.add('sel');sIngs.push(n);}
+  else{el.classList.add('sel');sIngs.push(n);}
   updSandwichTotal();
 }
 function updSandwichTotal(){
+  const extra=Math.max(0,sIngs.length-sMax)*900;
   $('sandwichCount').textContent=sIngs.length;
-  $('sandwichTotal').textContent=sItem?fmt(sItem.price):'$0';
+  $('sandwichTotal').textContent=sItem?fmt(sItem.price+extra):'$0';
+  const msg=$('sandwichMaxMsg');
+  if(msg)msg.textContent=`Incluye ${sMax} · ${sIngs.length>sMax?(sIngs.length-sMax)+' extra = +'+fmt(extra):'sin extras'}`;
 }
 function confirmSandwich(){
   if(!sItem)return;
-  const detail=sIngs.join(', ')||'Sin ingredientes';
-  cart.push({name:sItem.name,price:sItem.price,qty:1,detail,isSandwich:true,note:''});
+  const extra=Math.max(0,sIngs.length-sMax)*900;
+  const detail=(sIngs.join(', ')||'Sin ingredientes')+(extra>0?` (+${sIngs.length-sMax} extra)`:'');
+  cart.push({name:sItem.name,price:sItem.price+extra,qty:1,detail,isSandwich:true,note:''});
   closeMod('sandwichModal');renderCart();showToast(sItem.name+' agregado','ok');
 }
 
@@ -2759,47 +2783,59 @@ function confirmAssignClient(){
 
 /* ── CARTA ── */
 function renderCarta(){
-  $('cartaCatPills').innerHTML=Object.keys(menuData).map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
+  /* Orden preferido de categorías (las no listadas van al final) */
+  const _catOrder=['Bebidas Frías','Bebidas Calientes','Platos','Pizzas','Sándwiches','Extras'];
+  const _orderedCats=Object.keys(menuData).sort((a,b)=>{const ia=_catOrder.indexOf(a),ib=_catOrder.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
+  $('cartaCatPills').innerHTML=['Todos',..._orderedCats].map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
   const btnCarta=$('btnConfirmCarta');
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
   const q=_cartaQ.toLowerCase().trim();
-  const cd=menuData[aCartaCat];
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
   let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
   let anyResult=false;
-  Object.entries(cd).forEach(([sub,items])=>{
+  /* "Todos" recorre todas las categorías; cada grupo usa SU categoría real (cat) */
+  const _cats = aCartaCat==='Todos' ? _orderedCats : [aCartaCat];
+  _cats.forEach(cat=>{
+    const cd=menuData[cat]; if(!cd)return;
+    let catHasResult=false, catHtml='';
+    Object.entries(cd).forEach(([sub,items])=>{
     const filtered=q?items.filter(item=>item.name.toLowerCase().includes(q)):items;
     if(!filtered.length)return;
-    anyResult=true;
-    html+=`<div style="font-size:10px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.6rem 0 .3rem">${sub}</div>
+    anyResult=true; catHasResult=true;
+    catHtml+=`<div style="font-size:10px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.6rem 0 .3rem">${sub}</div>
     <div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Nombre</th><th>Precio</th><th>Activo</th><th></th></tr></thead><tbody>
     ${filtered.map((item)=>{
       const i=items.indexOf(item);
       return `<tr>
       <td>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${aCartaCat}','${sub}',${i},this.value)" style="font-weight:600;font-size:11px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
-          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
+          <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${cat}','${sub}',${i},this.value)" style="font-weight:600;font-size:11px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
+          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.isSandwich?'<span style="font-size:9px;color:var(--wn);background:#FDF5E0;padding:1px 4px;border-radius:5px;flex-shrink:0">sándwich</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
-        <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${aCartaCat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
-        <select onchange="moveCartaSub('${aCartaCat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:9px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin-top:2px;padding:1px 3px;max-width:140px">${_subSelHtml(sub)}</select>
+        <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${cat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
+        <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:9px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin-top:2px;padding:1px 3px;max-width:140px">${_subSelHtml(sub)}</select>
       </td>
-      <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
-      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${aCartaCat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
-      <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${aCartaCat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
+      <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${cat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
+      <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${cat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
+      <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${cat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
     </tr>${item.isVariant?`<tr><td colspan="4" style="background:var(--cr);padding:6px 10px">
       <div style="font-size:10px;font-weight:700;color:var(--bm);margin-bottom:5px"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Variedades de "${item.name}"</div>
       ${(item.variants||[]).map((v,vi)=>`<div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
-        <input type="text" value="${(v.name||'').replace(/"/g,'&quot;')}" onchange="editVariant('${aCartaCat}','${sub}',${i},${vi},'name',this.value)" style="flex:1;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px;font-family:inherit" placeholder="Nombre variedad">
-        <input type="number" value="${v.price}" step="100" onchange="editVariant('${aCartaCat}','${sub}',${i},${vi},'price',this.value)" style="width:72px;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px">
-        <label class="ts3" title="Activa"><input type="checkbox" ${v.active!==false?'checked':''} onchange="editVariant('${aCartaCat}','${sub}',${i},${vi},'active',this.checked)"><span class="tsl"></span></label>
-        <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delVariant('${aCartaCat}','${sub}',${i},${vi})"><i class="ti ti-trash" style="font-size:11px"></i></button>
+        <input type="text" value="${(v.name||'').replace(/"/g,'&quot;')}" onchange="editVariant('${cat}','${sub}',${i},${vi},'name',this.value)" style="flex:1;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px;font-family:inherit" placeholder="Nombre variedad">
+        <input type="number" value="${v.price}" step="100" onchange="editVariant('${cat}','${sub}',${i},${vi},'price',this.value)" style="width:72px;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px">
+        <label class="ts3" title="Activa"><input type="checkbox" ${v.active!==false?'checked':''} onchange="editVariant('${cat}','${sub}',${i},${vi},'active',this.checked)"><span class="tsl"></span></label>
+        <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delVariant('${cat}','${sub}',${i},${vi})"><i class="ti ti-trash" style="font-size:11px"></i></button>
       </div>`).join('')}
-      <button class="btn-add-sm" style="margin-top:3px;font-size:10px;padding:4px 9px" onclick="addVariant('${aCartaCat}','${sub}',${i})"><i class="ti ti-plus" style="font-size:10px"></i> Variedad</button>
+      <button class="btn-add-sm" style="margin-top:3px;font-size:10px;padding:4px 9px" onclick="addVariant('${cat}','${sub}',${i})"><i class="ti ti-plus" style="font-size:10px"></i> Variedad</button>
     </td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>`;
+    });
+    if(catHasResult){
+      if(aCartaCat==='Todos')html+=`<div style="font-size:14px;font-weight:700;color:var(--bd);font-family:'Playfair Display',serif;margin:.9rem 0 .1rem;border-bottom:2px solid var(--bm)30;padding-bottom:2px">${cat}</div>`;
+      html+=catHtml;
+    }
   });
   if(!anyResult)html+='<div class="noo"><i class="ti ti-search" aria-hidden="true"></i><p>Sin resultados</p></div>';
   $('cartaMain').innerHTML=html;
@@ -3508,7 +3544,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v22 (cocina mas grande + variantes Jugo/Smoothie/Alfajor)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v23 (carta: Todos + Bebidas Calientes + Sándwiches con extras)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3600,6 +3636,7 @@ function applyRemoteState(data){
     if(s.menu&&typeof s.menu==='object'){
       Object.keys(menuData).forEach(k=>delete menuData[k]);
       Object.entries(s.menu).forEach(([cat,subs])=>{ menuData[cat]=subs; });
+      _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
     /* Recetas: misma sincronización instantánea por estado global */
     if(s.recipes&&typeof s.recipes==='object'){
