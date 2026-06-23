@@ -251,7 +251,7 @@ button:active{transform:scale(.97)}
 .on{font-size:12px;font-weight:600}
 .os{font-size:11px;color:var(--ts);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ot{font-size:13px;font-weight:700;color:var(--bm);white-space:nowrap}
-.ob{font-size:10px;padding:2px 6px;border-radius:20px;font-weight:600}
+.ob{font-size:13px;padding:4px 10px;border-radius:20px;font-weight:700}
 .ob-pending{background:#FDF5E0;color:var(--wn)}.ob-preparing{background:#E8F0F8;color:var(--inf)}.ob-ready{background:#EEF5E8;color:var(--ok)}.ob-canceled{background:#FEF0F0;color:var(--er)}
 .noo{text-align:center;padding:1.5rem;color:var(--tl)}
 .noo i{font-size:32px;display:block;margin-bottom:6px}
@@ -294,20 +294,20 @@ button:active{transform:scale(.97)}
 .acc-opt:hover{background:var(--cr2);border-color:var(--bm)}
 .acc-opt .acc-name{font-size:13px;font-weight:600;flex:1}
 .acc-opt .acc-total{font-size:13px;font-weight:700;color:var(--bm)}
-.kcH{padding:8px 10px;background:var(--cr2);display:flex;align-items:center;justify-content:space-between}
-.ktn{font-size:15px;font-weight:700;font-family:'Playfair Display',serif;color:var(--bd)}
-.kw{font-size:10px;color:var(--ts)}.ktm{font-size:10px;font-weight:600;color:var(--inf);background:#E8F0F8;padding:2px 7px;border-radius:20px}
-.ki{padding:8px 10px}
-.ki-row{display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-bottom:1px solid var(--cr2)}
+.kcH{padding:12px 14px;background:var(--cr2);display:flex;align-items:center;justify-content:space-between}
+.ktn{font-size:21px;font-weight:700;font-family:'Playfair Display',serif;color:var(--bd)}
+.kw{font-size:13px;color:var(--ts)}.ktm{font-size:12px;font-weight:600;color:var(--inf);background:#E8F0F8;padding:3px 9px;border-radius:20px}
+.ki{padding:12px 14px}
+.ki-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--cr2)}
 .ki-row:last-child{border-bottom:none}
-.kck{width:20px;height:20px;border:1.5px solid var(--br);border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.kck{width:30px;height:30px;border:2px solid var(--br);border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
 .kck.done{background:var(--ok);border-color:var(--ok);color:var(--wh)}
-.kn{flex:1;font-size:12px}.kn.done{text-decoration:line-through;color:var(--tl)}
-.ki-note{font-size:10px;color:var(--wn);background:#FDF5E0;padding:1px 5px;border-radius:5px;display:inline-block;margin-top:2px}
-.kac{padding:7px 10px;border-top:1px solid var(--cr2);display:flex;gap:5px}
-.bks{flex:1;padding:8px;background:var(--inf);color:var(--wh);border:none;border-radius:var(--r);cursor:pointer;font-size:11px;font-weight:700}
-.bkr{flex:1;padding:8px;background:var(--ok);color:var(--wh);border:none;border-radius:var(--r);cursor:pointer;font-size:11px;font-weight:700}
-.bkd{padding:8px 10px;background:var(--er);color:var(--wh);border:none;border-radius:var(--r);cursor:pointer;font-size:11px;font-weight:700}
+.kn{flex:1;font-size:16px;font-weight:600}.kn.done{text-decoration:line-through;color:var(--tl)}
+.ki-note{font-size:12px;color:var(--wn);background:#FDF5E0;padding:2px 7px;border-radius:5px;display:inline-block;margin-top:3px}
+.kac{padding:11px 14px;border-top:1px solid var(--cr2);display:flex;gap:8px}
+.bks{flex:1;padding:13px;background:var(--inf);color:var(--wh);border:none;border-radius:var(--r);cursor:pointer;font-size:15px;font-weight:700}
+.bkr{flex:1;padding:13px;background:var(--ok);color:var(--wh);border:none;border-radius:var(--r);cursor:pointer;font-size:15px;font-weight:700}
+.bkd{padding:13px 16px;background:var(--er);color:var(--wh);border:none;border-radius:var(--r);cursor:pointer;font-size:15px;font-weight:700}
 
 /* ─── CAJA ─── */
 .caja-card{background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);padding:.9rem;margin-bottom:8px}
@@ -837,6 +837,12 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
 </div></div>
 
+<div class="ov" id="variantModal"><div class="mb">
+  <h3 id="variantTitle">Elige una opción</h3>
+  <div id="variantOptions" style="display:flex;flex-direction:column;gap:8px;margin:10px 0"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;variantModal&#39;)">Cancelar</button></div>
+</div></div>
+
 <div class="ov" id="assignClientModal"><div class="mb">
   <h3>Asignar cliente a la mesa</h3>
   <div class="form-item"><label>Cliente</label><select id="assignClientSel" onchange="renderClientPendings()" style="width:100%;padding:9px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"></select></div>
@@ -1026,14 +1032,15 @@ const menuData={
     'Base Café':[{name:'Tónica de Azahar',price:4500,active:true,area:'Barra'},{name:'Latte en el Jardín',price:4200,active:true,area:'Barra'},{name:'Vainilla de Dorian Gray',price:4800,active:true,area:'Barra'},{name:'Caramelo de Gatsby',price:4800,active:true,area:'Barra'},{name:'Moka del Infinito',price:4800,active:true,area:'Barra'},{name:'Bombón de Macondo',price:4800,active:true,area:'Barra'},{name:'Affogato de Verona',price:5200,active:true,area:'Barra'},{name:'El Glacé de Madame',price:5500,active:true,area:'Barra'},{name:'Irish de Ulises',price:5500,active:true,area:'Barra'}],
     'Base Té':[{name:'Té del Faro',price:3900,active:true,area:'Barra'},{name:'Mango del Horizonte',price:4800,active:true,area:'Barra'},{name:'Sombras de Delhi',price:4900,active:true,area:'Barra'},{name:'Susurro de Verano',price:5200,active:true,area:'Barra'},{name:'Verde de Estambul',price:4500,active:true,area:'Barra'}],
     'Matcha':[{name:'Cielos de Osaka',price:5500,active:true,area:'Barra'},{name:'Ecos de Nara',price:5500,active:true,area:'Barra'},{name:'Jardín de Kioto',price:5200,active:true,area:'Barra'},{name:'Bosque Esmeralda',price:5500,active:true,area:'Barra'},{name:'Matcha en el País de las Maravillas',price:5500,active:true,area:'Barra'}],
-    'Frutas':[{name:'Jugos del Jardín Secreto',price:3900,active:true,area:'Barra'},{name:'Smoothies del Alba',price:4800,active:true,area:'Barra'},{name:'Malteadas de Ensueño',price:5500,active:true,area:'Barra'},{name:'Jamaica Berries',price:4800,active:true,area:'Barra'}],
+    'Frutas':[{name:'Jugo',price:3900,active:true,area:'Barra',isVariant:true,variants:[{name:'Jugo de Naranja',price:3900,active:true},{name:'Jugo de Frutilla',price:3900,active:true},{name:'Jugo de Piña',price:4200,active:true},{name:'Jugo de Maracuyá',price:4200,active:true}]},{name:'Smoothie',price:4800,active:true,area:'Barra',isVariant:true,variants:[{name:'Smoothie de Frutilla',price:4800,active:true},{name:'Smoothie de Mango',price:4800,active:true},{name:'Smoothie de Berries',price:5200,active:true}]},{name:'Malteadas de Ensueño',price:5500,active:true,area:'Barra'},{name:'Jamaica Berries',price:4800,active:true,area:'Barra'}],
     'Limonadas':[{name:'Limonada Clásica',price:3900,active:true,area:'Barra'},{name:'Limonada Jengibre',price:4200,active:true,area:'Barra'},{name:'Limonada Menta',price:4200,active:true,area:'Barra'},{name:'Limonada Frambuesa',price:4800,active:true,area:'Barra'},{name:'Limonada Arándano',price:4800,active:true,area:'Barra'},{name:'Limonada Menta Jengibre',price:4800,active:true,area:'Barra'}],
     'Otros':[{name:'Ginger Beer 330cc',price:3900,active:true,area:'Barra'},{name:'Bebida 330cc',price:2200,active:true,area:'Barra'},{name:'Bebida 500cc',price:2700,active:true,area:'Barra'},{name:'Agua Mineral',price:1200,active:true,area:'Barra'}]
   },
   'Platos':{
     'Tostadas':[{name:'Tostadas Clásicas',price:3500,active:true,area:'Desayunos',desc:'Con huevo revuelto'},{name:'Tostadas Jamón Colonial',price:4200,active:true,area:'Desayunos',desc:'Con huevo revuelto + jamón colonial'},{name:'Tostadas Tocino',price:4500,active:true,area:'Desayunos',desc:'Con huevo revuelto + tocino'},{name:'Tostadas Queso Mantecoso',price:4200,active:true,area:'Desayunos',desc:'Con huevo revuelto + queso mantecoso'},{name:'Tostadas Queso de Cabra',price:4500,active:true,area:'Desayunos',desc:'Con huevo revuelto + queso de cabra'},{name:'Tostadas Tomate Fresco',price:4200,active:true,area:'Desayunos',desc:'Con huevo revuelto + tomate fresco'},{name:'Tostadas Champiñones',price:4500,active:true,area:'Desayunos',desc:'Con huevo revuelto + champiñones'}],
     'Sándwich':[{name:'Sándwich 2 ingredientes',price:4900,active:true,isSandwich:true,sandwichMax:2,area:'Cocina'},{name:'Sándwich 3 ingredientes',price:5900,active:true,isSandwich:true,sandwichMax:3,area:'Cocina'},{name:'Sándwich 4 ingredientes',price:6900,active:true,isSandwich:true,sandwichMax:4,area:'Cocina'}],
-    'Pastelería':[{name:'Pastelería del Día',price:2500,active:true,area:'Cocina'}]
+    'Pastelería':[{name:'Pastelería del Día',price:2500,active:true,area:'Cocina'}],
+    'Alfajores':[{name:'Alfajor',price:2000,active:true,area:'Barra',isVariant:true,variants:[{name:'Alfajor de Maicena',price:2000,active:true},{name:'Alfajor de Chocolate',price:2200,active:true},{name:'Alfajor de Manjar',price:2200,active:true}]}]
   },
   'Pizzas':{'Pizzas':[{name:'Pizza Tradicional',price:6000,active:true,isPizza:true,pizzaType:'tradicional',area:'Cocina'},{name:'Pizza Vegana',price:7500,active:true,isPizza:true,pizzaType:'vegana',area:'Cocina'}]},
   'Extras':{'Adicionales':[{name:'Para llevar',price:300,active:true,area:'Barra'},{name:'Café Descafeinado',price:500,active:true,area:'Barra'},{name:'Bebida Vegetal',price:500,active:true,area:'Barra'},{name:'Extra Chantilly',price:500,active:true,area:'Barra'},{name:'Shot Espresso',price:700,active:true,area:'Barra'},{name:'Ingrediente Extra',price:900,active:true,area:'Cocina'},{name:'Salsa Adicional',price:1500,active:true,area:'Cocina'}]},
@@ -1468,12 +1475,12 @@ function renderMenuItems(){
     let found=[];
     Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
     html=found.length
-      ?`<div class="mi-grid">${found.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div>${item.desc?`<div class="mi-desc" style="font-size:10px;color:var(--ts);margin:1px 0 2px;line-height:1.2">${item.desc}</div>`:''}<div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div>`
+      ?`<div class="mi-grid">${found.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div>${item.desc?`<div class="mi-desc" style="font-size:10px;color:var(--ts);margin:1px 0 2px;line-height:1.2">${item.desc}</div>`:''}<div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${item.isVariant?'<div class="mi-tag" style="background:#F3ECE0;color:var(--bm)">Elige variedad</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div>`
       :`<div style="color:var(--tl);text-align:center;padding:1rem;font-size:12px">Sin resultados para "${q}"</div>`;
   }else{
     Object.entries(menuData[aMenuCat]).forEach(([sec,items])=>{
       const a=items.filter(i=>i.active);if(!a.length)return;
-      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div>${item.desc?`<div class="mi-desc" style="font-size:10px;color:var(--ts);margin:1px 0 2px;line-height:1.2">${item.desc}</div>`:''}<div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div></div>`;
+      html+=`<div class="ms"><h3>${sec}</h3><div class="mi-grid">${a.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div>${item.desc?`<div class="mi-desc" style="font-size:10px;color:var(--ts);margin:1px 0 2px;line-height:1.2">${item.desc}</div>`:''}<div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${item.isVariant?'<div class="mi-tag" style="background:#F3ECE0;color:var(--bm)">Elige variedad</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div></div>`;
     });
   }
   $('menuItems').innerHTML=html;
@@ -1484,6 +1491,7 @@ function addItem(item){
   if(item.isPizza){openPM(item);return;}
   if(item.isToast){openToastModal(item);return;}
   if(item.isSandwich){openSM(item);return;}
+  if(item.isVariant){openVariantModal(item);return;}
   const ex=cart.find(c=>c.name===item.name&&!c.isPizza&&!c.isToast&&!c.isSandwich&&!c.note);
   if(ex)ex.qty++;else cart.push({name:item.name,price:item.price,qty:1,detail:item.detail||'',note:''});
   renderCart();showToast(item.name+' agregado','ok');
@@ -1742,6 +1750,54 @@ function tPI(el,n){el.classList.toggle('sel');pIngs=el.classList.contains('sel')
 function tPS(el,n){document.querySelectorAll('#pSauces .chip').forEach(c=>c.classList.remove('sel'));pSauce=pSauce===n?null:n;if(pSauce)el.classList.add('sel');updPP(pType==='vegana'?7500:6000);}
 function updPP(base){const ex=Math.max(0,pIngs.length-3)*900,sc=pSauce?1500:0;$('pIngCnt').textContent=pIngs.length+' ingrediente'+(pIngs.length!==1?'s':'');$('pExtra').textContent=pIngs.length>3?`${pIngs.length-3} extra = +${fmt(ex)}`:'Primeros 3 incluidos';$('pTotal').textContent=fmt(base+ex+sc);}
 function confirmPizza(){const base=pType==='vegana'?7500:6000,ex=Math.max(0,pIngs.length-3)*900,sc=pSauce?1500:0;cart.push({name:pType==='vegana'?'Pizza Vegana':'Pizza Tradicional',price:base+ex+sc,qty:1,detail:[...pIngs,pSauce?'+ Salsa '+pSauce:''].filter(Boolean).join(', ')||'Sin extras',isPizza:true,note:''});closeMod('pizzaModal');renderCart();showToast('Pizza agregada','ok');}
+
+/* ════════ VARIANTES (Jugos / Smoothies / Alfajores — estilo "elige una opción") ════════ */
+function openVariantModal(item){
+  $('variantTitle').textContent='Elige: '+item.name;
+  const vars=(item.variants||[]).filter(v=>v.active!==false);
+  $('variantOptions').innerHTML = vars.length
+    ? vars.map(v=>`<button class="acc-opt" style="width:100%" onclick="addVariantToCart('${v.name.replace(/'/g,String.fromCharCode(39))}',${v.price})">
+        <span class="acc-name">${v.name}</span><span class="acc-total">${fmt(v.price)}</span>
+      </button>`).join('')
+    : `<div style="font-size:12px;color:var(--tl);text-align:center;padding:8px">Sin variedades disponibles</div>`;
+  openMod('variantModal');
+}
+function addVariantToCart(name,price){
+  const ex=cart.find(c=>c.name===name&&!c.note);
+  if(ex)ex.qty++;else cart.push({name,price,qty:1,detail:'',note:''});
+  closeMod('variantModal');renderCart();showToast(name+' agregado','ok');
+}
+/* Crea la variedad en Inventario si no existe (sincronización Carta→Inventario en tiempo real) */
+function _ensureInvForVariant(name,sub,area){
+  if(!name)return;
+  if(!inventoryItems.find(x=>x.name.toLowerCase()===name.toLowerCase())){
+    inventoryItems.push({name,cat:sub,stock:50,unit:'un',min:5,area:area||''});
+    if(_sb)_invUpsert([{name,cat:sub,stock:50,unit:'un',min_stock:5,area:area||null,updated_at:new Date().toISOString()}]).then(()=>{});
+  }
+}
+/* CRUD de variedades desde la Carta (admin) — sincroniza con estado global e inventario */
+function addVariant(cat,sub,i){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  if(!item.variants)item.variants=[];
+  const nv={name:item.name+' '+(item.variants.length+1),price:item.price,active:true};
+  item.variants.push(nv);
+  _ensureInvForVariant(nv.name,sub,item.area);
+  _cartaUpsertItem(cat,sub,item);broadcastState();showToast('Variedad agregada','ok');renderCarta();renderInv&&renderInv();
+}
+function editVariant(cat,sub,i,vi,field,value){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item||!item.variants||!item.variants[vi])return;
+  const v=item.variants[vi];
+  if(field==='price')v.price=parseInt(value)||0;
+  else if(field==='active')v.active=!!value;
+  else { v[field]=value; if(field==='name')_ensureInvForVariant(value,sub,item.area); }
+  _cartaUpsertItem(cat,sub,item);broadcastState();showToast('Variedad actualizada','ok');
+  if(field==='name')renderCarta();
+}
+function delVariant(cat,sub,i,vi){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item||!item.variants)return;
+  item.variants.splice(vi,1);
+  _cartaUpsertItem(cat,sub,item);broadcastState();showToast('Variedad eliminada','del');renderCarta();
+}
 
 /* ── SANDWICH INGREDIENT MODAL ── */
 const SANDWICH_INGREDIENTS = [
@@ -2724,7 +2780,7 @@ function renderCarta(){
       <td>
         <div style="display:flex;align-items:center;gap:3px">
           <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${aCartaCat}','${sub}',${i},this.value)" style="font-weight:600;font-size:11px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
-          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
+          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
         <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${aCartaCat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
         <select onchange="moveCartaSub('${aCartaCat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:9px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin-top:2px;padding:1px 3px;max-width:140px">${_subSelHtml(sub)}</select>
@@ -2732,7 +2788,16 @@ function renderCarta(){
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${aCartaCat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
       <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${aCartaCat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
       <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${aCartaCat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
-    </tr>`;
+    </tr>${item.isVariant?`<tr><td colspan="4" style="background:var(--cr);padding:6px 10px">
+      <div style="font-size:10px;font-weight:700;color:var(--bm);margin-bottom:5px"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Variedades de "${item.name}"</div>
+      ${(item.variants||[]).map((v,vi)=>`<div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
+        <input type="text" value="${(v.name||'').replace(/"/g,'&quot;')}" onchange="editVariant('${aCartaCat}','${sub}',${i},${vi},'name',this.value)" style="flex:1;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px;font-family:inherit" placeholder="Nombre variedad">
+        <input type="number" value="${v.price}" step="100" onchange="editVariant('${aCartaCat}','${sub}',${i},${vi},'price',this.value)" style="width:72px;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px">
+        <label class="ts3" title="Activa"><input type="checkbox" ${v.active!==false?'checked':''} onchange="editVariant('${aCartaCat}','${sub}',${i},${vi},'active',this.checked)"><span class="tsl"></span></label>
+        <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delVariant('${aCartaCat}','${sub}',${i},${vi})"><i class="ti ti-trash" style="font-size:11px"></i></button>
+      </div>`).join('')}
+      <button class="btn-add-sm" style="margin-top:3px;font-size:10px;padding:4px 9px" onclick="addVariant('${aCartaCat}','${sub}',${i})"><i class="ti ti-plus" style="font-size:10px"></i> Variedad</button>
+    </td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>`;
   });
@@ -3054,15 +3119,15 @@ function renderKitchen(){
         </div>
       </div>
       <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row">
-        ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
-        <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:10px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:9px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
+        ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
+        <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
       </div>`).join('')}</div>
       <div class="kac">
-        ${o.status==='pending'?`<button class="bks" onclick="kStart('${o.id}')"><i class="ti ti-player-play" style="font-size:11px" aria-hidden="true"></i> Iniciar</button>`:''}
-        ${o.status==='preparing'?`<button class="bkr" onclick="kReady('${o.id}')"><i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i> Completado</button>`:''}
-        ${o.status==='ready'?`<div style="flex:1;text-align:center;font-size:11px;color:var(--ok);font-weight:700"><i class="ti ti-check-circle" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Listo para servir</div>`:''}
-        ${o.status==='canceled'?`<div style="flex:1;text-align:center;font-size:11px;color:var(--er);font-weight:700"><i class="ti ti-x-circle" style="font-size:13px;vertical-align:-1px" aria-hidden="true"></i> Cancelado por Cocina</div>`:''}
-        <button class="bkd" onclick="kDel('${o.id}')" style="${o.status==='canceled'?'background:var(--er);color:#fff':''}" title="${o.status==='canceled'?'Eliminar de cocina':'Eliminar de cocina'}"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>
+        ${o.status==='pending'?`<button class="bks" onclick="kStart('${o.id}')"><i class="ti ti-player-play" style="font-size:15px" aria-hidden="true"></i> Iniciar</button>`:''}
+        ${o.status==='preparing'?`<button class="bkr" onclick="kReady('${o.id}')"><i class="ti ti-check" style="font-size:15px" aria-hidden="true"></i> Completado</button>`:''}
+        ${o.status==='ready'?`<div style="flex:1;text-align:center;font-size:15px;color:var(--ok);font-weight:700"><i class="ti ti-check-circle" style="font-size:17px;vertical-align:-2px" aria-hidden="true"></i> Listo para servir</div>`:''}
+        ${o.status==='canceled'?`<div style="flex:1;text-align:center;font-size:15px;color:var(--er);font-weight:700"><i class="ti ti-x-circle" style="font-size:17px;vertical-align:-2px" aria-hidden="true"></i> Cancelado por Cocina</div>`:''}
+        <button class="bkd" onclick="kDel('${o.id}')" style="${o.status==='canceled'?'background:var(--er);color:#fff':''}" title="${o.status==='canceled'?'Eliminar de cocina':'Eliminar de cocina'}"><i class="ti ti-trash" style="font-size:15px" aria-hidden="true"></i> Eliminar</button>
       </div>
     </div>`;
   }).join('');
@@ -3443,7 +3508,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v21 (anti-cache: misma version para todos los roles/dispositivos)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v22 (cocina mas grande + variantes Jugo/Smoothie/Alfajor)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
