@@ -2,6 +2,10 @@
 <html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- Anti-caché: fuerza a los dispositivos a cargar siempre la última versión (evita que garzones/cocina queden con una versión vieja) -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>EcoNativo POS</title>
 <!-- Google Fonts: DM Sans + Playfair Display -->
 <style>/* Google Fonts */
@@ -3439,7 +3443,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v20 (tachado cocina por item.kdone - fin de colisiones)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v21 (anti-cache: misma version para todos los roles/dispositivos)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
