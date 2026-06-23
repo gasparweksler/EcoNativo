@@ -612,9 +612,15 @@ button:active{transform:scale(.97)}
       <!-- DASHBOARD -->
       <div class="page" id="page-dashboard">
         <div class="sg" id="adminStats"></div>
-        <!-- Emergencias de Stock: alertas de inventario crítico (stock <= mínimo) -->
-        <div id="stockAlerts"></div>
-        <div class="ol-wrap"><div class="ol-hdr"><h3>Pedidos activos</h3><span id="actCount" style="font-size:11px;color:var(--ts)"></span></div><div id="adminOrdersList"></div></div>
+        <!-- Dos columnas: izquierda Pedidos activos (ancho), derecha Emergencias de Stock (angosto) -->
+        <div class="dash-cols" style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div class="ol-wrap" style="flex:1 1 460px;min-width:0">
+            <div class="ol-hdr"><h3>Pedidos activos</h3><span id="actCount" style="font-size:11px;color:var(--ts)"></span></div>
+            <div id="adminOrdersList"></div>
+          </div>
+          <!-- Emergencias de Stock: columna angosta a la derecha -->
+          <div id="stockAlerts" style="flex:0 1 320px;min-width:260px"></div>
+        </div>
       </div>
 
       <!-- CLIENTES -->
@@ -3434,7 +3440,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v18 (detalle de pedido en recuadro de mesa ocupada)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v19 (dashboard 2 columnas: pedidos | emergencias)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
