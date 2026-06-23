@@ -1257,13 +1257,22 @@ function renderTables(){
     /* Color por estado de cocina (sincronizado vía Realtime: renderTables se re-ejecuta en cada cambio) */
     const kc=_tableKitchenColor(t.id);
     const kStyle=kc?`background:${kc.bg};border-color:${kc.br}`:'';
+    /* Historial del pedido: detalle de ítems (solo mesas ocupadas / con pedido) */
+    const allItems=ords.concat(canceledOrders).flatMap(o=>o.items||[]);
+    const detailHTML=allItems.length?`<div style="margin-top:5px;border-top:1px dashed ${kc?kc.br+'66':'var(--br)'};padding-top:4px;text-align:left">
+      ${allItems.map(it=>`<div style="font-size:10px;color:var(--ts);display:flex;justify-content:space-between;gap:6px;padding:1px 0">
+        <span>${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.note?` <span style="font-style:italic;color:var(--tl)">(${it.note})</span>`:''}</span>
+        <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
+      </div>`).join('')}
+    </div>`:'';
     return `<div class="tc ${st}" onclick="tableClick(${t.id})" style="${kStyle}">
       <div class="tn">${t.id}</div>
       <div class="ts2 ${sc}"><span class="dot ${dc}"></span>${sl}</div>
       ${kc?`<div style="font-size:10px;font-weight:700;color:${kc.br};margin-top:2px">${kc.label}</div>`:''}
       ${accounts.map(n=>`<div style="font-size:10px;color:var(--ts);margin-top:2px">${n}</div>`).join('')}
       ${primary&&primary.items.length?`<div style="font-size:10px;color:var(--inf);margin-top:1px"><i class="ti ti-clock" style="font-size:9px" aria-hidden="true"></i> ${elapsed(primary.time)}</div>`:``}
-      ${primary&&primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:1px">${fmt(ords.concat(canceledOrders).reduce((s,o)=>s+oTotal(o),0))}</div>`:``}
+      ${detailHTML}
+      ${primary&&primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:3px">Total: ${fmt(ords.concat(canceledOrders).reduce((s,o)=>s+oTotal(o),0))}</div>`:``}
       ${canceledOrders.length?`<div style="font-size:10px;color:var(--er);margin-top:2px"><i class="ti ti-x-circle" style="font-size:9px"></i> cobro pendiente</div>`:''}
     </div>`;
   }).join('');
@@ -3425,7 +3434,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v17 (colores pipeline Inicio + fix tachado cocina)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v18 (detalle de pedido en recuadro de mesa ocupada)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
