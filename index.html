@@ -829,7 +829,9 @@ button:active{transform:scale(.97)}
 
 <div class="ov" id="assignClientModal"><div class="mb">
   <h3>Asignar cliente a la mesa</h3>
-  <div class="form-item"><label>Cliente</label><select id="assignClientSel" style="width:100%;padding:9px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"></select></div>
+  <div class="form-item"><label>Cliente</label><select id="assignClientSel" onchange="renderClientPendings()" style="width:100%;padding:9px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"></select></div>
+  <!-- Pendientes a entregar del cliente (pagados con anticipación) -->
+  <div id="assignClientPendings"></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;assignClientModal&#39;)">Cancelar</button><button class="bc2" onclick="confirmAssignClient()">Asignar</button></div>
 </div></div>
 
@@ -1227,6 +1229,22 @@ function goPage(id){
 function updateOCBadge(){const a=orders.filter(o=>o.status!=='closed').length;$('ocBadge').textContent=a>0?`#${totalOrdsIn} órd.`:'';}
 
 /* ── TABLES ── */
+/* Estado del flujo de cocina de una mesa → color de fondo del recuadro.
+   Prioridad: sin-cobrar (retirado/cancelado) > listo > preparando > pendiente. */
+function _tableKitchenColor(tableId){
+  const act=orders.filter(o=>o.tableId===tableId&&o.status!=='closed');
+  if(!act.length)return null;
+  const sinCobrar=act.some(o=>o.kitchenHidden||o.status==='canceled');
+  const ready    =act.some(o=>o.status==='ready'&&!o.kitchenHidden);
+  const preparing=act.some(o=>o.status==='preparing'&&!o.kitchenHidden);
+  const pending  =act.some(o=>o.status==='pending'&&!o.kitchenHidden);
+  /* {fondo, borde, texto} — coherentes con el resto de la app */
+  if(sinCobrar)return {bg:'#FFE3E3',br:'#FF6B6B',label:'Sin cobrar'};   /* rojo suave */
+  if(ready)    return {bg:'#E3F6E8',br:'#28A745',label:'Listo'};        /* verde */
+  if(preparing)return {bg:'#E3EEFB',br:'#4A90E2',label:'En preparación'}; /* azul */
+  if(pending)  return {bg:'#FFF1DD',br:'#FFA500',label:'Pendiente'};    /* ámbar */
+  return null;
+}
 function renderTables(){
   $('tablesGrid').innerHTML=tables.map(t=>{
     const ords=orders.filter(ord=>ord.tableId===t.id&&ord.status!=='closed'&&ord.status!=='canceled');
@@ -1236,9 +1254,13 @@ function renderTables(){
     const stMap={free:['s-free','Libre','dot-free'],occupied:['s-occ','Ocupada','dot-occ'],canceled:['s-pen','Cancelado','dot-pen']};
     const [sc,sl,dc]=stMap[st];
     const accounts=ords.concat(canceledOrders).map(o=>o.clientName||o.waiter).filter((v,i,a)=>a.indexOf(v)===i);
-    return `<div class="tc ${st}" onclick="tableClick(${t.id})">
+    /* Color por estado de cocina (sincronizado vía Realtime: renderTables se re-ejecuta en cada cambio) */
+    const kc=_tableKitchenColor(t.id);
+    const kStyle=kc?`background:${kc.bg};border-color:${kc.br}`:'';
+    return `<div class="tc ${st}" onclick="tableClick(${t.id})" style="${kStyle}">
       <div class="tn">${t.id}</div>
       <div class="ts2 ${sc}"><span class="dot ${dc}"></span>${sl}</div>
+      ${kc?`<div style="font-size:10px;font-weight:700;color:${kc.br};margin-top:2px">${kc.label}</div>`:''}
       ${accounts.map(n=>`<div style="font-size:10px;color:var(--ts);margin-top:2px">${n}</div>`).join('')}
       ${primary&&primary.items.length?`<div style="font-size:10px;color:var(--inf);margin-top:1px"><i class="ti ti-clock" style="font-size:9px" aria-hidden="true"></i> ${elapsed(primary.time)}</div>`:``}
       ${primary&&primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:1px">${fmt(ords.concat(canceledOrders).reduce((s,o)=>s+oTotal(o),0))}</div>`:``}
@@ -1451,26 +1473,37 @@ function saveNote(){if(noteItemIdx>=0)cart[noteItemIdx].note=$('noteText').value
 function renderCart(){
   const el=$('cartItems');
   if(!el)return;
-  /* Si carrito vacío pero hay pedido activo con ítems → mostrar resumen "en cocina" */
+  /* ── Historial: ítems YA enviados a cocina (gris, detalle completo, pendiente de cobro) ── */
   const activeOrder=currentAccountId?getOrder(currentAccountId):null;
   const sentItems=activeOrder&&activeOrder.items&&activeOrder.items.length?activeOrder.items:[];
-  if(!cart.length&&sentItems.length){
-    const sentTotal=sentItems.reduce((s,i)=>s+i.price*i.qty,0);
-    el.innerHTML=
-      `<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 0">
-        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ok);font-weight:700">
-          <i class="ti ti-check-circle" style="font-size:16px"></i> Pedido enviado a cocina
-        </div>
-        <div style="font-size:11px;color:var(--ts);text-align:center">
-          ${sentItems.length} ítem${sentItems.length>1?'s':''} · ${fmt(sentTotal)}
-        </div>
-        <div style="font-size:10px;color:var(--tl);text-align:center">Toca un producto de la carta para agregarlo a este pedido</div>
-      </div>`;
-    $('cartSummary').innerHTML=`<div class="crow"><span>Total pedido</span><span style="color:var(--bm);font-weight:700">${fmt(sentTotal)}</span></div>`;
+  const sentTotal=sentItems.reduce((s,i)=>s+i.price*i.qty,0);
+  let historyHTML='';
+  if(sentItems.length){
+    historyHTML=`<div style="background:#F2F2F2;border:1px solid #DDD;border-radius:var(--rl);padding:8px 10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#888;margin-bottom:6px">
+        <i class="ti ti-checks" style="font-size:14px;color:#888"></i> Ya enviado a cocina · pendiente de cobro
+      </div>
+      ${sentItems.map(it=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#777;padding:3px 0;border-bottom:1px solid #E5E5E5">
+        <span>${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}${it.note?` <span style="font-size:9px;font-style:italic">— ${it.note}</span>`:''}</span>
+        <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#666;margin-top:5px">
+        <span>Total enviado</span><span>${fmt(sentTotal)}</span>
+      </div>
+    </div>`;
+  }
+  /* ── Carrito vacío: solo historial + invitación a agregar nuevos ── */
+  if(!cart.length){
+    el.innerHTML=historyHTML+(sentItems.length
+      ? `<div style="font-size:10px;color:var(--tl);text-align:center;padding:8px 0">Toca un producto de la carta para agregar más al pedido</div>`
+      : `<div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div>`);
+    $('cartSummary').innerHTML=sentItems.length?`<div class="crow"><span>Total pedido</span><span style="color:var(--bm);font-weight:700">${fmt(sentTotal)}</span></div>`:'';
+    if(!isMC&&cTable){const ex=currentAccountId?getOrder(currentAccountId):orders.find(o=>o.tableId===cTable.id&&o.status!=='closed'&&o.status!=='canceled');if(ex)_updateCobrarBtn(ex);}
     return;
   }
-  if(!cart.length){el.innerHTML='<div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div>';$('cartSummary').innerHTML='';return;}
-  el.innerHTML=cart.map((item,i)=>`<div class="cit">
+  /* ── Hay ítems NUEVOS en el carrito (solo estos se enviarán a cocina) ── */
+  const newHeader=sentItems.length?`<div style="font-size:11px;font-weight:700;color:var(--bm);margin:2px 0 4px"><i class="ti ti-plus" style="font-size:11px;vertical-align:-1px"></i> Nuevos por enviar</div>`:'';
+  el.innerHTML=historyHTML+newHeader+cart.map((item,i)=>`<div class="cit">
     <div class="ci-info">
       <div class="ci-name">${item.name}</div>
       ${item.detail?`<div class="ci-detail">${item.detail}</div>`:''}
@@ -2199,7 +2232,7 @@ function savePending(){
   showToast(editingPendingIdx>=0?'Pendiente actualizado':'Pendiente agregado','ok');
   closeMod('pendingModal');openClientDetail(currentClientId);
 }
-function togglePending(cid,pi){const c=clients.find(x=>x.id===cid);if(c){c.pendings[pi].done=!c.pendings[pi].done;openClientDetail(cid);}}
+function togglePending(cid,pi){const c=clients.find(x=>x.id===cid);if(c){c.pendings[pi].done=!c.pendings[pi].done;broadcastState();openClientDetail(cid);}}
 function deletePending(cid,pi){
   const c=clients.find(x=>x.id===cid);if(!c||!confirm('¿Eliminar este pendiente?'))return;
   c.pendings.splice(pi,1);showToast('Pendiente eliminado','del');openClientDetail(cid);
@@ -2599,6 +2632,37 @@ function openAssignClient(){
   const sel=$('assignClientSel');if(!sel)return;
   sel.innerHTML='<option value="">— Sin cliente —</option>'+clients.map(c=>`<option value="${c.id}"${order.clientId===c.id?' selected':''}>${c.name}</option>`).join('');
   openMod('assignClientModal');
+  renderClientPendings();
+}
+/* Pendientes a entregar del cliente seleccionado (pagados con anticipación).
+   Permite agregarlos al pedido de la mesa actual y los marca como entregados,
+   sincronizando con la sección Clientes (misma fuente: clients[].pendings). */
+function renderClientPendings(){
+  const box=$('assignClientPendings');if(!box)return;
+  const cid=$('assignClientSel')?.value;
+  const c=clients.find(x=>x.id===cid);
+  const pend=c?c.pendings.filter(p=>!p.done):[];
+  if(!c||!pend.length){box.innerHTML='';return;}
+  box.innerHTML=`<div style="background:#FDF5E0;border:1px solid var(--wn);border-radius:var(--r);padding:8px 10px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:700;color:var(--wn);margin-bottom:6px"><i class="ti ti-gift" style="font-size:13px;vertical-align:-1px"></i> Pendientes a entregar (ya pagados)</div>
+    ${c.pendings.map((p,pi)=>p.done?'':`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--ts);padding:3px 0;border-bottom:1px solid #EADFC0">
+      <span>${p.qty>1?p.qty+'× ':''}${p.desc}${p.val?` <span style="font-size:9px;color:var(--tl)">(${p.val})</span>`:''}</span>
+      <button onclick="addPendingToOrder('${c.id}',${pi})" style="font-size:10px;font-weight:700;color:#fff;background:var(--ok);border:none;border-radius:12px;padding:3px 9px;cursor:pointer;white-space:nowrap"><i class="ti ti-plus" style="font-size:10px"></i> Entregar</button>
+    </div>`).join('')}
+  </div>`;
+}
+/* Agrega un pendiente al pedido de la mesa (precio $0: ya fue pagado) y lo marca entregado. */
+function addPendingToOrder(cid,pi){
+  const order=orders.find(o=>o.id===currentAccountId);if(!order){showToast('Sin pedido activo');return;}
+  const c=clients.find(x=>x.id===cid);if(!c||!c.pendings[pi]||c.pendings[pi].done)return;
+  const p=c.pendings[pi];
+  /* Va al carrito como ítem $0 (ya pagado) para enviarse a cocina con el pedido */
+  cart.push({name:p.desc,price:0,qty:p.qty||1,detail:'Pendiente entregado (ya pagado)',note:''});
+  /* Marcar entregado → sincroniza con la sección Clientes (misma estructura de datos) */
+  p.done=true;
+  broadcastState();
+  renderClientPendings();renderCart();
+  showToast('Pendiente agregado al pedido','ok');
 }
 function confirmAssignClient(){
   const order=orders.find(o=>o.id===currentAccountId);if(!order)return;
@@ -2994,7 +3058,8 @@ function kStart(oid){
 }
 function kReady(oid){const o=getOrder(oid);if(o){o.status='ready';showBell('✅ Listo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));showToast('Pedido listo ✓','ok');renderKitchen();broadcastState();}}
 function kDel(oid){
-  if(!confirm('¿Eliminar de la vista de cocina? El pedido sigue activo para el administrador.'))return;
+  /* Eliminación instantánea de la vista de Cocina (sin confirmación).
+     La mesa/pedido sigue activo para Administrador y Garzones. */
   const o=getOrder(oid);if(!o)return;
   o.kitchenHidden=true;  /* marca solo para cocina */
   o.kitchenSeenCount=o.items.length;  /* ítems ya despachados: los nuevos reaparecerán solos */
@@ -3351,7 +3416,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v15 (mostrador descuenta + reposicion al cancelar + ajuste unificado)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v16 (colores mesa + historial pedidos + cocina sin confirm + pendientes cliente)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
