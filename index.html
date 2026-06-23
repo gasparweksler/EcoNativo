@@ -3036,9 +3036,9 @@ function renderKitchen(){
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
   $('kitchenGrid').innerHTML=active.map(o=>{
-    if(!kDone[o.id])kDone[o.id]=[];
-    /* Red de seguridad: ignorar índices fuera de rango (heredados de un id reutilizado) */
-    const done=kDone[o.id].filter(idx=>idx<o.items.length);const startIdx=o.kitchenSeenCount||0;
+    /* El "completado" se guarda en cada ítem (item.kdone): viaja con el pedido y nunca
+       colisiona entre instancias del mismo id. Por defecto undefined → NADA tachado al llegar. */
+    const startIdx=o.kitchenSeenCount||0;
     const statusLabels={pending:'Pendiente',preparing:'Preparando',ready:'Listo',canceled:'Cancelado'};
     return `<div class="kc ${o.status}">
       <div class="kcH">
@@ -3050,8 +3050,8 @@ function renderKitchen(){
         </div>
       </div>
       <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row">
-        ${o.status!=='canceled'?`<div class="kck ${done.includes(i)?'done':''}" onclick="tkI('${o.id}',${i})">${done.includes(i)?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
-        <div class="kn ${done.includes(i)?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:10px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:9px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
+        ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:11px" aria-hidden="true"></i>':''}</div>`:`<div style="width:20px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:13px" aria-hidden="true"></i></div>`}
+        <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:10px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:9px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
       </div>`).join('')}</div>
       <div class="kac">
         ${o.status==='pending'?`<button class="bks" onclick="kStart('${o.id}')"><i class="ti ti-player-play" style="font-size:11px" aria-hidden="true"></i> Iniciar</button>`:''}
@@ -3064,12 +3064,11 @@ function renderKitchen(){
   }).join('');
 }
 function tkI(oid,i){
-  if(!kDone[oid])kDone[oid]=[];
-  const d=kDone[oid];
-  const idx=d.indexOf(i);
-  if(idx>=0)d.splice(idx,1);else d.push(i);
+  /* Marca/desmarca el ítem como completado EN el propio ítem (viaja con el pedido) */
+  const o=getOrder(oid);if(!o||!o.items[i])return;
+  o.items[i].kdone=!o.items[i].kdone;
   renderKitchen();
-  broadcastState(); /* persiste kDone en Supabase via broadcastState → pushToSupabase */
+  broadcastState();
 }
 function kStart(oid){
   const o=getOrder(oid);if(!o)return;
@@ -3440,7 +3439,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v19 (dashboard 2 columnas: pedidos | emergencias)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v20 (tachado cocina por item.kdone - fin de colisiones)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
