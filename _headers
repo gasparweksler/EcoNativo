@@ -1,0 +1,6 @@
+# Cloudflare Pages: no cachear el HTML para que todos los dispositivos
+# (admin, garzón, cocina) carguen siempre la última versión desplegada.
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+/
+  Cache-Control: no-cache, no-store, must-revalidate
