@@ -966,7 +966,8 @@ let cRole='admin',cUser='',cTable=null,cart=[],isMC=false;
 let pType='',pIngs=[],pSauce=null;
 let sItem=null,sIngs=[],sMax=2;
 let aCartaCat='Todos';
-let cartaButtons=null; /* lista de categorías elegidas para mostrar como botones (null = todas) */
+let cartaButtons=null; /* categorías elegidas como botones en la Carta (null = todas) */
+let invButtons=null;   /* categorías elegidas como botones en Inventario (null = ninguna → empieza con pocas) */
 let aRecipeCat='Bebidas Calientes';
 let _cartaQ='';
 let _recipesQ='';
@@ -2902,23 +2903,37 @@ function saveNewCat(){
   aCartaCat=name; renderCarta();
   showToast('Categoría "'+name+'" creada','ok');
 }
-/* Elegir qué categorías/subcategorías aparecen como botones arriba de la Carta */
-function openCartaButtonsManager(){
-  const all=[...new Set([...Object.keys(menuData),...getSubcategorias()])].sort((a,b)=>a.localeCompare(b,'es'));
-  const current=new Set((Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons:Object.keys(menuData));
-  $('cartaButtonsList').innerHTML=all.map(n=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;font-size:14px;border-bottom:1px solid var(--cr2);cursor:pointer">
-    <input type="checkbox" value="${n.replace(/"/g,'&quot;')}" ${current.has(n)?'checked':''} style="width:18px;height:18px;accent-color:var(--bm)">
+/* Gestor de botones de categoría — sirve a Carta e Inventario según el contexto */
+let _btnMgrTarget='carta';
+function _openBtnMgr(target,allList,currentSet){
+  _btnMgrTarget=target;
+  $('cartaButtonsList').innerHTML=allList.map(n=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;font-size:14px;border-bottom:1px solid var(--cr2);cursor:pointer">
+    <input type="checkbox" value="${n.replace(/"/g,'&quot;')}" ${currentSet.has(n)?'checked':''} style="width:18px;height:18px;accent-color:var(--bm)">
     <span>${n}${menuData[n]?' <span style="font-size:10px;color:var(--ts)">(categoría)</span>':''}</span></label>`).join('');
   openMod('cartaButtonsModal');
 }
-function saveCartaButtons(){
+/* Carta: elige entre categorías top-level + subcategorías */
+function openCartaButtonsManager(){
+  const all=[...new Set([...Object.keys(menuData),...getSubcategorias()])].sort((a,b)=>a.localeCompare(b,'es'));
+  const current=new Set((Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons:Object.keys(menuData));
+  _openBtnMgr('carta',all,current);
+}
+/* Inventario: elige entre las categorías existentes en el inventario + subcategorías */
+function openInvButtonsManager(){
+  const all=[...new Set([...inventoryItems.map(x=>x.cat).filter(Boolean),...getSubcategorias()])].sort((a,b)=>a.localeCompare(b,'es'));
+  const current=new Set(Array.isArray(invButtons)?invButtons:[]);
+  _openBtnMgr('inv',all,current);
+}
+function saveCartaButtons(){ /* guardado: despacha según el contexto */
   const checked=[...document.querySelectorAll('#cartaButtonsList input:checked')].map(c=>c.value);
-  cartaButtons = checked.length?checked:null; /* nada marcado → vuelve al default (todas) */
-  /* Si la categoría activa ya no está como botón, volver a "Todos" (Carta e Inventario) */
-  if(aCartaCat!=='Todos' && cartaButtons && !cartaButtons.includes(aCartaCat))aCartaCat='Todos';
-  if(_invCat!=='' && cartaButtons && !cartaButtons.includes(_invCat))_invCat='';
+  if(_btnMgrTarget==='inv'){
+    invButtons = checked; /* lista propia de Inventario (vacía = solo "Todos") */
+    if(_invCat!=='' && !invButtons.includes(_invCat))_invCat='';
+  } else {
+    cartaButtons = checked.length?checked:null; /* nada marcado → default (todas) */
+    if(aCartaCat!=='Todos' && cartaButtons && !cartaButtons.includes(aCartaCat))aCartaCat='Todos';
+  }
   broadcastState();closeMod('cartaButtonsModal');
-  /* Refrescar ambas vistas: comparten la misma lista de botones */
   if(typeof renderCarta==='function')renderCarta();
   if(typeof renderInv==='function')renderInv();
   showToast('Botones actualizados','ok');
@@ -3012,13 +3027,13 @@ function renderInv(){
   }
   /* Category pills — MISMA lista configurable que la Carta (cartaButtons compartido).
      Si no hay configuración, por defecto muestra las categorías presentes en el inventario. */
-  const _invBtnList=(Array.isArray(cartaButtons)&&cartaButtons.length)
-    ? cartaButtons
-    : [...new Set(inventoryItems.map(x=>x.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  /* Botones de Inventario: lista propia y configurable. Por defecto empieza con pocas
+     (solo "Todos") y el admin elige cuáles ver con el botón de ajustes. */
+  const _invBtnList=(Array.isArray(invButtons))?invButtons:[];
   const pillsEl=$('invCatPills');
   if(pillsEl)pillsEl.innerHTML=`<button class="cp2 ${_invCat===''?'active':''}" onclick="_invCat='';renderInv()">Todos</button>`
     +_invBtnList.map(c=>`<button class="cp2 ${c===_invCat?'active':''}" onclick="_invCat='${c.replace(/'/g,String.fromCharCode(39))}';renderInv()">${c}</button>`).join('')
-    +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones (igual que en Carta)" onclick="openCartaButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
+    +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones" onclick="openInvButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
   const q=_invQ.toLowerCase().trim();
   let filtered=inventoryItems;
   if(_invCat)filtered=filtered.filter(x=>x.cat===_invCat);
@@ -3662,7 +3677,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v28 (categoria producto sincroniza Carta->Inventario + select subcategoria mas grande)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v29 (inventario: botones de categoria propios, empieza con pocas)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3691,6 +3706,7 @@ function getSerializableState(){
     menu:JSON.parse(JSON.stringify(menuData)),
     recipes:JSON.parse(JSON.stringify(recipes)),
     cartaButtons:cartaButtons,
+    invButtons:invButtons,
     ts:Date.now()
   });
 }
@@ -3758,6 +3774,7 @@ function applyRemoteState(data){
       _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
+    if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
     /* Alinear categorías de inventario con la Carta tras sincronizar */
     if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
