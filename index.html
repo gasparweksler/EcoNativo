@@ -2798,9 +2798,14 @@ function renderCarta(){
   const q=_cartaQ.toLowerCase().trim();
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
-  let html=`<div style="text-align:right;margin-bottom:.6rem;display:flex;gap:6px;justify-content:flex-end">
-    <button class="btn-add-sm" style="background:var(--bm)" onclick="openMod('addCatModal')"><i class="ti ti-folder-plus" style="font-size:11px" aria-hidden="true"></i> Categoría</button>
-    <button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button>
+  let html=`<div style="margin-bottom:.6rem;display:flex;gap:6px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:6px">${aCartaCat!=='Todos'?`
+      <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" onclick="renameCat()"><i class="ti ti-pencil" style="font-size:11px" aria-hidden="true"></i> Renombrar</button>
+      <button class="btn-add-sm" style="background:transparent;color:var(--er);border:1px solid var(--er)" onclick="delCat()"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>`:''}</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn-add-sm" style="background:var(--bm)" onclick="openMod('addCatModal')"><i class="ti ti-folder-plus" style="font-size:11px" aria-hidden="true"></i> Categoría</button>
+      <button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button>
+    </div>
   </div>`;
   let anyResult=false;
   /* "Todos" recorre todas las categorías; cada grupo usa SU categoría real (cat) */
@@ -2861,6 +2866,34 @@ function saveNewCat(){
   closeMod('addCatModal');
   aCartaCat=name; renderCarta();
   showToast('Categoría "'+name+'" creada','ok');
+}
+/* Renombrar la categoría seleccionada (preserva el orden y actualiza las recetas) */
+function renameCat(){
+  const old=aCartaCat;
+  if(!old||old==='Todos')return;
+  const nn=prompt('Nuevo nombre de la categoría:',old);
+  if(nn===null)return;
+  const name=nn.trim();
+  if(!name||name===old)return;
+  if(menuData[name]){showToast('Ya existe "'+name+'"','del');return;}
+  const rebuilt={};
+  Object.keys(menuData).forEach(k=>{ rebuilt[k===old?name:k]=menuData[k]; });
+  Object.keys(menuData).forEach(k=>delete menuData[k]);
+  Object.entries(rebuilt).forEach(([k,v])=>menuData[k]=v);
+  Object.values(recipes).forEach(r=>{ if(r&&r.cat===old)r.cat=name; });
+  aCartaCat=name;
+  broadcastState();renderCarta();showToast('Categoría renombrada','ok');
+}
+/* Eliminar la categoría seleccionada (con confirmación; el inventario no se toca) */
+function delCat(){
+  const cat=aCartaCat;
+  if(!cat||cat==='Todos')return;
+  const nProds=Object.values(menuData[cat]||{}).reduce((s,arr)=>s+(arr?arr.length:0),0);
+  const msg=nProds>0?`La categoría "${cat}" tiene ${nProds} producto(s). ¿Eliminarla junto con esos productos de la Carta?`:`¿Eliminar la categoría "${cat}"?`;
+  if(!confirm(msg))return;
+  delete menuData[cat];
+  aCartaCat='Todos';
+  broadcastState();renderCarta();showToast('Categoría eliminada','del');
 }
 /* Write-through best-effort de un ítem de carta a la tabla `menu` (igual patrón que _invUpsert).
    La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
@@ -3565,7 +3598,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v24 (agregar categorias desde la Carta)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v25 (agregar/renombrar/eliminar categorias en la Carta)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
