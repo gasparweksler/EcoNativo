@@ -2893,9 +2893,13 @@ function openCartaButtonsManager(){
 function saveCartaButtons(){
   const checked=[...document.querySelectorAll('#cartaButtonsList input:checked')].map(c=>c.value);
   cartaButtons = checked.length?checked:null; /* nada marcado → vuelve al default (todas) */
-  /* Si la categoría activa ya no está como botón, volver a "Todos" */
+  /* Si la categoría activa ya no está como botón, volver a "Todos" (Carta e Inventario) */
   if(aCartaCat!=='Todos' && cartaButtons && !cartaButtons.includes(aCartaCat))aCartaCat='Todos';
-  broadcastState();closeMod('cartaButtonsModal');renderCarta();
+  if(_invCat!=='' && cartaButtons && !cartaButtons.includes(_invCat))_invCat='';
+  broadcastState();closeMod('cartaButtonsModal');
+  /* Refrescar ambas vistas: comparten la misma lista de botones */
+  if(typeof renderCarta==='function')renderCarta();
+  if(typeof renderInv==='function')renderInv();
   showToast('Botones actualizados','ok');
 }
 /* Renombrar la categoría seleccionada (preserva el orden y actualiza las recetas) */
@@ -2982,10 +2986,15 @@ function renderInv(){
   if(Object.keys(_invSnapshot).length===0){
     inventoryItems.forEach(item=>{ _invSnapshot[item.name]=item.stock; });
   }
-  /* Category pills */
-  const cats=['', ...[...new Set(inventoryItems.map(x=>x.cat))].sort()];
+  /* Category pills — MISMA lista configurable que la Carta (cartaButtons compartido).
+     Si no hay configuración, por defecto muestra las categorías presentes en el inventario. */
+  const _invBtnList=(Array.isArray(cartaButtons)&&cartaButtons.length)
+    ? cartaButtons
+    : [...new Set(inventoryItems.map(x=>x.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
   const pillsEl=$('invCatPills');
-  if(pillsEl)pillsEl.innerHTML=cats.map(c=>`<button class="cp2 ${c===_invCat?'active':''}" onclick="_invCat='${c}';renderInv()">${c||'Todos'}</button>`).join('');
+  if(pillsEl)pillsEl.innerHTML=`<button class="cp2 ${_invCat===''?'active':''}" onclick="_invCat='';renderInv()">Todos</button>`
+    +_invBtnList.map(c=>`<button class="cp2 ${c===_invCat?'active':''}" onclick="_invCat='${c.replace(/'/g,String.fromCharCode(39))}';renderInv()">${c}</button>`).join('')
+    +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones (igual que en Carta)" onclick="openCartaButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
   const q=_invQ.toLowerCase().trim();
   let filtered=inventoryItems;
   if(_invCat)filtered=filtered.filter(x=>x.cat===_invCat);
@@ -3629,7 +3638,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v26 (botones de categoria configurables + desplegable mas grande)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v27 (botones de categoria configurables compartidos Carta+Inventario)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
