@@ -507,6 +507,10 @@ button:active{transform:scale(.97)}
       <div style="font-size:10px;color:rgba(255,255,255,.6)" id="ocBadge"></div>
       <span class="nb-badge" id="nbBadge"></span>
       <button class="blo" id="darkToggle" onclick="toggleDark()" title="Modo oscuro / claro"><i class="ti ti-moon" style="font-size:12px" aria-hidden="true"></i></button>
+      <div class="font-ctrl" title="Tamaño del texto" style="display:flex;align-items:center;gap:3px">
+        <button class="blo" onclick="setFontScale(-1)" title="Achicar texto" style="font-weight:700;font-size:11px;min-width:24px">A−</button>
+        <button class="blo" onclick="setFontScale(1)" title="Agrandar texto" style="font-weight:700;font-size:15px;min-width:24px">A+</button>
+      </div>
       <button class="blo" onclick="logout()"><i class="ti ti-logout" style="font-size:12px" aria-hidden="true"></i></button>
     </div>
   </nav>
@@ -1295,6 +1299,16 @@ function toggleDark(){
   _updateDarkIcon(on);
 }
 (function(){try{const on=localStorage.getItem('econativo_dark')==='1';if(on)document.body.classList.add('dark');document.addEventListener('DOMContentLoaded',()=>_updateDarkIcon(on));}catch(e){}})();
+/* ── TAMAÑO DEL TEXTO (escala el contenido manteniendo la fuente; por dispositivo) ── */
+let _fontScale=1;
+function _applyFontScale(){const mc=document.querySelector('.mc');if(mc)mc.style.zoom=_fontScale;}
+function setFontScale(dir){
+  _fontScale=Math.min(1.5,Math.max(0.8,Math.round((_fontScale+dir*0.1)*10)/10));
+  try{localStorage.setItem('econativo_fontscale',String(_fontScale));}catch(e){}
+  _applyFontScale();
+  showToast('Texto: '+Math.round(_fontScale*100)+'%','ok');
+}
+(function(){try{const s=parseFloat(localStorage.getItem('econativo_fontscale'));if(s>=0.8&&s<=1.5)_fontScale=s;}catch(e){}document.addEventListener('DOMContentLoaded',_applyFontScale);})();
 
 /* ── NAV ── */
 const TABS={
@@ -3838,7 +3852,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v35 (fix contraste modo noche: sidebar y mesas)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v36 (control de tamano de texto en sidebar)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
