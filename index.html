@@ -2697,8 +2697,29 @@ function moveCartaSub(cat,oldSub,i,newSub){
   if(!menuData[cat][newSub])menuData[cat][newSub]=[];
   menuData[cat][newSub].push(item);
   if(!arr.length)delete menuData[cat][oldSub];
+  /* Sincronizar la categoría del ítem de inventario vinculado (mismo nombre) y sus variantes */
+  _setInvCat(item.name,newSub);
+  if(item.isVariant&&Array.isArray(item.variants))item.variants.forEach(v=>_setInvCat(v.name,newSub));
   _cartaUpsertItem(cat,newSub,item);broadcastState();
   showToast('Subcategoría actualizada','ok');renderCarta();
+}
+/* Alinea la categoría de un ítem de inventario (por nombre) con la subcategoría de la Carta */
+function _setInvCat(name,sub){
+  const inv=inventoryItems.find(x=>x.name.toLowerCase()===(name||'').toLowerCase());
+  if(inv&&inv.cat!==sub){
+    inv.cat=sub;
+    if(_sb)_invUpsert([{name:inv.name,cat:inv.cat,stock:inv.stock,unit:inv.unit,min_stock:inv.min,area:inv.area||null,updated_at:new Date().toISOString()}]).then(()=>{});
+  }
+}
+/* Sincroniza TODAS las categorías de inventario desde la Carta (productos y variantes por nombre).
+   Los insumos que no son productos de la Carta conservan su categoría. Devuelve true si cambió algo. */
+function _syncInvCategoriesFromCarta(){
+  let changed=false;
+  const apply=(name,sub)=>{const inv=inventoryItems.find(x=>x.name.toLowerCase()===(name||'').toLowerCase());if(inv&&inv.cat!==sub){inv.cat=sub;changed=true;}};
+  Object.values(menuData).forEach(subs=>Object.entries(subs).forEach(([sub,items])=>{
+    (items||[]).forEach(it=>{ apply(it.name,sub); if(it.isVariant&&Array.isArray(it.variants))it.variants.forEach(v=>apply(v.name,sub)); });
+  }));
+  return changed;
 }
 /* Reasignar subcategoría de un ítem de Inventario */
 function editInvSub(i,newSub){
@@ -2982,6 +3003,9 @@ let _invSnapshot={};   /* nombre→stock al momento de cargar la vista */
 let _invDirty=new Set(); /* nombres de ítems modificados desde el snapshot */
 
 function renderInv(){
+  /* Alinear categorías de inventario con la Carta (los productos mandan; insumos intactos).
+     Si corrigió algo, persistirlo una vez (es idempotente: no vuelve a cambiar). */
+  if(_syncInvCategoriesFromCarta())broadcastState();
   /* Tomar snapshot inicial si aún no existe */
   if(Object.keys(_invSnapshot).length===0){
     inventoryItems.forEach(item=>{ _invSnapshot[item.name]=item.stock; });
@@ -3010,7 +3034,7 @@ function renderInv(){
     const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok';
     const isDirty=_invDirty.has(item.name);
     return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
-      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><select onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="font-size:10px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin:1px 0;padding:1px 3px;max-width:150px">${_subSelHtml(item.cat)}</select><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}${item.area?` · ${item.area}`:''}</div></div>
+      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><select onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}</select><div class="inv-stock">${item.stock} ${item.unit} · mín: ${item.min}${item.area?` · ${item.area}`:''}</div></div>
       <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
       <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
       <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="invDeleteItem(${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
@@ -3638,7 +3662,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v27 (botones de categoria configurables compartidos Carta+Inventario)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v28 (categoria producto sincroniza Carta->Inventario + select subcategoria mas grande)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3734,6 +3758,8 @@ function applyRemoteState(data){
       _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
+    /* Alinear categorías de inventario con la Carta tras sincronizar */
+    if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
     if(s.recipes&&typeof s.recipes==='object'){
       Object.keys(recipes).forEach(k=>delete recipes[k]);
