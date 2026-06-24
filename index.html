@@ -95,6 +95,11 @@ body.dark{
 body.dark .nb,body.dark .bnav,body.dark .side-tabs{background:#15110d}
 body.dark input,body.dark select,body.dark textarea{color:var(--tm)}
 body.dark input::placeholder,body.dark textarea::placeholder{color:var(--tl)}
+/* Fondos claros fijos → tintes oscuros equivalentes (tarjetas, badges, estados) */
+body.dark .sc.hi,body.dark .tc.occupied,body.dark .pb2.active,body.dark .cj-status.open,body.dark .pi.saved,body.dark .sbdg.ok,body.dark .ob-ready,body.dark .sb-mesa{background:#22301f;border-color:#3a5238}
+body.dark .tc.pending,body.dark .ob-pending,body.dark .sbdg.low,body.dark .ki-note,body.dark .pending-tag{background:#33301c;border-color:#5a4a1e}
+body.dark .tc.canceled,body.dark .cj-status.closed,body.dark .ob-canceled,body.dark .sbdg.out{background:#341f1f;border-color:#5a2e2e}
+body.dark .mc-icon,body.dark .cbdg.mostr,body.dark .ci-note,body.dark .sb-mc,body.dark .mi-tag,body.dark .ob-preparing,body.dark .ktm{background:#1e2a36}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cr);color:var(--tm);min-height:100vh;font-size:14px;overflow-x:hidden}
 h1,h2,h3,.serif{font-family:'Playfair Display',Georgia,serif}
 input,select,button,textarea{font-family:inherit;font-size:14px}
@@ -1577,15 +1582,15 @@ function renderCart(){
   const sentTotal=sentItems.reduce((s,i)=>s+i.price*i.qty,0);
   let historyHTML='';
   if(sentItems.length){
-    historyHTML=`<div style="background:#F2F2F2;border:1px solid #DDD;border-radius:var(--rl);padding:8px 10px;margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#888;margin-bottom:6px">
-        <i class="ti ti-checks" style="font-size:14px;color:#888"></i> Ya enviado a cocina · pendiente de cobro
+    historyHTML=`<div style="background:var(--cr2);border:1px solid var(--br);border-radius:var(--rl);padding:8px 10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--ts);margin-bottom:6px">
+        <i class="ti ti-checks" style="font-size:14px;color:var(--ts)"></i> Ya enviado a cocina · pendiente de cobro
       </div>
-      ${sentItems.map(it=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#777;padding:3px 0;border-bottom:1px solid #E5E5E5">
+      ${sentItems.map(it=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--ts);padding:3px 0;border-bottom:1px solid var(--br)">
         <span>${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}${it.note?` <span style="font-size:9px;font-style:italic">— ${it.note}</span>`:''}</span>
         <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
       </div>`).join('')}
-      <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#666;margin-top:5px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--tm);margin-top:5px">
         <span>Total enviado</span><span>${fmt(sentTotal)}</span>
       </div>
     </div>`;
@@ -2757,9 +2762,26 @@ function _setInvCat(name,sub){
    Los insumos que no son productos de la Carta conservan su categoría. Devuelve true si cambió algo. */
 function _syncInvCategoriesFromCarta(){
   let changed=false;
-  const apply=(name,sub)=>{const inv=inventoryItems.find(x=>x.name.toLowerCase()===(name||'').toLowerCase());if(inv&&inv.cat!==sub){inv.cat=sub;changed=true;}};
+  /* Alinear categoría de un producto existente (no crea: los insumos no se tocan) */
+  const align=(name,sub)=>{const inv=inventoryItems.find(x=>x.name.toLowerCase()===(name||'').toLowerCase());if(inv&&inv.cat!==sub){inv.cat=sub;changed=true;}};
+  /* Asegurar que una variedad exista en inventario (la crea si falta) y alinear su categoría */
+  const ensure=(name,sub,area)=>{
+    if(!name)return;
+    let inv=inventoryItems.find(x=>x.name.toLowerCase()===name.toLowerCase());
+    if(!inv){
+      inventoryItems.push({name,cat:sub,stock:50,unit:'un',min:5,area:area||''});changed=true;
+      if(_sb)_invUpsert([{name,cat:sub,stock:50,unit:'un',min_stock:5,area:area||null,updated_at:new Date().toISOString()}]).then(()=>{});
+    } else if(inv.cat!==sub){inv.cat=sub;changed=true;}
+  };
   Object.values(menuData).forEach(subs=>Object.entries(subs).forEach(([sub,items])=>{
-    (items||[]).forEach(it=>{ apply(it.name,sub); if(it.isVariant&&Array.isArray(it.variants))it.variants.forEach(v=>apply(v.name,sub)); });
+    (items||[]).forEach(it=>{
+      if(it.isVariant&&Array.isArray(it.variants)){
+        /* Las variedades (ej. alfajores) SÍ se crean en inventario; el producto base no se vende suelto */
+        it.variants.forEach(v=>ensure(v.name,sub,it.area));
+      } else {
+        align(it.name,sub);
+      }
+    });
   }));
   return changed;
 }
@@ -3754,7 +3776,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v31 (alcance de categorias: Carta / Inventario / ambas)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v32 (variedades en inventario + fix modo oscuro tarjetas claras)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
