@@ -874,6 +874,13 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addCatModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewCat()">Crear</button></div>
 </div></div>
 
+<div class="ov" id="moveCatModal"><div class="mb">
+  <h3>Eliminar categoría</h3>
+  <div id="moveCatMsg" style="font-size:12px;color:var(--ts);margin-bottom:10px"></div>
+  <div class="form-item"><label>Mover sus productos a:</label><select id="moveCatDest" style="width:100%;padding:9px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"></select></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;moveCatModal&#39;)">Cancelar</button><button class="bc2" onclick="confirmDelCat()">Mover y eliminar</button></div>
+</div></div>
+
 <div class="ov" id="catScopeModal"><div class="mb">
   <h3>Visibilidad de categorías</h3>
   <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Elige dónde se muestra cada categoría como botón: en la Carta, en el Inventario o en ambas.</div>
@@ -3075,15 +3082,38 @@ function renameCat(){
   broadcastState();renderCarta();showToast('Categoría renombrada','ok');
 }
 /* Eliminar la categoría seleccionada (con confirmación; el inventario no se toca) */
+let _delCatTarget=null;
 function delCat(){
   const cat=aCartaCat;
   if(!cat||cat==='Todos')return;
   const nProds=Object.values(menuData[cat]||{}).reduce((s,arr)=>s+(arr?arr.length:0),0);
-  const msg=nProds>0?`La categoría "${cat}" tiene ${nProds} producto(s). ¿Eliminarla junto con esos productos de la Carta?`:`¿Eliminar la categoría "${cat}"?`;
-  if(!confirm(msg))return;
-  delete menuData[cat];
-  aCartaCat='Todos';
-  broadcastState();renderCarta();showToast('Categoría eliminada','del');
+  /* Categoría vacía → eliminar directo */
+  if(nProds===0){
+    if(!confirm(`¿Eliminar la categoría "${cat}"?`))return;
+    delete menuData[cat];delete categoryScopes[cat];aCartaCat='Todos';
+    broadcastState();renderCarta();showToast('Categoría eliminada','del');return;
+  }
+  /* Con productos → pedir a qué categoría moverlos antes de eliminar */
+  _delCatTarget=cat;
+  const others=Object.keys(menuData).filter(c=>c!==cat);
+  $('moveCatMsg').textContent=`"${cat}" tiene ${nProds} producto(s). Elige a qué categoría moverlos; luego se eliminará "${cat}".`;
+  $('moveCatDest').innerHTML=others.length?others.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join(''):'<option value="">(no hay otra categoría — crea una primero)</option>';
+  openMod('moveCatModal');
+}
+function confirmDelCat(){
+  const cat=_delCatTarget,dest=$('moveCatDest').value;
+  if(!cat){closeMod('moveCatModal');return;}
+  if(!dest){showToast('Crea otra categoría primero','del');return;}
+  if(!menuData[dest])menuData[dest]={};
+  /* Mover cada subcategoría/producto al destino y reapuntar las recetas */
+  Object.entries(menuData[cat]).forEach(([sub,items])=>{
+    if(!menuData[dest][sub])menuData[dest][sub]=[];
+    (items||[]).forEach(it=>{ menuData[dest][sub].push(it); if(recipes[it.name])recipes[it.name].cat=dest; });
+  });
+  delete menuData[cat];delete categoryScopes[cat];
+  _delCatTarget=null;aCartaCat=dest;
+  broadcastState();closeMod('moveCatModal');renderCarta();
+  showToast('Productos movidos a "'+dest+'" y categoría eliminada','ok');
 }
 /* Write-through best-effort de un ítem de carta a la tabla `menu` (igual patrón que _invUpsert).
    La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
@@ -3800,7 +3830,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v33 (activar variedades en cualquier producto + letra mas grande Carta/Inventario)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v34 (al eliminar categoria, mover sus productos a otra)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
