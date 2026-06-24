@@ -85,6 +85,16 @@ window.supabase=supabase;
   --br:#DDD0B8;--ok:#4A7C59;--wn:#C4870A;--er:#B04040;--inf:#3A6B9E;
   --r:10px;--rl:14px;
 }
+/* ─── MODO OSCURO (estilo Office) ─── */
+body.dark{
+  --cr:#1b1714;--cr2:#262019;--wh:#241f1a;--bd:#ece4d8;--bm:#cf9d6e;--ol:#8aa06a;
+  --sd:#5a4a38;--tm:#ece4d8;--ts:#c2ae97;--tl:#9c8771;
+  --br:#3a322a;--ok:#5fa873;--wn:#e0a53a;--er:#d46a6a;--inf:#5a93c8;
+}
+/* En oscuro --bd pasa a ser texto claro; los fondos que usaban --bd se fijan oscuros */
+body.dark .nb,body.dark .bnav,body.dark .side-tabs{background:#15110d}
+body.dark input,body.dark select,body.dark textarea{color:var(--tm)}
+body.dark input::placeholder,body.dark textarea::placeholder{color:var(--tl)}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cr);color:var(--tm);min-height:100vh;font-size:14px;overflow-x:hidden}
 h1,h2,h3,.serif{font-family:'Playfair Display',Georgia,serif}
 input,select,button,textarea{font-family:inherit;font-size:14px}
@@ -483,6 +493,7 @@ button:active{transform:scale(.97)}
     <div class="nb-right">
       <div style="font-size:10px;color:rgba(255,255,255,.6)" id="ocBadge"></div>
       <span class="nb-badge" id="nbBadge"></span>
+      <button class="blo" id="darkToggle" onclick="toggleDark()" title="Modo oscuro / claro"><i class="ti ti-moon" style="font-size:12px" aria-hidden="true"></i></button>
       <button class="blo" onclick="logout()"><i class="ti ti-logout" style="font-size:12px" aria-hidden="true"></i></button>
     </div>
   </nav>
@@ -832,6 +843,7 @@ button:active{transform:scale(.97)}
   <h3>Nuevo producto en carta</h3>
   <div class="form-item"><label>Nombre *</label><input type="text" id="npName"></div>
   <div class="form-item"><label>Precio ($) *</label><input type="number" id="npPrice"></div>
+  <div class="form-item"><label>Categoría *</label><select id="npCat" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Selecciona…</option></select></div>
   <div class="form-item"><label>Subcategoría *</label><select id="npSub" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Selecciona…</option></select></div>
   <div class="form-item"><label>Área</label><select id="npArea" style="width:100%;padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)"><option value="">Sin área</option><option value="Barra">Barra</option><option value="Cocina">Cocina</option><option value="Desayunos">Desayunos</option></select></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
@@ -1240,6 +1252,14 @@ function _loginSuccess(name,role){
   postLoginInit();
 }
 function logout(){$('app').style.display='none';$('loginScreen').style.display='flex';cart=[];cTable=null;isMC=false;currentAccountId=null;}
+/* ── MODO OSCURO (preferencia por dispositivo, no se sincroniza) ── */
+function _updateDarkIcon(on){const b=$('darkToggle');if(b)b.innerHTML=`<i class="ti ti-${on?'sun':'moon'}" style="font-size:12px" aria-hidden="true"></i>`;}
+function toggleDark(){
+  const on=document.body.classList.toggle('dark');
+  try{localStorage.setItem('econativo_dark',on?'1':'0');}catch(e){}
+  _updateDarkIcon(on);
+}
+(function(){try{const on=localStorage.getItem('econativo_dark')==='1';if(on)document.body.classList.add('dark');document.addEventListener('DOMContentLoaded',()=>_updateDarkIcon(on));}catch(e){}})();
 
 /* ── NAV ── */
 const TABS={
@@ -2687,7 +2707,13 @@ function _fillSubcatOptions(selectId,current){
   const sel=$(selectId);if(!sel)return;
   sel.innerHTML='<option value="">Selecciona…</option>'+getSubcategorias().map(s=>`<option value="${s}"${s===current?' selected':''}>${s}</option>`).join('');
 }
-function openAddProd(){ _fillSubcatOptions('npSub',''); openMod('addProdModal'); }
+function openAddProd(){
+  _fillSubcatOptions('npSub','');
+  /* Poblar el selector de Categoría con las categorías reales (preselecciona la actual si no es "Todos") */
+  const sel=$('npCat');
+  if(sel)sel.innerHTML='<option value="">Selecciona…</option>'+Object.keys(menuData).map(c=>`<option value="${c.replace(/"/g,'&quot;')}"${c===aCartaCat?' selected':''}>${c}</option>`).join('');
+  openMod('addProdModal');
+}
 function openAddInv(){ _fillSubcatOptions('invCat',''); openMod('addInvModal'); }
 /* Reasignar subcategoría de un producto de la Carta (mueve el ítem dentro de menuData) */
 function moveCartaSub(cat,oldSub,i,newSub){
@@ -2997,20 +3023,24 @@ function editCartaName(cat,sub,i,value){
 function delP(cat,sub,i){const name=menuData[cat][sub][i].name;if(!confirm('¿Eliminar "'+name+'"?'))return;menuData[cat][sub].splice(i,1);if(_sb){_sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] Error al eliminar en Supabase:',error.message);});}broadcastState();showToast('Eliminado','del');renderCarta();}
 function saveNewProd(){
   const name=($('npName').value||'').trim(),price=parseInt($('npPrice').value||'0'),sub=($('npSub').value||'').trim(),area=($('npArea')?.value||'').trim();
-  if(!name||!price||!sub){showToast('Completa todos los campos');return;}
-  if(!menuData[aCartaCat][sub])menuData[aCartaCat][sub]=[];
+  /* Categoría: del selector; si no hay (o estamos en "Todos") se exige elegirla */
+  let cat=($('npCat')?.value||'').trim();
+  if(!cat&&aCartaCat&&aCartaCat!=='Todos'&&menuData[aCartaCat])cat=aCartaCat;
+  if(!name||!price||!sub||!cat){showToast('Completa todos los campos (incluida la categoría)');return;}
+  if(!menuData[cat])menuData[cat]={};
+  if(!menuData[cat][sub])menuData[cat][sub]=[];
   const prod={name,price,active:true};if(area)prod.area=area;
-  menuData[aCartaCat][sub].push(prod);
-  recipes[name]={cat:aCartaCat,price,ingredients:[]};
-  /* ── Punto 6: vínculo unidireccional Carta → Inventario ──
-     Crear el producto en Inventario dentro de su categoría si no existe; si ya existe, no duplicar. */
+  menuData[cat][sub].push(prod);
+  recipes[name]={cat,price,ingredients:[]};
+  /* Vínculo unidireccional Carta → Inventario: crear en Inventario con la subcategoría como categoría */
   if(!inventoryItems.find(x=>x.name.toLowerCase()===name.toLowerCase())){
     inventoryItems.push({name,cat:sub,stock:50,unit:'un',min:5,area:area||''});
     if(_sb)_invUpsert([{name,cat:sub,stock:50,unit:'un',min_stock:5,area:area||null,updated_at:new Date().toISOString()}]).then(()=>{});
   }
-  _cartaUpsertItem(aCartaCat,sub,prod);
+  _cartaUpsertItem(cat,sub,prod);
   broadcastState();
-  showToast('"'+name+'" agregado a Carta e Inventario','ok');closeMod('addProdModal');renderCarta();
+  showToast('"'+name+'" agregado a Carta e Inventario','ok');closeMod('addProdModal');
+  aCartaCat=cat; renderCarta();
 }
 
 /* ── INVENTORY — seguimiento de cambios para update selectivo ── */
@@ -3677,7 +3707,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v29 (inventario: botones de categoria propios, empieza con pocas)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v30 (fix agregar producto en Todos + sync categoria + modo oscuro)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
