@@ -100,6 +100,14 @@ body.dark .sc.hi,body.dark .tc.occupied,body.dark .pb2.active,body.dark .cj-stat
 body.dark .tc.pending,body.dark .ob-pending,body.dark .sbdg.low,body.dark .ki-note,body.dark .pending-tag{background:#33301c;border-color:#5a4a1e}
 body.dark .tc.canceled,body.dark .cj-status.closed,body.dark .ob-canceled,body.dark .sbdg.out{background:#341f1f;border-color:#5a2e2e}
 body.dark .mc-icon,body.dark .cbdg.mostr,body.dark .ci-note,body.dark .sb-mc,body.dark .mi-tag,body.dark .ob-preparing,body.dark .ktm{background:#1e2a36}
+/* Sidebar / navbar: el texto usaba var(--wh) (oscuro en noche) → forzar texto claro */
+body.dark .nb{color:#ece4d8}
+body.dark .nb-brand span{color:#dcb78c}
+body.dark .nb-badge{background:rgba(255,255,255,.16);color:#ece4d8}
+body.dark .bnt{color:rgba(255,255,255,.62)}
+body.dark .bnt.active,body.dark .bnt:hover{color:#fff;background:rgba(255,255,255,.14)}
+/* Mesas: "Libre" muy tenue → subir contraste */
+body.dark .s-free{color:var(--ts)}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cr);color:var(--tm);min-height:100vh;font-size:14px;overflow-x:hidden}
 h1,h2,h3,.serif{font-family:'Playfair Display',Georgia,serif}
 input,select,button,textarea{font-family:inherit;font-size:14px}
@@ -3830,7 +3838,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v34 (al eliminar categoria, mover sus productos a otra)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v35 (fix contraste modo noche: sidebar y mesas)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
