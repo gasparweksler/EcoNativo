@@ -373,10 +373,10 @@ button:active{transform:scale(.97)}
 
 /* ─── INVENTORY ─── */
 .inv-item{background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);padding:.7rem .9rem;margin-bottom:7px;display:flex;align-items:center;gap:7px}
-.inv-info{flex:1}.inv-name{font-size:12px;font-weight:600}.inv-cat{font-size:10px;color:var(--ts)}.inv-stock{font-size:11px;color:var(--ts);margin-top:1px}
+.inv-info{flex:1}.inv-name{font-size:15px;font-weight:600}.inv-cat{font-size:12px;color:var(--ts)}.inv-stock{font-size:13px;color:var(--ts);margin-top:2px}
 .sbdg{padding:2px 6px;border-radius:20px;font-size:10px;font-weight:600}
 .sbdg.ok{background:#EEF5E8;color:var(--ok)}.sbdg.low{background:#FDF5E0;color:var(--wn)}.sbdg.out{background:#FEF0F0;color:var(--er)}
-.inv-edit{width:54px;padding:3px 5px;border:1px solid var(--br);border-radius:5px;font-size:11px;text-align:center}
+.inv-edit{width:60px;padding:5px 6px;border:1px solid var(--br);border-radius:5px;font-size:13px;text-align:center}
 
 /* ─── CARTA ─── */
 .cat-pills{display:flex;gap:5px;overflow-x:auto;padding-bottom:3px;margin-bottom:.6rem}
@@ -384,13 +384,13 @@ button:active{transform:scale(.97)}
 .cp2{padding:4px 10px;border-radius:20px;border:1px solid var(--br);background:var(--cr);cursor:pointer;font-size:11px;font-weight:600;color:var(--ts);white-space:nowrap;flex-shrink:0;transition:all .1s}
 .cp2.active{background:var(--bm);color:var(--wh);border-color:var(--bm)}
 .p-table{width:100%;border-collapse:collapse;background:var(--wh);border-radius:var(--rl);border:1px solid var(--br);overflow:hidden;margin-bottom:.5rem}
-.p-table th{background:var(--cr2);padding:6px 8px;text-align:left;font-size:10px;color:var(--ts);font-weight:600}
-.p-table td{padding:6px 8px;border-bottom:1px solid var(--cr2);font-size:11px;vertical-align:middle}
+.p-table th{background:var(--cr2);padding:7px 8px;text-align:left;font-size:12px;color:var(--ts);font-weight:600}
+.p-table td{padding:7px 8px;border-bottom:1px solid var(--cr2);font-size:13px;vertical-align:middle}
 .p-table tr:last-child td{border-bottom:none}
 /* Responsive table wrapper — evita desborde en móviles */
 .table-scroll-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:.5rem}
 .table-scroll-wrap .p-table,.table-scroll-wrap .ingr-table{margin-bottom:0}
-.pi{width:70px;padding:3px 5px;border:1px solid var(--br);border-radius:5px;font-size:11px;color:var(--bm);font-weight:700;background:var(--cr)}
+.pi{width:78px;padding:5px 6px;border:1px solid var(--br);border-radius:5px;font-size:13px;color:var(--bm);font-weight:700;background:var(--cr)}
 .pi.saved{border-color:var(--ok);background:#EEF5E8}
 .ts3{position:relative;width:30px;height:16px;flex-shrink:0}
 .ts3 input{opacity:0;width:0;height:0}
@@ -1850,6 +1850,26 @@ function _ensureInvForVariant(name,sub,area){
   }
 }
 /* CRUD de variedades desde la Carta (admin) — sincroniza con estado global e inventario */
+/* Convertir cualquier producto en uno con variedades (opcional). Crea la 1ª variedad = base. */
+function enableVariants(cat,sub,i){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  item.isVariant=true;
+  if(!Array.isArray(item.variants))item.variants=[];
+  if(!item.variants.length){
+    const v={name:item.name+' (variedad 1)',price:item.price,active:true};
+    item.variants.push(v);_ensureInvForVariant(v.name,sub,item.area);
+  }
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+  showToast('Variedades activadas','ok');renderCarta();renderInv&&renderInv();
+}
+/* Volver a producto simple (quita el modo variedades; el producto base se vende solo) */
+function disableVariants(cat,sub,i){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  if(!confirm('¿Quitar las variedades de "'+item.name+'"? El producto volverá a venderse simple.'))return;
+  item.isVariant=false; delete item.variants;
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+  showToast('Variedades quitadas','del');renderCarta();
+}
 function addVariant(cat,sub,i){
   const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
   if(!item.variants)item.variants=[];
@@ -2924,24 +2944,28 @@ function renderCarta(){
       return `<tr>
       <td>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${cat}','${sub}',${i},this.value)" style="font-weight:600;font-size:11px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
+          <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${cat}','${sub}',${i},this.value)" style="font-weight:600;font-size:14px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
           ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.isSandwich?'<span style="font-size:9px;color:var(--wn);background:#FDF5E0;padding:1px 4px;border-radius:5px;flex-shrink:0">sándwich</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
-        <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${cat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
+        <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${cat}','${sub}',${i},'desc',this.value)" style="font-size:12px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
         <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin-top:3px;padding:4px 6px;max-width:220px">${_subSelHtml(sub)}</select>
+        ${(!item.isVariant&&!item.isPizza&&!item.isSandwich)?`<button onclick="enableVariants('${cat}','${sub}',${i})" title="Convertir este producto en uno con variedades" style="display:block;margin-top:3px;font-size:11px;color:var(--bm);background:transparent;border:1px dashed var(--bm);border-radius:6px;padding:3px 8px;cursor:pointer"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Activar variedades</button>`:''}
       </td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${cat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
       <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${cat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
       <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delP('${cat}','${sub}',${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button></td>
     </tr>${item.isVariant?`<tr><td colspan="4" style="background:var(--cr);padding:6px 10px">
-      <div style="font-size:10px;font-weight:700;color:var(--bm);margin-bottom:5px"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Variedades de "${item.name}"</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div style="font-size:12px;font-weight:700;color:var(--bm)"><i class="ti ti-list-details" style="font-size:12px;vertical-align:-1px"></i> Variedades de "${item.name}"</div>
+        <button onclick="disableVariants('${cat}','${sub}',${i})" title="Quitar variedades (volver a producto simple)" style="font-size:11px;color:var(--er);background:transparent;border:none;cursor:pointer"><i class="ti ti-x" style="font-size:11px"></i> Quitar</button>
+      </div>
       ${(item.variants||[]).map((v,vi)=>`<div style="display:flex;gap:5px;align-items:center;margin-bottom:4px">
-        <input type="text" value="${(v.name||'').replace(/"/g,'&quot;')}" onchange="editVariant('${cat}','${sub}',${i},${vi},'name',this.value)" style="flex:1;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px;font-family:inherit" placeholder="Nombre variedad">
-        <input type="number" value="${v.price}" step="100" onchange="editVariant('${cat}','${sub}',${i},${vi},'price',this.value)" style="width:72px;font-size:11px;border:1px solid var(--br);border-radius:5px;padding:3px 6px">
+        <input type="text" value="${(v.name||'').replace(/"/g,'&quot;')}" onchange="editVariant('${cat}','${sub}',${i},${vi},'name',this.value)" style="flex:1;font-size:13px;border:1px solid var(--br);border-radius:5px;padding:4px 7px;font-family:inherit" placeholder="Nombre variedad">
+        <input type="number" value="${v.price}" step="100" onchange="editVariant('${cat}','${sub}',${i},${vi},'price',this.value)" style="width:80px;font-size:13px;border:1px solid var(--br);border-radius:5px;padding:4px 7px">
         <label class="ts3" title="Activa"><input type="checkbox" ${v.active!==false?'checked':''} onchange="editVariant('${cat}','${sub}',${i},${vi},'active',this.checked)"><span class="tsl"></span></label>
         <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="delVariant('${cat}','${sub}',${i},${vi})"><i class="ti ti-trash" style="font-size:11px"></i></button>
       </div>`).join('')}
-      <button class="btn-add-sm" style="margin-top:3px;font-size:10px;padding:4px 9px" onclick="addVariant('${cat}','${sub}',${i})"><i class="ti ti-plus" style="font-size:10px"></i> Variedad</button>
+      <button class="btn-add-sm" style="margin-top:3px;font-size:11px;padding:4px 10px" onclick="addVariant('${cat}','${sub}',${i})"><i class="ti ti-plus" style="font-size:11px"></i> Variedad</button>
     </td></tr>`:''}`;
     }).join('')}
     </tbody></table></div>`;
@@ -3776,7 +3800,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v32 (variedades en inventario + fix modo oscuro tarjetas claras)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v33 (activar variedades en cualquier producto + letra mas grande Carta/Inventario)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
