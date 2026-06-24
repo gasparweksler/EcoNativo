@@ -837,6 +837,12 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
 </div></div>
 
+<div class="ov" id="addCatModal"><div class="mb">
+  <h3>Nueva categoría</h3>
+  <div class="form-item"><label>Nombre de la categoría *</label><input type="text" id="newCatName" placeholder="Ej: Postres" onkeydown="if(event.key==='Enter')saveNewCat()"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;addCatModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewCat()">Crear</button></div>
+</div></div>
+
 <div class="ov" id="variantModal"><div class="mb">
   <h3 id="variantTitle">Elige una opción</h3>
   <div id="variantOptions" style="display:flex;flex-direction:column;gap:8px;margin:10px 0"></div>
@@ -2792,7 +2798,10 @@ function renderCarta(){
   const q=_cartaQ.toLowerCase().trim();
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
-  let html=`<div style="text-align:right;margin-bottom:.6rem"><button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button></div>`;
+  let html=`<div style="text-align:right;margin-bottom:.6rem;display:flex;gap:6px;justify-content:flex-end">
+    <button class="btn-add-sm" style="background:var(--bm)" onclick="openMod('addCatModal')"><i class="ti ti-folder-plus" style="font-size:11px" aria-hidden="true"></i> Categoría</button>
+    <button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button>
+  </div>`;
   let anyResult=false;
   /* "Todos" recorre todas las categorías; cada grupo usa SU categoría real (cat) */
   const _cats = aCartaCat==='Todos' ? _orderedCats : [aCartaCat];
@@ -2837,10 +2846,22 @@ function renderCarta(){
       html+=catHtml;
     }
   });
-  if(!anyResult)html+='<div class="noo"><i class="ti ti-search" aria-hidden="true"></i><p>Sin resultados</p></div>';
+  if(!anyResult)html+=`<div class="noo"><i class="ti ti-${q?'search':'inbox'}" aria-hidden="true"></i><p>${q?'Sin resultados':'Categoría vacía — usa "+ Producto" para agregar'}</p></div>`;
   $('cartaMain').innerHTML=html;
 }
 function setAC(c){aCartaCat=c;renderCarta();}
+/* Crear una nueva categoría (queda visible como pill en la Carta y se sincroniza) */
+function saveNewCat(){
+  const name=($('newCatName').value||'').trim();
+  if(!name){showToast('Escribe un nombre');return;}
+  if(menuData[name]){showToast('Esa categoría ya existe','del');return;}
+  menuData[name]={};            /* categoría vacía: luego se le agregan productos con "+ Producto" */
+  broadcastState();             /* viaja por el estado global a todos los dispositivos */
+  $('newCatName').value='';
+  closeMod('addCatModal');
+  aCartaCat=name; renderCarta();
+  showToast('Categoría "'+name+'" creada','ok');
+}
 /* Write-through best-effort de un ítem de carta a la tabla `menu` (igual patrón que _invUpsert).
    La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
 function _cartaUpsertItem(cat,sub,item){
@@ -3544,7 +3565,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v23 (carta: Todos + Bebidas Calientes + Sándwiches con extras)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v24 (agregar categorias desde la Carta)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
