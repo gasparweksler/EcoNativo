@@ -837,6 +837,13 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
 </div></div>
 
+<div class="ov" id="cartaButtonsModal"><div class="mb">
+  <h3>Botones de categoría</h3>
+  <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Marca las categorías que quieres ver como botones arriba de la Carta.</div>
+  <div id="cartaButtonsList" style="max-height:55vh;overflow:auto"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;cartaButtonsModal&#39;)">Cancelar</button><button class="bc2" onclick="saveCartaButtons()">Guardar</button></div>
+</div></div>
+
 <div class="ov" id="addCatModal"><div class="mb">
   <h3>Nueva categoría</h3>
   <div class="form-item"><label>Nombre de la categoría *</label><input type="text" id="newCatName" placeholder="Ej: Postres" onkeydown="if(event.key==='Enter')saveNewCat()"></div>
@@ -958,7 +965,8 @@ function bellKitchen(msg){
 let cRole='admin',cUser='',cTable=null,cart=[],isMC=false;
 let pType='',pIngs=[],pSauce=null;
 let sItem=null,sIngs=[],sMax=2;
-let aCartaCat='Bebidas Calientes';
+let aCartaCat='Todos';
+let cartaButtons=null; /* lista de categorías elegidas para mostrar como botones (null = todas) */
 let aRecipeCat='Bebidas Calientes';
 let _cartaQ='';
 let _recipesQ='';
@@ -2792,7 +2800,10 @@ function renderCarta(){
   /* Orden preferido de categorías (las no listadas van al final) */
   const _catOrder=['Bebidas Frías','Bebidas Calientes','Platos','Pizzas','Sándwiches','Extras'];
   const _orderedCats=Object.keys(menuData).sort((a,b)=>{const ia=_catOrder.indexOf(a),ib=_catOrder.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
-  $('cartaCatPills').innerHTML=['Todos',..._orderedCats].map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c}')">${c}</button>`).join('');
+  /* Botones de categoría configurables: si el admin eligió una lista, se usa esa; si no, todas las categorías */
+  const _btnList=(Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons.filter(c=>menuData[c]||getSubcategorias().includes(c)):_orderedCats;
+  $('cartaCatPills').innerHTML=['Todos',..._btnList].map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c.replace(/'/g,String.fromCharCode(39))}')">${c}</button>`).join('')
+    +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones" onclick="openCartaButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
   const btnCarta=$('btnConfirmCarta');
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
   const q=_cartaQ.toLowerCase().trim();
@@ -2808,12 +2819,15 @@ function renderCarta(){
     </div>
   </div>`;
   let anyResult=false;
-  /* "Todos" recorre todas las categorías; cada grupo usa SU categoría real (cat) */
-  const _cats = aCartaCat==='Todos' ? _orderedCats : [aCartaCat];
+  /* "Todos" recorre todo; una categoría top-level muestra esa categoría; una subcategoría
+     muestra los productos de ese sub en todas las categorías. */
+  const _isTop = aCartaCat==='Todos' || menuData[aCartaCat]!==undefined;
+  const _cats = (aCartaCat==='Todos'||!_isTop) ? _orderedCats : [aCartaCat];
   _cats.forEach(cat=>{
     const cd=menuData[cat]; if(!cd)return;
     let catHasResult=false, catHtml='';
     Object.entries(cd).forEach(([sub,items])=>{
+    if(!_isTop && sub!==aCartaCat) return; /* subcategoría seleccionada → solo ese sub */
     const filtered=q?items.filter(item=>item.name.toLowerCase().includes(q)):items;
     if(!filtered.length)return;
     anyResult=true; catHasResult=true;
@@ -2828,7 +2842,7 @@ function renderCarta(){
           ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.isSandwich?'<span style="font-size:9px;color:var(--wn);background:#FDF5E0;padding:1px 4px;border-radius:5px;flex-shrink:0">sándwich</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
         <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${cat}','${sub}',${i},'desc',this.value)" style="font-size:10px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
-        <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:9px;color:var(--ts);border:1px solid var(--br);border-radius:5px;background:var(--cr);font-family:inherit;margin-top:2px;padding:1px 3px;max-width:140px">${_subSelHtml(sub)}</select>
+        <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin-top:3px;padding:4px 6px;max-width:220px">${_subSelHtml(sub)}</select>
       </td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${cat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
       <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${cat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
@@ -2847,7 +2861,7 @@ function renderCarta(){
     </tbody></table></div>`;
     });
     if(catHasResult){
-      if(aCartaCat==='Todos')html+=`<div style="font-size:14px;font-weight:700;color:var(--bd);font-family:'Playfair Display',serif;margin:.9rem 0 .1rem;border-bottom:2px solid var(--bm)30;padding-bottom:2px">${cat}</div>`;
+      if(aCartaCat==='Todos'||!_isTop)html+=`<div style="font-size:14px;font-weight:700;color:var(--bd);font-family:'Playfair Display',serif;margin:.9rem 0 .1rem;border-bottom:2px solid var(--bm)30;padding-bottom:2px">${cat}</div>`;
       html+=catHtml;
     }
   });
@@ -2866,6 +2880,23 @@ function saveNewCat(){
   closeMod('addCatModal');
   aCartaCat=name; renderCarta();
   showToast('Categoría "'+name+'" creada','ok');
+}
+/* Elegir qué categorías/subcategorías aparecen como botones arriba de la Carta */
+function openCartaButtonsManager(){
+  const all=[...new Set([...Object.keys(menuData),...getSubcategorias()])].sort((a,b)=>a.localeCompare(b,'es'));
+  const current=new Set((Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons:Object.keys(menuData));
+  $('cartaButtonsList').innerHTML=all.map(n=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;font-size:14px;border-bottom:1px solid var(--cr2);cursor:pointer">
+    <input type="checkbox" value="${n.replace(/"/g,'&quot;')}" ${current.has(n)?'checked':''} style="width:18px;height:18px;accent-color:var(--bm)">
+    <span>${n}${menuData[n]?' <span style="font-size:10px;color:var(--ts)">(categoría)</span>':''}</span></label>`).join('');
+  openMod('cartaButtonsModal');
+}
+function saveCartaButtons(){
+  const checked=[...document.querySelectorAll('#cartaButtonsList input:checked')].map(c=>c.value);
+  cartaButtons = checked.length?checked:null; /* nada marcado → vuelve al default (todas) */
+  /* Si la categoría activa ya no está como botón, volver a "Todos" */
+  if(aCartaCat!=='Todos' && cartaButtons && !cartaButtons.includes(aCartaCat))aCartaCat='Todos';
+  broadcastState();closeMod('cartaButtonsModal');renderCarta();
+  showToast('Botones actualizados','ok');
 }
 /* Renombrar la categoría seleccionada (preserva el orden y actualiza las recetas) */
 function renameCat(){
@@ -3598,7 +3629,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v25 (agregar/renombrar/eliminar categorias en la Carta)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v26 (botones de categoria configurables + desplegable mas grande)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3626,6 +3657,7 @@ function getSerializableState(){
     waiters:waiters.map(w=>({...w})),
     menu:JSON.parse(JSON.stringify(menuData)),
     recipes:JSON.parse(JSON.stringify(recipes)),
+    cartaButtons:cartaButtons,
     ts:Date.now()
   });
 }
@@ -3692,6 +3724,7 @@ function applyRemoteState(data){
       Object.entries(s.menu).forEach(([cat,subs])=>{ menuData[cat]=subs; });
       _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
+    if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
     /* Recetas: misma sincronización instantánea por estado global */
     if(s.recipes&&typeof s.recipes==='object'){
       Object.keys(recipes).forEach(k=>delete recipes[k]);
