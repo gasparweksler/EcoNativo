@@ -858,8 +858,22 @@ button:active{transform:scale(.97)}
 
 <div class="ov" id="addCatModal"><div class="mb">
   <h3>Nueva categoría</h3>
-  <div class="form-item"><label>Nombre de la categoría *</label><input type="text" id="newCatName" placeholder="Ej: Postres" onkeydown="if(event.key==='Enter')saveNewCat()"></div>
+  <div class="form-item"><label>Nombre de la categoría *</label><input type="text" id="newCatName" placeholder="Ej: Panadería" onkeydown="if(event.key==='Enter')saveNewCat()"></div>
+  <div class="form-item"><label>¿Dónde se mostrará?</label>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="radio" name="newCatScope" value="both" checked> Carta e Inventario</label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="radio" name="newCatScope" value="carta"> Únicamente en Carta</label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer"><input type="radio" name="newCatScope" value="inv"> Únicamente en Inventario</label>
+    </div>
+  </div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addCatModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewCat()">Crear</button></div>
+</div></div>
+
+<div class="ov" id="catScopeModal"><div class="mb">
+  <h3>Visibilidad de categorías</h3>
+  <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Elige dónde se muestra cada categoría como botón: en la Carta, en el Inventario o en ambas.</div>
+  <div id="catScopeList" style="max-height:55vh;overflow:auto"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;catScopeModal&#39;)">Cancelar</button><button class="bc2" onclick="saveCatScopes()">Guardar</button></div>
 </div></div>
 
 <div class="ov" id="variantModal"><div class="mb">
@@ -980,6 +994,7 @@ let sItem=null,sIngs=[],sMax=2;
 let aCartaCat='Todos';
 let cartaButtons=null; /* categorías elegidas como botones en la Carta (null = todas) */
 let invButtons=null;   /* categorías elegidas como botones en Inventario (null = ninguna → empieza con pocas) */
+let categoryScopes={}; /* alcance por categoría: { nombre: {carta:bool, inv:bool} } (ausente = ambas) */
 let aRecipeCat='Bebidas Calientes';
 let _cartaQ='';
 let _recipesQ='';
@@ -2845,11 +2860,11 @@ function confirmAssignClient(){
 
 /* ── CARTA ── */
 function renderCarta(){
-  /* Orden preferido de categorías (las no listadas van al final) */
+  /* Orden preferido de categorías (las no listadas van al final), filtradas por alcance "carta" */
   const _catOrder=['Bebidas Frías','Bebidas Calientes','Platos','Pizzas','Sándwiches','Extras'];
-  const _orderedCats=Object.keys(menuData).sort((a,b)=>{const ia=_catOrder.indexOf(a),ib=_catOrder.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
-  /* Botones de categoría configurables: si el admin eligió una lista, se usa esa; si no, todas las categorías */
-  const _btnList=(Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons.filter(c=>menuData[c]||getSubcategorias().includes(c)):_orderedCats;
+  const _orderedCats=Object.keys(menuData).filter(c=>_catScope(c).carta).sort((a,b)=>{const ia=_catOrder.indexOf(a),ib=_catOrder.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
+  /* Botones de categoría configurables: si el admin eligió una lista, se usa esa (también filtrada por alcance) */
+  const _btnList=(Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons.filter(c=>(menuData[c]||getSubcategorias().includes(c))&&_catScope(c).carta):_orderedCats;
   $('cartaCatPills').innerHTML=['Todos',..._btnList].map(c=>`<button class="cp2 ${c===aCartaCat?'active':''}" onclick="setAC('${c.replace(/'/g,String.fromCharCode(39))}')">${c}</button>`).join('')
     +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones" onclick="openCartaButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
   const btnCarta=$('btnConfirmCarta');
@@ -2862,6 +2877,7 @@ function renderCarta(){
       <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" onclick="renameCat()"><i class="ti ti-pencil" style="font-size:11px" aria-hidden="true"></i> Renombrar</button>
       <button class="btn-add-sm" style="background:transparent;color:var(--er);border:1px solid var(--er)" onclick="delCat()"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>`:''}</div>
     <div style="display:flex;gap:6px">
+      <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" title="Visibilidad de categorías (Carta / Inventario)" onclick="openCatScopes()"><i class="ti ti-eye" style="font-size:11px" aria-hidden="true"></i> Visibilidad</button>
       <button class="btn-add-sm" style="background:var(--bm)" onclick="openMod('addCatModal')"><i class="ti ti-folder-plus" style="font-size:11px" aria-hidden="true"></i> Categoría</button>
       <button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button>
     </div>
@@ -2921,13 +2937,44 @@ function setAC(c){aCartaCat=c;renderCarta();}
 function saveNewCat(){
   const name=($('newCatName').value||'').trim();
   if(!name){showToast('Escribe un nombre');return;}
-  if(menuData[name]){showToast('Esa categoría ya existe','del');return;}
-  menuData[name]={};            /* categoría vacía: luego se le agregan productos con "+ Producto" */
-  broadcastState();             /* viaja por el estado global a todos los dispositivos */
+  const scope=(document.querySelector('input[name="newCatScope"]:checked')||{}).value||'both';
+  const inCarta=scope!=='inv', inInv=scope!=='carta';
+  if(inCarta&&menuData[name]){showToast('Esa categoría ya existe','del');return;}
+  categoryScopes[name]={carta:inCarta,inv:inInv};
+  if(inCarta)menuData[name]={};  /* categoría de Carta vacía: luego se le agregan productos */
+  broadcastState();
   $('newCatName').value='';
   closeMod('addCatModal');
-  aCartaCat=name; renderCarta();
+  if(inCarta){ aCartaCat=name; renderCarta(); } else { if(typeof renderInv==='function')renderInv(); }
   showToast('Categoría "'+name+'" creada','ok');
+}
+/* Alcance de una categoría (dónde se muestra). Ausente = en ambas (Carta e Inventario). */
+function _catScope(name){
+  const s=categoryScopes[name];
+  if(s)return {carta:s.carta!==false,inv:s.inv!==false};
+  return {carta:true,inv:true};
+}
+/* Checklist para definir dónde se muestra cada categoría */
+function openCatScopes(){
+  const all=[...new Set([...Object.keys(menuData),...inventoryItems.map(x=>x.cat).filter(Boolean),...getSubcategorias(),...Object.keys(categoryScopes)])].sort((a,b)=>a.localeCompare(b,'es'));
+  $('catScopeList').innerHTML=all.map(n=>{const sc=_catScope(n);return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid var(--cr2)">
+    <span style="font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${n}</span>
+    <label style="display:flex;gap:4px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" data-n="${n.replace(/"/g,'&quot;')}" data-k="carta" ${sc.carta?'checked':''} style="width:16px;height:16px;accent-color:var(--bm)"> Carta</label>
+    <label style="display:flex;gap:4px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" data-n="${n.replace(/"/g,'&quot;')}" data-k="inv" ${sc.inv?'checked':''} style="width:16px;height:16px;accent-color:var(--bm)"> Inv.</label>
+  </div>`;}).join('');
+  openMod('catScopeModal');
+}
+function saveCatScopes(){
+  const map={};
+  document.querySelectorAll('#catScopeList input[type="checkbox"]').forEach(c=>{
+    const n=c.dataset.n; if(!map[n])map[n]={carta:false,inv:false};
+    if(c.checked)map[n][c.dataset.k]=true;
+  });
+  categoryScopes=map;
+  broadcastState();closeMod('catScopeModal');
+  if(typeof renderCarta==='function')renderCarta();
+  if(typeof renderInv==='function')renderInv();
+  showToast('Visibilidad de categorías actualizada','ok');
 }
 /* Gestor de botones de categoría — sirve a Carta e Inventario según el contexto */
 let _btnMgrTarget='carta';
@@ -2938,15 +2985,15 @@ function _openBtnMgr(target,allList,currentSet){
     <span>${n}${menuData[n]?' <span style="font-size:10px;color:var(--ts)">(categoría)</span>':''}</span></label>`).join('');
   openMod('cartaButtonsModal');
 }
-/* Carta: elige entre categorías top-level + subcategorías */
+/* Carta: elige entre categorías con alcance "carta" */
 function openCartaButtonsManager(){
-  const all=[...new Set([...Object.keys(menuData),...getSubcategorias()])].sort((a,b)=>a.localeCompare(b,'es'));
-  const current=new Set((Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons:Object.keys(menuData));
+  const all=[...new Set([...Object.keys(menuData),...getSubcategorias()])].filter(c=>_catScope(c).carta).sort((a,b)=>a.localeCompare(b,'es'));
+  const current=new Set((Array.isArray(cartaButtons)&&cartaButtons.length)?cartaButtons:Object.keys(menuData).filter(c=>_catScope(c).carta));
   _openBtnMgr('carta',all,current);
 }
-/* Inventario: elige entre las categorías existentes en el inventario + subcategorías */
+/* Inventario: elige entre categorías con alcance "inv" (las del inventario + subcategorías + creadas) */
 function openInvButtonsManager(){
-  const all=[...new Set([...inventoryItems.map(x=>x.cat).filter(Boolean),...getSubcategorias()])].sort((a,b)=>a.localeCompare(b,'es'));
+  const all=[...new Set([...inventoryItems.map(x=>x.cat).filter(Boolean),...getSubcategorias(),...Object.keys(categoryScopes)])].filter(c=>_catScope(c).inv).sort((a,b)=>a.localeCompare(b,'es'));
   const current=new Set(Array.isArray(invButtons)?invButtons:[]);
   _openBtnMgr('inv',all,current);
 }
@@ -3059,7 +3106,7 @@ function renderInv(){
      Si no hay configuración, por defecto muestra las categorías presentes en el inventario. */
   /* Botones de Inventario: lista propia y configurable. Por defecto empieza con pocas
      (solo "Todos") y el admin elige cuáles ver con el botón de ajustes. */
-  const _invBtnList=(Array.isArray(invButtons))?invButtons:[];
+  const _invBtnList=(Array.isArray(invButtons))?invButtons.filter(c=>_catScope(c).inv):[];
   const pillsEl=$('invCatPills');
   if(pillsEl)pillsEl.innerHTML=`<button class="cp2 ${_invCat===''?'active':''}" onclick="_invCat='';renderInv()">Todos</button>`
     +_invBtnList.map(c=>`<button class="cp2 ${c===_invCat?'active':''}" onclick="_invCat='${c.replace(/'/g,String.fromCharCode(39))}';renderInv()">${c}</button>`).join('')
@@ -3707,7 +3754,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v30 (fix agregar producto en Todos + sync categoria + modo oscuro)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v31 (alcance de categorias: Carta / Inventario / ambas)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3737,6 +3784,7 @@ function getSerializableState(){
     recipes:JSON.parse(JSON.stringify(recipes)),
     cartaButtons:cartaButtons,
     invButtons:invButtons,
+    categoryScopes:JSON.parse(JSON.stringify(categoryScopes)),
     ts:Date.now()
   });
 }
@@ -3805,6 +3853,7 @@ function applyRemoteState(data){
     }
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
     if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
+    if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
     /* Alinear categorías de inventario con la Carta tras sincronizar */
     if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
