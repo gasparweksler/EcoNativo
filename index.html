@@ -93,7 +93,9 @@ body.dark{
 }
 /* En oscuro --bd pasa a ser texto claro; los fondos que usaban --bd se fijan oscuros */
 body.dark .nb,body.dark .bnav,body.dark .side-tabs{background:#15110d}
-body.dark input,body.dark select,body.dark textarea{color:var(--tm)}
+/* Inputs/selects sin fondo propio quedaban blancos en noche → darles superficie oscura.
+   Los que tienen fondo en línea (background:none / var(--wh)) lo mantienen por especificidad inline. */
+body.dark input,body.dark select,body.dark textarea{color:var(--tm);background:var(--cr);border-color:var(--br)}
 body.dark input::placeholder,body.dark textarea::placeholder{color:var(--tl)}
 /* Fondos claros fijos → tintes oscuros equivalentes (tarjetas, badges, estados) */
 body.dark .sc.hi,body.dark .tc.occupied,body.dark .pb2.active,body.dark .cj-status.open,body.dark .pi.saved,body.dark .sbdg.ok,body.dark .ob-ready,body.dark .sb-mesa{background:#22301f;border-color:#3a5238}
@@ -1297,6 +1299,8 @@ function toggleDark(){
   const on=document.body.classList.toggle('dark');
   try{localStorage.setItem('econativo_dark',on?'1':'0');}catch(e){}
   _updateDarkIcon(on);
+  /* Re-render: algunos colores (tarjetas de mesa) se calculan en JS según el tema */
+  if(typeof _refreshActiveView==='function')_refreshActiveView();
 }
 (function(){try{const on=localStorage.getItem('econativo_dark')==='1';if(on)document.body.classList.add('dark');document.addEventListener('DOMContentLoaded',()=>_updateDarkIcon(on));}catch(e){}})();
 /* ── TAMAÑO DEL TEXTO (escala el contenido manteniendo la fuente; por dispositivo) ── */
@@ -1358,11 +1362,12 @@ function _tableKitchenColor(tableId){
   const ready    =act.some(o=>o.status==='ready'&&!o.kitchenHidden);
   const preparing=act.some(o=>o.status==='preparing'&&!o.kitchenHidden);
   const pending  =act.some(o=>o.status==='pending'&&!o.kitchenHidden);
-  /* {fondo, borde, texto} — coherentes con el resto de la app */
-  if(sinCobrar)return {bg:'#FFE3E3',br:'#FF6B6B',label:'Sin cobrar'};   /* rojo suave */
-  if(ready)    return {bg:'#E3F6E8',br:'#28A745',label:'Listo'};        /* verde */
-  if(preparing)return {bg:'#E3EEFB',br:'#4A90E2',label:'En preparación'}; /* azul */
-  if(pending)  return {bg:'#FFF1DD',br:'#FFA500',label:'Pendiente'};    /* ámbar */
+  /* Fondos según tema: claros en modo día, oscuros en modo noche (para que el texto contraste) */
+  const dark=document.body.classList.contains('dark');
+  if(sinCobrar)return {bg:dark?'#341f1f':'#FFE3E3',br:'#FF6B6B',label:'Sin cobrar'};   /* rojo suave */
+  if(ready)    return {bg:dark?'#22301f':'#E3F6E8',br:'#28A745',label:'Listo'};        /* verde */
+  if(preparing)return {bg:dark?'#1e2a36':'#E3EEFB',br:'#4A90E2',label:'En preparación'}; /* azul */
+  if(pending)  return {bg:dark?'#33301c':'#FFF1DD',br:'#FFA500',label:'Pendiente'};    /* ámbar */
   return null;
 }
 function renderTables(){
@@ -3852,7 +3857,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v36 (control de tamano de texto en sidebar)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v37 (fix modo noche: inputs blancos + colores de mesa)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
