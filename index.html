@@ -1566,14 +1566,21 @@ function setPayM(m){selPay=m;renderPaySection();}
 
 /* ── MENU ── */
 let aMenuCat='Bebidas Calientes';
+/* Categorías visibles en el menú de pedidos = solo las con alcance "Carta"
+   (se ocultan las que el admin dejó únicamente en Inventario). Se sincroniza solo
+   porque categoryScopes viaja en el estado global y renderMenu se llama al abrir el pedido. */
+function _menuCats(){return Object.keys(menuData).filter(c=>_catScope(c).carta);}
+function _menuPillsHTML(){return _menuCats().map(c=>`<button class="cb ${c===aMenuCat?'active':''}" onclick="setMC('${c.replace(/'/g,String.fromCharCode(39))}')">${c}</button>`).join('');}
 function renderMenu(){
-  $('menuCats').innerHTML=Object.keys(menuData).map(c=>`<button class="cb ${c===aMenuCat?'active':''}" onclick="setMC('${c}')">${c}</button>`).join('');
+  /* Si la categoría activa ya no está visible en Carta, saltar a la primera visible */
+  const cats=_menuCats();
+  if(!cats.includes(aMenuCat))aMenuCat=cats[0]||'';
+  $('menuCats').innerHTML=_menuPillsHTML();
   renderMenuItems();
 }
 function setMC(c){
   aMenuCat=c;
-  /* Re-render pills so active class follows selection */
-  $('menuCats').innerHTML=Object.keys(menuData).map(cat=>`<button class="cb ${cat===aMenuCat?'active':''}" onclick="setMC('${cat}')">${cat}</button>`).join('');
+  $('menuCats').innerHTML=_menuPillsHTML();
   renderMenuItems();
 }
 function renderMenuItems(){
@@ -1581,7 +1588,7 @@ function renderMenuItems(){
   let html='';
   if(q){
     let found=[];
-    Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
+    Object.entries(menuData).forEach(([cat,subs])=>{if(!_catScope(cat).carta)return;Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);}));});
     html=found.length
       ?`<div class="mi-grid">${found.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div>${item.desc?`<div class="mi-desc" style="font-size:10px;color:var(--ts);margin:1px 0 2px;line-height:1.2">${item.desc}</div>`:''}<div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${item.isVariant?'<div class="mi-tag" style="background:#F3ECE0;color:var(--bm)">Elige variedad</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div>`
       :`<div style="color:var(--tl);text-align:center;padding:1rem;font-size:12px">Sin resultados para "${q}"</div>`;
@@ -3857,7 +3864,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v37 (fix modo noche: inputs blancos + colores de mesa)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v38 (menu de pedidos respeta alcance Carta de categorias)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
