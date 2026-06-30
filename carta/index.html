@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Carta · EcoNativo</title>
+<style>
+  html,body{margin:0;padding:0;background:#202020;min-height:100%;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  #msg{color:#ddd;text-align:center;padding:60px 20px}
+  #msg .big{font-size:44px;margin-bottom:12px}
+  #pages{max-width:900px;margin:0 auto;padding:10px}
+  #pages canvas{width:100%;height:auto;display:block;margin:0 auto 12px;box-shadow:0 2px 12px rgba(0,0,0,.55);background:#fff;border-radius:4px}
+  .spin{display:inline-block;width:34px;height:34px;border:3px solid #555;border-top-color:#ccc;border-radius:50%;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head><body>
+<div id="msg"><div class="spin"></div><div style="margin-top:14px;color:#bbb">Cargando carta…</div></div>
+<div id="pages"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xtprxnfvvynbakgonoau.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzgwNzQsImV4cCI6MjA5NjQ1NDA3NH0.e8V8A18bgI_q3LwsToQOtqDKIPvEVBgE4q5xONrebU8';
+const CARTA_PDF_KEY='carta_pdf';
+function showMsg(html){document.getElementById('msg').innerHTML=html;document.getElementById('msg').style.display='block';}
+function hideMsg(){document.getElementById('msg').style.display='none';}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load '+src));document.head.appendChild(s);});}
+async function renderPdf(b64){
+  if(!window.pdfjsLib){
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const raw=atob(String(b64).split(',').pop());
+  const bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+  hideMsg();
+  const pages=document.getElementById('pages');pages.innerHTML='';
+  for(let n=1;n<=pdf.numPages;n++){
+    const page=await pdf.getPage(n);
+    const base=page.getViewport({scale:1});
+    const scale=Math.min(2.5,(Math.min(window.innerWidth,900)-16)/base.width);
+    const vp=page.getViewport({scale});
+    const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+    pages.appendChild(c);
+    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  }
+}
+(async()=>{
+  try{
+    const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    const {data}=await sb.from('econativo_state').select('payload').eq('key',CARTA_PDF_KEY).maybeSingle();
+    const p=data&&data.payload;
+    if(!p||!p.data){showMsg('<div class="big">🍽️</div>No hay carta publicada en este momento.');return;}
+    await renderPdf(p.data);
+  }catch(e){
+    showMsg('No se pudo cargar la carta.<br><span style="font-size:12px;color:#999">'+(e&&e.message||'')+'</span>');
+  }
+})();
+</script>
+</body></html>
