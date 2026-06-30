@@ -501,6 +501,9 @@ button:active{transform:scale(.97)}
   </div>
 </div>
 
+<!-- Visor público de la carta (ruta /carta) — solo muestra el PDF, sin administración -->
+<div id="cartaPublic" style="display:none;position:fixed;inset:0;z-index:99999;background:#202020;overflow:auto;-webkit-overflow-scrolling:touch"></div>
+
 <div id="app">
   <nav class="nb">
     <div class="nb-brand"><span>Eco</span>Nativo</div>
@@ -728,6 +731,12 @@ button:active{transform:scale(.97)}
           <span id="kitCount" style="font-size:11px;color:var(--inf);font-weight:600"></span>
         </div>
         <div class="kg" id="kitchenGrid"><div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div></div>
+      </div>
+
+      <!-- CARTA PDF (solo admin) -->
+      <div class="page" id="page-cartapdf">
+        <div class="pt">Carta en PDF</div>
+        <div id="cartaPdfContent"></div>
       </div>
 
     </div>
@@ -1317,7 +1326,7 @@ function setFontScale(dir){
 /* ── NAV ── */
 const TABS={
   waiter:[{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'clients',label:'Clientes',icon:'ti-users'}],
-  admin:[{id:'dashboard',label:'Inicio',icon:'ti-home'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Stats',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
+  admin:[{id:'dashboard',label:'Inicio',icon:'ti-home'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Stats',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'cartapdf',label:'Carta PDF',icon:'ti-qrcode'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
   kitchen:[{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'}]
 };
 
@@ -1340,6 +1349,7 @@ function navTo(id){
     stats:()=>{renderStats();goPage('stats')},
     recipes:()=>{renderRecipes();goPage('recipes')},
     carta:()=>{renderCarta();goPage('carta')},
+    cartapdf:()=>{renderCartaPdf();goPage('cartapdf')},
     inventory:()=>{renderInv();goPage('inventory')},
     staff:()=>{renderStaff();goPage('staff')},
     kitchen:()=>{renderKitchen();goPage('kitchen')},
@@ -3455,6 +3465,118 @@ function delWaiter(wid){
   closeMod('waiterDetailModal');showToast('Garzón eliminado','del');renderStaff();
 }
 
+/* ════════ CARTA EN PDF (admin sube; ruta pública /carta + QR fijo) ════════
+   El PDF se guarda como base64 en un row separado de econativo_state (key='carta_pdf'),
+   usando el mismo canal de escritura ya probado. Solo existe UN PDF activo.
+   El QR apunta SIEMPRE a /carta (URL fija); reemplazar el PDF no cambia el QR ni la URL. */
+const CARTA_PDF_KEY='carta_pdf';
+function _cartaPublicUrl(){ return location.origin.replace(/\/$/,'')+'/carta'; }
+async function _cartaPdfGet(){
+  if(!_sb){await initSupabase();}
+  if(!_sb)return null;
+  try{const {data}=await _sb.from('econativo_state').select('payload').eq('key',CARTA_PDF_KEY).maybeSingle();return data&&data.payload&&data.payload.data?data.payload:null;}
+  catch(e){return null;}
+}
+function renderCartaPdf(){
+  const el=$('cartaPdfContent');if(!el)return;
+  const url=_cartaPublicUrl();
+  const qr='https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data='+encodeURIComponent(url);
+  el.innerHTML=`
+    <div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);padding:1rem;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--bd);margin-bottom:6px"><i class="ti ti-file-typepdf" style="color:var(--er)"></i> Estado de la carta</div>
+      <div id="cartaPdfStatus" style="font-size:12px;color:var(--ts)">Cargando estado…</div>
+      <input type="file" id="cartaPdfFile" accept="application/pdf,.pdf" style="display:none" onchange="uploadCartaPdf(this)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn-add-sm" onclick="document.getElementById('cartaPdfFile').click()"><i class="ti ti-upload" style="font-size:12px"></i> Subir / Reemplazar PDF</button>
+        <a class="btn-add-sm" style="background:var(--inf);text-decoration:none;color:#fff" href="${url}" target="_blank" rel="noopener"><i class="ti ti-external-link" style="font-size:12px"></i> Ver /carta</a>
+        <button class="btn-add-sm" style="background:var(--er)" onclick="deleteCartaPdf()"><i class="ti ti-trash" style="font-size:12px"></i> Eliminar</button>
+      </div>
+      <div style="font-size:11px;color:var(--tl);margin-top:8px">Solo se publica un PDF a la vez. Reemplazarlo mantiene la misma URL y el mismo QR.</div>
+    </div>
+    <div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);padding:1rem;text-align:center;max-width:380px">
+      <div style="font-size:13px;font-weight:700;color:var(--bd);margin-bottom:8px"><i class="ti ti-qrcode" style="color:var(--bm)"></i> Código QR permanente</div>
+      <img src="${qr}" alt="QR carta" style="width:240px;height:240px;background:#fff;border-radius:10px;padding:8px;border:1px solid var(--br)" referrerpolicy="no-referrer">
+      <div style="font-size:11px;color:var(--ts);margin-top:8px;word-break:break-all">${url}</div>
+      <a class="btn-add-sm" style="display:inline-flex;margin-top:10px;text-decoration:none;color:#fff" href="${qr}" download="qr-carta.png"><i class="ti ti-download" style="font-size:12px"></i> Descargar QR</a>
+      <div style="font-size:10px;color:var(--tl);margin-top:8px">Este QR no cambia nunca, aunque reemplaces el PDF.</div>
+    </div>`;
+  _cartaPdfGet().then(p=>{
+    const s=$('cartaPdfStatus');if(!s)return;
+    s.innerHTML = p ? `<span style="color:var(--ok);font-weight:700">✓ Carta publicada</span> · <strong>${(p.name||'carta.pdf')}</strong><br><span style="color:var(--tl)">Actualizada: ${new Date(p.updatedAt||Date.now()).toLocaleString('es-CL')}</span>`
+                    : `<span style="color:var(--wn);font-weight:700">⚠ No hay carta publicada todavía.</span> Sube un PDF para activar el QR.`;
+  });
+}
+function uploadCartaPdf(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  if(file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name)){showToast('El archivo debe ser un PDF','del');input.value='';return;}
+  if(file.size>8*1024*1024){showToast('PDF muy grande (máx. 8 MB)','del');input.value='';return;}
+  showToast('Subiendo carta…','ok');
+  const reader=new FileReader();
+  reader.onload=async()=>{
+    try{
+      if(!_sb){await initSupabase();}
+      if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+      const {error}=await _sb.from('econativo_state').upsert({key:CARTA_PDF_KEY,payload:{data:reader.result,name:file.name,updatedAt:Date.now()},updated_at:new Date().toISOString()});
+      if(error){showToast('Error al subir: '+error.message,'del');return;}
+      showToast('Carta publicada ✓','ok');renderCartaPdf();
+    }catch(e){showToast('Error: '+e.message,'del');}
+  };
+  reader.onerror=()=>showToast('No se pudo leer el archivo','del');
+  reader.readAsDataURL(file);
+  input.value='';
+}
+async function deleteCartaPdf(){
+  if(!confirm('¿Eliminar la carta publicada? El QR seguirá igual pero quedará sin contenido hasta subir una nueva.'))return;
+  try{
+    if(!_sb){await initSupabase();}
+    if(!_sb){showToast('Sin conexión','del');return;}
+    const {error}=await _sb.from('econativo_state').delete().eq('key',CARTA_PDF_KEY);
+    if(error){showToast('Error: '+error.message,'del');return;}
+    showToast('Carta eliminada','del');renderCartaPdf();
+  }catch(e){showToast('Error: '+e.message,'del');}
+}
+/* ── Visor público (/carta): renderiza el PDF con pdf.js (compatible con móvil) ── */
+function _loadScriptOnce(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('No se pudo cargar '+src));document.head.appendChild(s);});}
+async function _renderPdfFromBase64(box,b64){
+  if(!window.pdfjsLib){
+    await _loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const raw=atob(String(b64).split(',').pop());
+  const bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+  box.innerHTML='<div id="pdfPages" style="max-width:900px;margin:0 auto;padding:8px"></div>';
+  const pages=box.querySelector('#pdfPages');
+  for(let n=1;n<=pdf.numPages;n++){
+    const page=await pdf.getPage(n);
+    const base=page.getViewport({scale:1});
+    const scale=Math.min(2.5,(Math.min(window.innerWidth,900)-16)/base.width);
+    const vp=page.getViewport({scale});
+    const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+    c.style.cssText='width:100%;height:auto;display:block;margin:0 auto 10px;box-shadow:0 2px 10px rgba(0,0,0,.5);background:#fff;border-radius:4px';
+    pages.appendChild(c);
+    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  }
+}
+async function renderPublicCartaViewer(){
+  const box=document.getElementById('cartaPublic');if(!box)return;
+  document.body.classList.remove('dark');
+  const app=document.getElementById('app');if(app)app.style.display='none';
+  const lg=document.getElementById('loginScreen');if(lg)lg.style.display='none';
+  box.style.display='block';
+  box.innerHTML='<div style="color:#ddd;text-align:center;padding:50px 20px;font-family:DM Sans,system-ui,sans-serif">Cargando carta…</div>';
+  let tries=0;while(!window.supabase&&tries<40){await new Promise(r=>setTimeout(r,100));tries++;}
+  try{
+    const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    const {data}=await sb.from('econativo_state').select('payload').eq('key',CARTA_PDF_KEY).maybeSingle();
+    const p=data&&data.payload;
+    if(!p||!p.data){box.innerHTML='<div style="color:#ddd;text-align:center;padding:60px 20px;font-family:DM Sans,system-ui,sans-serif"><div style="font-size:42px;margin-bottom:10px">🍽️</div>No hay carta publicada en este momento.</div>';return;}
+    await _renderPdfFromBase64(box,p.data);
+  }catch(e){
+    box.innerHTML='<div style="color:#ddd;text-align:center;padding:60px 20px;font-family:DM Sans,system-ui,sans-serif">No se pudo cargar la carta.<br><span style="font-size:12px;color:#999">'+(e&&e.message||'')+'</span></div>';
+  }
+}
+
 /* ── KITCHEN ── */
 function renderKitchen(){
   const active=orders.filter(o=>o.status!=='closed'&&!o.kitchenHidden);
@@ -3864,7 +3986,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v38 (menu de pedidos respeta alcance Carta de categorias)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v39 (carta en PDF + QR fijo + ruta publica /carta)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -3979,7 +4101,7 @@ function _refreshActiveView(){
   const ap=document.querySelector('.page.active');
   if(!ap)return;
   const pid=ap.id?.replace('page-','');
-  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,inventory:renderInv,staff:renderStaff};
+  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,cartapdf:renderCartaPdf,inventory:renderInv,staff:renderStaff};
   if(map[pid])map[pid]();
   updateOCBadge();
 }
@@ -4152,6 +4274,15 @@ setInterval(()=>{
 },30000);
 
 renderTables();
+
+/* ── RUTA PÚBLICA /carta: si la URL es /carta, mostrar SOLO el visor del PDF ── */
+(function(){
+  const p=(location.pathname||'').replace(/\/+$/,'').toLowerCase();
+  if(p==='/carta'||p.endsWith('/carta')){
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderPublicCartaViewer);
+    else renderPublicCartaViewer();
+  }
+})();
 </script>
 
 
