@@ -3499,7 +3499,10 @@ function renderCartaPdf(){
       <div style="font-size:13px;font-weight:700;color:var(--bd);margin-bottom:8px"><i class="ti ti-qrcode" style="color:var(--bm)"></i> Código QR permanente</div>
       <img src="${qr}" alt="QR carta" style="width:240px;height:240px;background:#fff;border-radius:10px;padding:8px;border:1px solid var(--br)" referrerpolicy="no-referrer">
       <div style="font-size:11px;color:var(--ts);margin-top:8px;word-break:break-all">${url}</div>
-      <a class="btn-add-sm" style="display:inline-flex;margin-top:10px;text-decoration:none;color:#fff" href="${qr}" download="qr-carta.png"><i class="ti ti-download" style="font-size:12px"></i> Descargar QR</a>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px">
+        <a class="btn-add-sm" style="display:inline-flex;text-decoration:none;color:#fff" href="${qr}" download="qr-carta.png"><i class="ti ti-download" style="font-size:12px"></i> Descargar QR</a>
+        <a class="btn-add-sm" style="display:inline-flex;text-decoration:none;color:#fff;background:#25D366" href="https://wa.me/?text=${encodeURIComponent('¡Hola! 🍽️ Te invitamos a ver nuestra carta digital de EcoNativo 📋\n\nÁbrela aquí 👉 '+url)}" target="_blank" rel="noopener"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i> Compartir por WhatsApp</a>
+      </div>
       <div style="font-size:10px;color:var(--tl);margin-top:8px">Este QR no cambia nunca, aunque reemplaces el PDF.</div>
     </div>`;
   _cartaPdfGet().then(p=>{
