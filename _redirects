@@ -1,3 +1,2 @@
-# Ruta pública fija de la carta: sirve la SPA (index.html) y el JS muestra solo el PDF.
-/carta /index.html 200
-/carta/ /index.html 200
+# Sin reglas. La ruta pública /carta se sirve con el archivo real carta/index.html
+# (visor standalone del PDF). No se usa rewrite para evitar el redirect a "/".
