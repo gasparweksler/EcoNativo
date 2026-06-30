@@ -3473,6 +3473,12 @@ function delWaiter(wid){
    El QR apunta SIEMPRE a /carta (URL fija); reemplazar el PDF no cambia el QR ni la URL. */
 const CARTA_PDF_KEY='carta_pdf';
 function _cartaPublicUrl(){ return location.origin.replace(/\/$/,'')+'/carta'; }
+/* Mensaje de WhatsApp con emojis generados en runtime (fuente ASCII → evita errores de codificación) */
+function _cartaWhatsappMsg(url){
+  const e=c=>String.fromCodePoint(c);
+  return '¡Hola! '+e(0x1F37D)+' Te invitamos a ver nuestra carta digital de EcoNativo '+e(0x1F4CB)
+    +'\n\nÁbrela aquí '+e(0x1F449)+' '+url;
+}
 async function _cartaPdfGet(){
   if(!_sb){await initSupabase();}
   if(!_sb)return null;
@@ -3501,7 +3507,7 @@ function renderCartaPdf(){
       <div style="font-size:11px;color:var(--ts);margin-top:8px;word-break:break-all">${url}</div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px">
         <a class="btn-add-sm" style="display:inline-flex;text-decoration:none;color:#fff" href="${qr}" download="qr-carta.png"><i class="ti ti-download" style="font-size:12px"></i> Descargar QR</a>
-        <a class="btn-add-sm" style="display:inline-flex;text-decoration:none;color:#fff;background:#25D366" href="https://wa.me/?text=${encodeURIComponent('¡Hola! 🍽️ Te invitamos a ver nuestra carta digital de EcoNativo 📋\n\nÁbrela aquí 👉 '+url)}" target="_blank" rel="noopener"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i> Compartir por WhatsApp</a>
+        <a class="btn-add-sm" style="display:inline-flex;text-decoration:none;color:#fff;background:#25D366" href="https://wa.me/?text=${encodeURIComponent(_cartaWhatsappMsg(url))}" target="_blank" rel="noopener"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i> Compartir por WhatsApp</a>
       </div>
       <div style="font-size:10px;color:var(--tl);margin-top:8px">Este QR no cambia nunca, aunque reemplaces el PDF.</div>
     </div>`;
