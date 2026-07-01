@@ -3912,7 +3912,10 @@ async function initSupabase(){
 
     /* Subscribe to Realtime changes on the state row */
     _sbChannel=_sb.channel('econativo-realtime')
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'econativo_state'},
+      /* Filtro server-side por key: el cliente SOLO recibe el row de estado (pos_state).
+         Así el row del PDF (carta_pdf, base64 grande) nunca viaja por el websocket y no
+         rompe la sincronización en tiempo real. */
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'econativo_state',filter:'key=eq.'+SYNC_ROW_KEY},
         payload=>{
           if(payload.new?.key!==SYNC_ROW_KEY)return;
           const incoming=payload.new?.payload;
@@ -3998,7 +4001,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v39 (carta en PDF + QR fijo + ruta publica /carta)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v40 (fix sync realtime: filtro key para aislar el PDF del canal)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
