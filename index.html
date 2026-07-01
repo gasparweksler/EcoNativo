@@ -3473,11 +3473,12 @@ function delWaiter(wid){
    El QR apunta SIEMPRE a /carta (URL fija); reemplazar el PDF no cambia el QR ni la URL. */
 const CARTA_PDF_KEY='carta_pdf';
 function _cartaPublicUrl(){ return location.origin.replace(/\/$/,'')+'/carta'; }
-/* Mensaje de WhatsApp con emojis generados en runtime (fuente ASCII → evita errores de codificación) */
+/* Mensaje de WhatsApp 100% ASCII en el archivo (acentos y emojis por code point) →
+   inmune a cualquier problema de codificación del servidor/CDN. */
 function _cartaWhatsappMsg(url){
-  const e=c=>String.fromCodePoint(c);
-  return '¡Hola! '+e(0x1F37D)+' Te invitamos a ver nuestra carta digital de EcoNativo '+e(0x1F4CB)
-    +'\n\nÁbrela aquí '+e(0x1F449)+' '+url;
+  const e=String.fromCodePoint;
+  return e(0xA1)+'Hola! '+e(0x1F37D)+' Te invitamos a ver nuestra carta digital de EcoNativo '+e(0x1F4CB)
+    +'\n\n'+e(0xC1)+'brela aqu'+e(0xED)+' '+e(0x1F449)+' '+url;
 }
 async function _cartaPdfGet(){
   if(!_sb){await initSupabase();}
