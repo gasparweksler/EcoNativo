@@ -1054,6 +1054,7 @@ let selPay='efectivo';
 let kDone={};
 let noteItemIdx=-1;
 let splitPeople=[],splitOrderId=null;
+let splitMode='items',splitEqualN=2;   /* 'items' = por productos · 'equal' = partes iguales */
 let currentClientId=null,editingPendingIdx=-1;
 let currentWaiterId=null,currentRecipeName=null;
 let totalOrdsIn=0,prevOrderCount=0;
@@ -1712,11 +1713,13 @@ function cobrarYCerrar(){
       <div class="dir" style="margin-top:6px;font-weight:700;font-size:15px"><span>Total</span><span id="cobrarTotalAmt" style="color:var(--bm)">${fmt(sub+defaultTip)}</span></div>
     </div>
     <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Método de pago</div>
-    <div class="pay-opts" id="cobrarPayOpts">
+    <div class="pay-opts" id="cobrarPayOpts" style="grid-template-columns:repeat(2,1fr)">
       <div class="pb2 active" onclick="setCobrarPago('efectivo',this)"><i class="ti ti-cash"></i>Efectivo</div>
       <div class="pb2" onclick="setCobrarPago('tarjeta',this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
       <div class="pb2" onclick="setCobrarPago('transferencia',this)"><i class="ti ti-building-bank"></i>Transfer.</div>
+      <div class="pb2" onclick="setCobrarPago('mixto',this)"><i class="ti ti-arrows-split-2"></i>Mixto</div>
     </div>
+    <div id="cobrarPayDetail" style="margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="bs2" style="flex:1" onclick="document.getElementById('cobrarModal').remove()">Cancelar</button>
       <button class="bc2" style="flex:2;background:var(--bm);color:#fff;border:none" onclick="confirmarCobro('${o.id}',${sub})">
@@ -1727,6 +1730,8 @@ function cobrarYCerrar(){
   document.body.appendChild(modal);
   modal.onclick=e=>{if(e.target===modal)modal.remove();};
   window._cobrarPago='efectivo';
+  window._cobrarSub=sub;
+  _renderCobrarDetail();
 }
 
 function cobrarUpdateTip(sub){
@@ -1734,23 +1739,84 @@ function cobrarUpdateTip(sub){
   const tip=Math.round(sub*pct/100);
   $('cobrarTipAmt').textContent=fmt(tip);
   $('cobrarTotalAmt').textContent=fmt(sub+tip);
+  /* Refrescar cálculos de vuelto / mixto con el nuevo total */
+  if(window._cobrarPago==='efectivo')_cobrarCalcChange();
+  else if(window._cobrarPago==='mixto')_cobrarCalcMix();
 }
 
 function setCobrarPago(pago,el){
   window._cobrarPago=pago;
   el.closest('#cobrarPayOpts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
+  _renderCobrarDetail();
+}
+/* Total actual (subtotal + propina) del modal de cobro */
+function _cobrarTotalNow(){
+  const sub=window._cobrarSub||0;
+  const pct=parseInt($('cobrarTipPct')?.value)||0;
+  return sub+Math.round(sub*pct/100);
+}
+/* Detalle según método: efectivo (vuelto) o mixto (tarjeta+efectivo con "falta") */
+function _renderCobrarDetail(){
+  const d=$('cobrarPayDetail');if(!d)return;
+  const pago=window._cobrarPago,total=_cobrarTotalNow();
+  if(pago==='efectivo'){
+    d.innerHTML=`<div style="background:var(--cr);border-radius:var(--r);padding:9px 11px">
+      <label style="font-size:11px;color:var(--ts)">¿Con cuánto paga el cliente? (opcional)</label>
+      <input type="number" id="cobrarCashGiven" placeholder="${total}" oninput="_cobrarCalcChange()" style="width:100%;padding:8px;border:1px solid var(--br);border-radius:var(--r);font-size:15px;margin-top:4px;box-sizing:border-box">
+      <div id="cobrarChange" style="font-size:14px;font-weight:700;margin-top:6px"></div>
+    </div>`;
+  }else if(pago==='mixto'){
+    d.innerHTML=`<div style="background:var(--cr);border-radius:var(--r);padding:9px 11px">
+      <div style="font-size:11px;color:var(--ts);margin-bottom:6px">Divide el pago · total ${fmt(total)}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span style="width:74px;font-size:12px;color:var(--ts)"><i class="ti ti-credit-card"></i> Tarjeta</span><input type="number" id="cobrarMixCard" placeholder="0" oninput="_cobrarCalcMix('card')" style="flex:1;padding:7px;border:1px solid var(--br);border-radius:var(--r);font-size:15px;box-sizing:border-box"></div>
+      <div style="display:flex;gap:8px;align-items:center"><span style="width:74px;font-size:12px;color:var(--ts)"><i class="ti ti-cash"></i> Efectivo</span><input type="number" id="cobrarMixCash" placeholder="0" oninput="_cobrarCalcMix('cash')" style="flex:1;padding:7px;border:1px solid var(--br);border-radius:var(--r);font-size:15px;box-sizing:border-box"></div>
+      <div id="cobrarMixInfo" style="font-size:13px;font-weight:700;margin-top:7px"></div>
+    </div>`;
+    _cobrarCalcMix();
+  }else{ d.innerHTML=''; }
+}
+function _cobrarCalcChange(){
+  const el=$('cobrarChange');if(!el)return;
+  const total=_cobrarTotalNow(),given=parseInt($('cobrarCashGiven')?.value)||0;
+  if(!given){el.textContent='';return;}
+  const change=given-total;
+  el.style.color=change>=0?'var(--ok)':'var(--er)';
+  el.textContent=change>=0?('Vuelto a entregar: '+fmt(change)):('Falta: '+fmt(-change));
+}
+function _cobrarCalcMix(edited){
+  const total=_cobrarTotalNow();
+  let card=parseInt($('cobrarMixCard')?.value)||0, cash=parseInt($('cobrarMixCash')?.value)||0;
+  if(edited==='card'){cash=Math.max(0,total-card); if($('cobrarMixCash'))$('cobrarMixCash').value=cash||'';}
+  else if(edited==='cash'){card=Math.max(0,total-cash); if($('cobrarMixCard'))$('cobrarMixCard').value=card||'';}
+  const el=$('cobrarMixInfo');if(!el)return;
+  const falta=total-card-cash;
+  if(falta>0){el.style.color='var(--er)';el.textContent='Falta '+fmt(falta)+' para el total';}
+  else if(falta<0){el.style.color='var(--wn)';el.textContent='Sobra '+fmt(-falta)+' — ajusta los montos';}
+  else{el.style.color='var(--ok)';el.textContent='✓ Cubre el total ('+fmt(total)+')';}
 }
 
 function confirmarCobro(oid,sub){
   const o=getOrder(oid);if(!o)return;
   const pct=parseInt($('cobrarTipPct')?.value)||0;
   const tip=Math.round(sub*pct/100);
+  const total=sub+tip;
   const pago=window._cobrarPago||'efectivo';
+  const lugar=(o.tableId?'Mesa '+o.tableId:'Mostrador');
+  if(pago==='mixto'){
+    const card=parseInt($('cobrarMixCard')?.value)||0;
+    const cash=parseInt($('cobrarMixCash')?.value)||0;
+    if(card+cash<total){showToast('El pago no cubre el total (falta '+fmt(total-card-cash)+')','del');return;}
+    o.tip=tip;o.pago='mixto';o.status='closed';o.closedAt=Date.now();
+    closedSales.push({...o,items:o.items.map(i=>({...i}))});
+    if(card>0)addCajaMov(card,'tarjeta',lugar+' (mixto)');
+    if(total-card>0)addCajaMov(total-card,'efectivo',lugar+' (mixto)'); /* parte en efectivo que cuenta (sin vuelto) */
+  }else{
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
   /* Stock ya se descontó al enviar a cocina (order.stockDescontado) — NO descontar de nuevo al cobrar */
-  addCajaMov(sub+tip,pago,(o.tableId?'Mesa '+o.tableId:'Mostrador'));
+  addCajaMov(total,pago,lugar);
+  }
   /* Liberar mesa */
   const t=getTable(o.tableId);
   if(t){
@@ -2016,9 +2082,30 @@ function confirmToast(){
    Items assigned to a person are removed from unassigned pool.
    Once paid, items show as struck-through (paid). */
 function openSplitBill(oid){
-  splitOrderId=oid;
+  splitOrderId=oid;splitMode='items';splitEqualN=2;
   splitPeople=[{name:'Persona 1',items:[],tip:0,paid:false,pago:'efectivo'},{name:'Persona 2',items:[],tip:0,paid:false,pago:'efectivo'}];
   renderSplitModal();openMod('splitModal');
+}
+/* Cambiar entre modo por-productos y partes-iguales */
+function setSplitMode(m){
+  splitMode=m;
+  if(m==='equal'){ splitEqualN=Math.max(2,splitPeople.length||2); _rebuildEqualPeople(); }
+  renderSplitModal();
+}
+function setEqualN(n){ splitEqualN=Math.max(2,Math.min(20,n)); _rebuildEqualPeople(); renderSplitModal(); }
+function _rebuildEqualPeople(){
+  const prev=splitPeople;
+  splitPeople=[];
+  for(let i=0;i<splitEqualN;i++){
+    splitPeople.push((prev[i]&&prev[i].paid)?prev[i]:{name:'Persona '+(i+1),items:[],tip:0,paid:false,pago:'efectivo'});
+  }
+}
+/* Monto de cada persona en partes iguales (el resto se reparte en las primeras) */
+function _equalShare(pi){
+  const o=getOrder(splitOrderId);if(!o)return 0;
+  const sub=o.items.reduce((s,it)=>s+it.price*it.qty,0);
+  const base=Math.floor(sub/splitEqualN), rem=sub-base*splitEqualN;
+  return base+(pi<rem?1:0);
 }
 function getSplitItems(){
   const o=getOrder(splitOrderId);let items=[];
@@ -2026,10 +2113,47 @@ function getSplitItems(){
 
 function renderSplitModal(){
   const o=getOrder(splitOrderId);const items=getSplitItems();
-  let html=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
-    <h3>Dividir cuenta · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
-    <button onclick="addSplitPerson()" style="padding:4px 10px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600">+ Persona</button>
+  const subTotal=o.items.reduce((s,it)=>s+it.price*it.qty,0);
+  /* Selector de modo */
+  let html=`<div style="margin-bottom:.7rem">
+    <h3 style="margin-bottom:.6rem">Dividir cuenta · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
+    <div style="display:flex;gap:6px">
+      <button onclick="setSplitMode('items')" style="flex:1;padding:7px;border:1px solid ${splitMode==='items'?'var(--bm)':'var(--br)'};background:${splitMode==='items'?'var(--bm)':'transparent'};color:${splitMode==='items'?'#fff':'var(--ts)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700">Por productos</button>
+      <button onclick="setSplitMode('equal')" style="flex:1;padding:7px;border:1px solid ${splitMode==='equal'?'var(--bm)':'var(--br)'};background:${splitMode==='equal'?'var(--bm)':'transparent'};color:${splitMode==='equal'?'#fff':'var(--ts)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700">Partes iguales</button>
+    </div>
   </div>`;
+
+  /* ── MODO PARTES IGUALES ── */
+  if(splitMode==='equal'){
+    html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.7rem;margin-bottom:.7rem">
+      <div style="font-size:12px;color:var(--ts);margin-bottom:6px">Total a dividir: <strong style="color:var(--bd)">${fmt(subTotal)}</strong></div>
+      <div style="font-size:11px;color:var(--ts);margin-bottom:6px">¿Entre cuántas personas?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${[2,3,4,5,6,7,8].map(n=>`<button onclick="setEqualN(${n})" style="width:38px;height:38px;border:1px solid ${splitEqualN===n?'var(--bm)':'var(--br)'};background:${splitEqualN===n?'var(--bm)':'var(--wh)'};color:${splitEqualN===n?'#fff':'var(--bd)'};border-radius:var(--r);cursor:pointer;font-size:14px;font-weight:700">${n}</button>`).join('')}
+      </div>
+      <div style="font-size:15px;font-weight:700;color:var(--bm);margin-top:8px">${fmt(_equalShare(0))} por persona <span style="font-size:11px;color:var(--ts);font-weight:400">(${splitEqualN} personas)</span></div>
+    </div>`;
+    splitPeople.forEach((p,pi)=>{
+      html+=`<div class="split-person">
+        <h4><span>${p.name}</span>${p.paid?'<span style="color:var(--ok);font-size:11px">✓ Pagado</span>':''}</h4>
+        <div class="split-total-row"><span>Le toca</span><span>${fmt(calcPersonTotal(pi))}</span></div>`;
+      if(!p.paid){
+        html+=`<div class="pay-opts" style="margin-top:6px">
+          <div class="pb2 ${(p.pago||'efectivo')==='efectivo'?'active':''}" onclick="setSplitPago(${pi},'efectivo',this)"><i class="ti ti-cash"></i>Efectivo</div>
+          <div class="pb2 ${(p.pago||'')==='tarjeta'?'active':''}" onclick="setSplitPago(${pi},'tarjeta',this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
+          <div class="pb2 ${(p.pago||'')==='transferencia'?'active':''}" onclick="setSplitPago(${pi},'transferencia',this)"><i class="ti ti-building-bank"></i>Transfer.</div>
+        </div>
+        <button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
+      }else{ html+=`<button class="bpay paid" disabled="">Pagado ✓</button>`; }
+      html+='</div>';
+    });
+    html+=`<button class="bs2" style="width:100%;margin-top:8px" onclick="closeMod('splitModal')">Cerrar</button>`;
+    $('splitContent').innerHTML=html;
+    return;
+  }
+
+  /* ── MODO POR PRODUCTOS ── */
+  html+=`<div style="text-align:right;margin-bottom:.5rem"><button onclick="addSplitPerson()" style="padding:4px 10px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600">+ Persona</button></div>`;
 
   splitPeople.forEach((p,pi)=>{
     html+=`<div class="split-person">
@@ -2092,6 +2216,7 @@ function toggleSplitItem(pi,ii){
 }
 function setSplitPago(pi,pago,el){splitPeople[pi].pago=pago;el.closest('.pay-opts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));el.classList.add('active');}
 function calcPersonTotal(pi){
+  if(splitMode==='equal')return _equalShare(pi)+(splitPeople[pi]?.tip||0);
   const items=getSplitItems();const p=splitPeople[pi];
   return p.items.reduce((s,ii)=>s+(items[ii]?.price||0),0)+(p.tip||0);
 }
@@ -4001,7 +4126,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v40 (fix sync realtime: filtro key para aislar el PDF del canal)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v41 (pago mixto + vuelto en efectivo + dividir en partes iguales)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
