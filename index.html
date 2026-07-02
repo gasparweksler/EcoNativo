@@ -1710,6 +1710,7 @@ function cobrarYCerrar(){
           <button id="tipModeAmt" onclick="setTipMode('amt',${sub})" style="width:26px;height:26px;border:1px solid var(--br);background:transparent;color:var(--ts);border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">$</button>
           <input type="number" id="cobrarTipPct" value="10" min="0" style="width:64px;padding:4px 6px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;text-align:center" oninput="cobrarUpdateTip(${sub})">
           <span style="font-size:11px;color:var(--ts)" id="cobrarTipAmt">${fmt(defaultTip)}</span>
+          <button onclick="setNoTip(${sub})" title="Dejar propina en 0" style="padding:3px 8px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap">Sin propina</button>
         </div>
       </div>
       <div class="dir" style="margin-top:6px;font-weight:700;font-size:15px"><span>Total</span><span id="cobrarTotalAmt" style="color:var(--bm)">${fmt(sub+defaultTip)}</span></div>
@@ -1736,6 +1737,11 @@ function cobrarYCerrar(){
   window._cobrarTipMode='pct';
   window._cobrarTip=defaultTip;
   _renderCobrarDetail();
+}
+/* Dejar la propina en 0 (funciona en modo % o monto) */
+function setNoTip(sub){
+  const inp=$('cobrarTipPct');if(inp)inp.value=0;
+  cobrarUpdateTip(sub);
 }
 /* Alternar propina entre porcentaje y monto fijo */
 function setTipMode(mode,sub){
