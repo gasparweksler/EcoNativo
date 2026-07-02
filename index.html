@@ -2267,12 +2267,26 @@ function autoSplitTip(pi){
   splitPeople[pi].tip=Math.round(base*.1);renderSplitModal();
 }
 function noSplitTip(pi){ splitPeople[pi].tip=0; renderSplitModal(); }
-/* Fila de propina por MONTO exacto ($) + 10% + Sin propina, para cada persona */
+/* Base sobre la que se calcula la propina de una persona (productos o parte igual, sin propina) */
+function _splitPersonBase(pi){
+  if(splitMode==='equal')return _equalShare(pi);
+  const items=getSplitItems();
+  return splitPeople[pi].items.reduce((s,ii)=>s+(items[ii]?.price||0),0);
+}
+/* Propina por porcentaje → calcula el monto sobre la base de la persona */
+function setSplitTipPct(pi,pct){
+  const p=parseFloat(pct)||0;
+  splitPeople[pi].tip=Math.round(_splitPersonBase(pi)*p/100);
+  renderSplitModal();
+}
+/* Fila de propina: por % (editable) o por monto ($) + Sin propina, para cada persona */
 function _splitTipRow(pi){
   if(splitPeople[pi].paid)return '';
-  return `<div class="split-tip-row"><label>Propina ($):</label>
-    <input type="number" value="${splitPeople[pi].tip||0}" min="0" onchange="splitPeople[${pi}].tip=parseInt(this.value)||0;renderSplitModal()" style="width:82px">
-    <button onclick="autoSplitTip(${pi})" style="padding:2px 7px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">10%</button>
+  const base=_splitPersonBase(pi), tip=splitPeople[pi].tip||0;
+  const pct=base>0?Math.round(tip/base*100):0;
+  return `<div class="split-tip-row"><label>Propina:</label>
+    <input type="number" value="${pct}" min="0" onchange="setSplitTipPct(${pi},this.value)" style="width:46px" title="Por porcentaje"><span style="font-size:11px;color:var(--ts)">%</span>
+    <input type="number" value="${tip}" min="0" onchange="splitPeople[${pi}].tip=parseInt(this.value)||0;renderSplitModal()" style="width:76px" title="Por monto en $"><span style="font-size:11px;color:var(--ts)">$</span>
     <button onclick="noSplitTip(${pi})" style="padding:2px 7px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">Sin propina</button>
   </div>`;
 }
@@ -4177,7 +4191,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v43 (propina por monto + Sin propina tambien al dividir cuentas)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v44 (propina por % editable al dividir cuenta)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
