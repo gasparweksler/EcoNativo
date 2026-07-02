@@ -1734,6 +1734,7 @@ function cobrarYCerrar(){
         <i class="ti ti-check"></i> Confirmar cobro
       </button>
     </div>
+    <button class="bs2" style="width:100%;margin-top:8px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendOrderReceipt('${o.id}',window._cobrarTip||0)"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i> Enviar detalle</button>
   </div>`;
   document.body.appendChild(modal);
   modal.onclick=e=>{if(e.target===modal)modal.remove();};
@@ -1860,6 +1861,65 @@ function confirmarCobro(oid,sub){
   showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(sub+tip),'ok');
   updateOCBadge();renderDashboard();renderTables();broadcastState();
   goPage('tables');
+}
+/* ════════ ENVIAR DETALLE DE COMPRA (imagen del recibo → WhatsApp) ════════ */
+function _buildReceiptCanvas(o,tip){
+  const items=o.items||[];
+  const scale=2, W=380, pad=24, lineH=26;
+  const H=118 + items.length*lineH + 150;
+  const c=document.createElement('canvas');
+  c.width=W*scale;c.height=H*scale;
+  const ctx=c.getContext('2d');ctx.scale(scale,scale);
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+  let y=pad+16;
+  ctx.textAlign='center';
+  ctx.fillStyle='#3D2B1F';ctx.font="700 24px 'DM Sans',sans-serif";ctx.fillText('EcoNativo',W/2,y);y+=24;
+  ctx.fillStyle='#7A5C45';ctx.font="600 13px 'DM Sans',sans-serif";ctx.fillText('Detalle de compra',W/2,y);y+=24;
+  ctx.textAlign='left';ctx.font="12px 'DM Sans',sans-serif";ctx.fillStyle='#7A5C45';
+  const meta=(o.tableId?('Mesa '+o.tableId):'Mostrador')+(o.waiter?(' · '+o.waiter):'');
+  ctx.fillText(meta,pad,y);y+=16;
+  ctx.fillText(new Date(o.closedAt||o.time||Date.now()).toLocaleString('es-CL'),pad,y);y+=14;
+  ctx.strokeStyle='#DDD0B8';ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();y+=18;
+  let sub=0;
+  ctx.font="14px 'DM Sans',sans-serif";
+  items.forEach(it=>{
+    const amt=it.price*it.qty;sub+=amt;
+    ctx.fillStyle='#2C1A0E';ctx.textAlign='left';
+    ctx.fillText((it.qty>1?it.qty+'× ':'')+it.name,pad,y);
+    ctx.textAlign='right';ctx.fillText(fmt(amt),W-pad,y);
+    y+=lineH;
+  });
+  y+=2;ctx.strokeStyle='#DDD0B8';ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();y+=20;
+  const row=(l,v,bold)=>{ctx.font=(bold?'700 16px':'13px')+" 'DM Sans',sans-serif";ctx.fillStyle=bold?'#3D2B1F':'#7A5C45';ctx.textAlign='left';ctx.fillText(l,pad,y);ctx.textAlign='right';ctx.fillText(fmt(v),W-pad,y);y+=bold?26:20;};
+  row('Subtotal',sub,false);
+  if(tip>0)row('Propina',tip,false);
+  row('Total',sub+tip,true);
+  if(o.pago){ctx.font="12px 'DM Sans',sans-serif";ctx.fillStyle='#7A5C45';ctx.textAlign='left';ctx.fillText('Pago: '+o.pago,pad,y);y+=20;}
+  y+=8;ctx.textAlign='center';ctx.fillStyle='#6B4226';ctx.font="600 13px 'DM Sans',sans-serif";
+  ctx.fillText('¡Gracias por tu compra!',W/2,y);
+  return c;
+}
+async function sendOrderReceipt(oid,tipOverride){
+  const o=getOrder(oid)||closedSales.find(s=>s.id===oid);
+  if(!o||!o.items||!o.items.length){showToast('Sin detalle para enviar','del');return;}
+  const tip=(tipOverride!=null)?tipOverride:(o.tip||0);
+  showToast('Generando detalle…','ok');
+  const canvas=_buildReceiptCanvas(o,tip);
+  canvas.toBlob(async(blob)=>{
+    if(!blob){showToast('No se pudo generar la imagen','del');return;}
+    const file=new File([blob],'detalle-'+(o.id||'compra')+'.png',{type:'image/png'});
+    /* Compartir nativo (celular) → elige WhatsApp y adjunta la imagen */
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:'Detalle de compra',text:'Detalle de tu compra en EcoNativo'}); return; }
+      catch(e){ if(e&&e.name==='AbortError')return; }
+    }
+    /* Fallback (escritorio): descarga la imagen y abre WhatsApp */
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    showToast('Imagen descargada — adjúntala en WhatsApp','ok');
+    window.open('https://wa.me/?text='+encodeURIComponent('Te envío el detalle de tu compra en EcoNativo '+String.fromCodePoint(0x1F9FE)),'_blank');
+  },'image/png');
 }
 function cobrarDividido(){
   const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
@@ -2480,6 +2540,7 @@ function openOD(id){
       ${o.tableId?`<button class="ba info" onclick="closeMod('odModal');openSplitBill('${id}')"><i class="ti ti-users" style="font-size:11px" aria-hidden="true"></i> Dividir</button>`:''}
       <button class="ba suc" onclick="closeOrd('${id}')"><i class="ti ti-receipt" style="font-size:11px" aria-hidden="true"></i> ${o.status==='canceled'?'Cobrar pedido cancelado':'Cobrar y cerrar'}</button>
     </div>
+    <button class="bs2" style="width:100%;margin-top:6px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendOrderReceipt('${id}')"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i> Enviar detalle</button>
     <button class="bs2" style="width:100%;margin-top:6px" onclick="closeMod('odModal')">Cerrar</button>
   </div>`;
   openMod('odModal');
@@ -4197,7 +4258,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v45 (contraste de botones en modo noche + boton 10% al dividir)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v46 (enviar detalle de compra como imagen por WhatsApp)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
