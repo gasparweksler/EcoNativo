@@ -1903,32 +1903,39 @@ async function sendOrderReceipt(oid,tipOverride){
   const o=getOrder(oid)||closedSales.find(s=>s.id===oid);
   if(!o||!o.items||!o.items.length){showToast('Sin detalle para enviar','del');return;}
   const tip=(tipOverride!=null)?tipOverride:(o.tip||0);
-  showToast('Generando detalle…','ok');
   const canvas=_buildReceiptCanvas(o,tip);
-  canvas.toBlob(async(blob)=>{
-    if(!blob){showToast('No se pudo generar la imagen','del');return;}
-    const file=new File([blob],'detalle-'+(o.id||'compra')+'.png',{type:'image/png'});
-    /* Compartir nativo (celular) → elige WhatsApp y adjunta la imagen */
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      try{ await navigator.share({files:[file],title:'Detalle de compra',text:'Detalle de tu compra en EcoNativo'}); return; }
-      catch(e){ if(e&&e.name==='AbortError')return; }
-    }
-    /* Fallback escritorio 1: copiar la imagen al portapapeles → pegar con Ctrl+V en WhatsApp Web */
+  /* Blob como Promise: permite conservar el "gesto de usuario" al copiar/compartir */
+  const blobP=new Promise(res=>canvas.toBlob(res,'image/png'));
+
+  /* ¿El navegador soporta compartir archivos? (celular). Se prueba con un archivo dummy. */
+  const canShareFiles=!!(navigator.canShare&&navigator.canShare({files:[new File([new Uint8Array(1)],'r.png',{type:'image/png'})]}));
+
+  /* PC: copiar la imagen al portapapeles (Ctrl+V en WhatsApp Web). Se llama write() de inmediato,
+     dentro del gesto, pasando la Promise del blob al ClipboardItem. */
+  if(!canShareFiles && navigator.clipboard && window.ClipboardItem){
     try{
-      if(navigator.clipboard&&window.ClipboardItem){
-        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
-        showToast('Imagen copiada ✓ — pégala en WhatsApp con Ctrl+V','ok');
-        window.open('https://web.whatsapp.com/','_blank');
-        return;
-      }
-    }catch(e){/* si el navegador no permite copiar imagen, se descarga */}
-    /* Fallback escritorio 2: descargar la imagen y abrir WhatsApp */
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),5000);
-    showToast('Imagen descargada — adjúntala en WhatsApp','ok');
-    window.open('https://web.whatsapp.com/','_blank');
-  },'image/png');
+      await navigator.clipboard.write([new ClipboardItem({'image/png':blobP})]);
+      showToast('Imagen copiada ✓ — abre WhatsApp Web y pega con Ctrl+V','ok');
+      window.open('https://web.whatsapp.com/','_blank');
+      return;
+    }catch(e){ /* si falla, se descarga abajo */ }
+  }
+
+  const blob=await blobP;
+  if(!blob){showToast('No se pudo generar la imagen','del');return;}
+
+  /* Celular: compartir nativo → elegir WhatsApp y adjunta la imagen sola */
+  if(canShareFiles){
+    try{ await navigator.share({files:[new File([blob],'detalle-'+(o.id||'compra')+'.png',{type:'image/png'})],title:'Detalle de compra',text:'Detalle de tu compra en EcoNativo'}); return; }
+    catch(e){ if(e&&e.name==='AbortError')return; }
+  }
+
+  /* Último recurso: descargar la imagen */
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='detalle-'+(o.id||'compra')+'.png';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  showToast('Imagen descargada — adjúntala en WhatsApp','ok');
+  window.open('https://web.whatsapp.com/','_blank');
 }
 function cobrarDividido(){
   const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
@@ -4267,7 +4274,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v47 (enviar detalle: copiar imagen al portapapeles en PC)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v48 (fix copiar imagen en PC: ClipboardItem con Promise del blob)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
