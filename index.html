@@ -1705,8 +1705,10 @@ function cobrarYCerrar(){
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span>${fmt(sub)}</span></div>
       <div class="dir" style="align-items:center;margin-top:6px">
         <span style="color:var(--ts)">Propina</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" id="cobrarTipPct" value="10" min="0" max="100" style="width:52px;padding:4px 6px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;text-align:center" oninput="cobrarUpdateTip(${sub})"> %
+        <div style="display:flex;align-items:center;gap:5px">
+          <button id="tipModePct" onclick="setTipMode('pct',${sub})" style="width:26px;height:26px;border:1px solid var(--bm);background:var(--bm);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">%</button>
+          <button id="tipModeAmt" onclick="setTipMode('amt',${sub})" style="width:26px;height:26px;border:1px solid var(--br);background:transparent;color:var(--ts);border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">$</button>
+          <input type="number" id="cobrarTipPct" value="10" min="0" style="width:64px;padding:4px 6px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;text-align:center" oninput="cobrarUpdateTip(${sub})">
           <span style="font-size:11px;color:var(--ts)" id="cobrarTipAmt">${fmt(defaultTip)}</span>
         </div>
       </div>
@@ -1731,13 +1733,32 @@ function cobrarYCerrar(){
   modal.onclick=e=>{if(e.target===modal)modal.remove();};
   window._cobrarPago='efectivo';
   window._cobrarSub=sub;
+  window._cobrarTipMode='pct';
+  window._cobrarTip=defaultTip;
   _renderCobrarDetail();
 }
-
+/* Alternar propina entre porcentaje y monto fijo */
+function setTipMode(mode,sub){
+  window._cobrarTipMode=mode;
+  const inp=$('cobrarTipPct');
+  const bp=$('tipModePct'),ba=$('tipModeAmt');
+  if(bp&&ba){
+    const on='border:1px solid var(--bm);background:var(--bm);color:#fff';
+    const off='border:1px solid var(--br);background:transparent;color:var(--ts)';
+    bp.style.cssText='width:26px;height:26px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;'+(mode==='pct'?on:off);
+    ba.style.cssText='width:26px;height:26px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;'+(mode==='amt'?on:off);
+  }
+  /* Al cambiar de modo, precargar un valor coherente en el input */
+  if(inp){ inp.value = (mode==='amt') ? (window._cobrarTip||0) : (sub>0?Math.round((window._cobrarTip||0)/sub*100):10); }
+  cobrarUpdateTip(sub);
+}
 function cobrarUpdateTip(sub){
-  const pct=parseInt($('cobrarTipPct').value)||0;
-  const tip=Math.round(sub*pct/100);
-  $('cobrarTipAmt').textContent=fmt(tip);
+  const v=parseInt($('cobrarTipPct').value)||0;
+  const tip=(window._cobrarTipMode==='amt')?v:Math.round(sub*v/100);
+  window._cobrarTip=tip;
+  $('cobrarTipAmt').textContent=(window._cobrarTipMode==='amt')
+    ? ('≈ '+(sub>0?Math.round(tip/sub*100):0)+'%')
+    : fmt(tip);
   $('cobrarTotalAmt').textContent=fmt(sub+tip);
   /* Refrescar cálculos de vuelto / mixto con el nuevo total */
   if(window._cobrarPago==='efectivo')_cobrarCalcChange();
@@ -1752,9 +1773,7 @@ function setCobrarPago(pago,el){
 }
 /* Total actual (subtotal + propina) del modal de cobro */
 function _cobrarTotalNow(){
-  const sub=window._cobrarSub||0;
-  const pct=parseInt($('cobrarTipPct')?.value)||0;
-  return sub+Math.round(sub*pct/100);
+  return (window._cobrarSub||0)+(window._cobrarTip||0);
 }
 /* Detalle según método: efectivo (vuelto) o mixto (tarjeta+efectivo con "falta") */
 function _renderCobrarDetail(){
@@ -1798,8 +1817,7 @@ function _cobrarCalcMix(edited){
 
 function confirmarCobro(oid,sub){
   const o=getOrder(oid);if(!o)return;
-  const pct=parseInt($('cobrarTipPct')?.value)||0;
-  const tip=Math.round(sub*pct/100);
+  const tip=window._cobrarTip||0;
   const total=sub+tip;
   const pago=window._cobrarPago||'efectivo';
   const lugar=(o.tableId?'Mesa '+o.tableId:'Mostrador');
@@ -2143,7 +2161,7 @@ function renderSplitModal(){
           <div class="pb2 ${(p.pago||'')==='tarjeta'?'active':''}" onclick="setSplitPago(${pi},'tarjeta',this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
           <div class="pb2 ${(p.pago||'')==='transferencia'?'active':''}" onclick="setSplitPago(${pi},'transferencia',this)"><i class="ti ti-building-bank"></i>Transfer.</div>
         </div>
-        <button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
+        ${_splitCashHtml(pi)}<button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
       }else{ html+=`<button class="bpay paid" disabled="">Pagado ✓</button>`; }
       html+='</div>';
     });
@@ -2188,7 +2206,7 @@ function renderSplitModal(){
         <div class="pb2 ${(p.pago||'')==='tarjeta'?'active':''}" onclick="setSplitPago(${pi},'tarjeta',this)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
         <div class="pb2 ${(p.pago||'')==='transferencia'?'active':''}" onclick="setSplitPago(${pi},'transferencia',this)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
       </div>
-      <button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
+      ${_splitCashHtml(pi)}<button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
     }else{
       html+=`<button class="bpay paid" disabled="">Pagado ✓</button>`;
     }
@@ -2214,7 +2232,25 @@ function toggleSplitItem(pi,ii){
   if(idx>=0)p.items.splice(idx,1);else p.items.push(ii);
   renderSplitModal();
 }
-function setSplitPago(pi,pago,el){splitPeople[pi].pago=pago;el.closest('.pay-opts').querySelectorAll('.pb2').forEach(b=>b.classList.remove('active'));el.classList.add('active');}
+function setSplitPago(pi,pago,el){splitPeople[pi].pago=pago;renderSplitModal();}
+/* Vuelto para una persona al pagar en efectivo */
+function _splitCalcChange(pi){
+  const el=$('splitChange-'+pi);if(!el)return;
+  const total=calcPersonTotal(pi),given=parseInt($('splitCash-'+pi)?.value)||0;
+  if(!given){el.textContent='';return;}
+  const ch=given-total;
+  el.style.color=ch>=0?'var(--ok)':'var(--er)';
+  el.textContent=ch>=0?('Vuelto: '+fmt(ch)):('Falta: '+fmt(-ch));
+}
+/* Bloque de efectivo (¿con cuánto paga? + vuelto) para una persona */
+function _splitCashHtml(pi){
+  if((splitPeople[pi].pago||'efectivo')!=='efectivo')return '';
+  return `<div style="background:var(--cr2);border-radius:var(--r);padding:6px 8px;margin-top:6px">
+    <label style="font-size:10px;color:var(--ts)">¿Con cuánto paga?</label>
+    <input type="number" id="splitCash-${pi}" placeholder="${calcPersonTotal(pi)}" oninput="_splitCalcChange(${pi})" style="width:100%;padding:6px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;box-sizing:border-box;margin-top:2px">
+    <div id="splitChange-${pi}" style="font-size:12px;font-weight:700;margin-top:3px"></div>
+  </div>`;
+}
 function calcPersonTotal(pi){
   if(splitMode==='equal')return _equalShare(pi)+(splitPeople[pi]?.tip||0);
   const items=getSplitItems();const p=splitPeople[pi];
@@ -4126,7 +4162,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v41 (pago mixto + vuelto en efectivo + dividir en partes iguales)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v42 (propina por % o monto + vuelto al dividir cuentas)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
