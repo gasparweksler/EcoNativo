@@ -2287,6 +2287,7 @@ function _splitTipRow(pi){
   return `<div class="split-tip-row"><label>Propina:</label>
     <input type="number" value="${pct}" min="0" onchange="setSplitTipPct(${pi},this.value)" style="width:46px" title="Por porcentaje"><span style="font-size:11px;color:var(--ts)">%</span>
     <input type="number" value="${tip}" min="0" onchange="splitPeople[${pi}].tip=parseInt(this.value)||0;renderSplitModal()" style="width:76px" title="Por monto en $"><span style="font-size:11px;color:var(--ts)">$</span>
+    <button onclick="autoSplitTip(${pi})" style="padding:2px 8px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:700">10%</button>
     <button onclick="noSplitTip(${pi})" style="padding:2px 7px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">Sin propina</button>
   </div>`;
 }
