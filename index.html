@@ -1913,12 +1913,21 @@ async function sendOrderReceipt(oid,tipOverride){
       try{ await navigator.share({files:[file],title:'Detalle de compra',text:'Detalle de tu compra en EcoNativo'}); return; }
       catch(e){ if(e&&e.name==='AbortError')return; }
     }
-    /* Fallback (escritorio): descarga la imagen y abre WhatsApp */
+    /* Fallback escritorio 1: copiar la imagen al portapapeles → pegar con Ctrl+V en WhatsApp Web */
+    try{
+      if(navigator.clipboard&&window.ClipboardItem){
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        showToast('Imagen copiada ✓ — pégala en WhatsApp con Ctrl+V','ok');
+        window.open('https://web.whatsapp.com/','_blank');
+        return;
+      }
+    }catch(e){/* si el navegador no permite copiar imagen, se descarga */}
+    /* Fallback escritorio 2: descargar la imagen y abrir WhatsApp */
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),5000);
     showToast('Imagen descargada — adjúntala en WhatsApp','ok');
-    window.open('https://wa.me/?text='+encodeURIComponent('Te envío el detalle de tu compra en EcoNativo '+String.fromCodePoint(0x1F9FE)),'_blank');
+    window.open('https://web.whatsapp.com/','_blank');
   },'image/png');
 }
 function cobrarDividido(){
@@ -4258,7 +4267,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v46 (enviar detalle de compra como imagen por WhatsApp)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v47 (enviar detalle: copiar imagen al portapapeles en PC)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
