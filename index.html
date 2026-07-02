@@ -112,6 +112,11 @@ body.dark .bnt{color:rgba(255,255,255,.62)}
 body.dark .bnt.active,body.dark .bnt:hover{color:#fff;background:rgba(255,255,255,.14)}
 /* Mesas: "Libre" muy tenue → subir contraste */
 body.dark .s-free{color:var(--ts)}
+/* Botones "fantasma" (Cerrar, Preparando, Listo, Cancelar, chips) que quedaban oscuros sobre oscuro.
+   Se excluyen los estados activos/seleccionados y los botones de color (.ba.suc / .ba.info). */
+body.dark .bs2,body.dark .qb,body.dark .ba:not(.suc):not(.info){background:#2c2620;color:var(--tm);border-color:#4a4036}
+body.dark .pb2:not(.active),body.dark .cb:not(.active),body.dark .chip:not(.sel){background:#2c2620;color:var(--tm);border-color:#4a4036}
+body.dark .split-tip-row input,body.dark .split-item-row input{background:#2c2620;color:var(--tm)}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cr);color:var(--tm);min-height:100vh;font-size:14px;overflow-x:hidden}
 h1,h2,h3,.serif{font-family:'Playfair Display',Georgia,serif}
 input,select,button,textarea{font-family:inherit;font-size:14px}
@@ -4192,7 +4197,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v44 (propina por % editable al dividir cuenta)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v45 (contraste de botones en modo noche + boton 10% al dividir)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
