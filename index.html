@@ -3770,10 +3770,11 @@ function renderCartaPdf(){
       <input type="file" id="cartaPdfFile" accept="application/pdf,.pdf" style="display:none" onchange="uploadCartaPdf(this)">
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <button class="btn-add-sm" onclick="document.getElementById('cartaPdfFile').click()"><i class="ti ti-upload" style="font-size:12px"></i> Subir / Reemplazar PDF</button>
+        <button class="btn-add-sm" style="background:var(--ok)" onclick="actualizarPreciosCarta()"><i class="ti ti-refresh" style="font-size:12px"></i> Actualizar Precios</button>
         <a class="btn-add-sm" style="background:var(--inf);text-decoration:none;color:#fff" href="${url}" target="_blank" rel="noopener"><i class="ti ti-external-link" style="font-size:12px"></i> Ver /carta</a>
         <button class="btn-add-sm" style="background:var(--er)" onclick="deleteCartaPdf()"><i class="ti ti-trash" style="font-size:12px"></i> Eliminar</button>
       </div>
-      <div style="font-size:11px;color:var(--tl);margin-top:8px">Solo se publica un PDF a la vez. Reemplazarlo mantiene la misma URL y el mismo QR.</div>
+      <div style="font-size:11px;color:var(--tl);margin-top:8px">Solo se publica una carta a la vez. "Actualizar Precios" genera y publica una carta con los precios actuales de la app (misma URL y QR).</div>
     </div>
     <div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);padding:1rem;text-align:center;max-width:380px">
       <div style="font-size:13px;font-weight:700;color:var(--bd);margin-bottom:8px"><i class="ti ti-qrcode" style="color:var(--bm)"></i> Código QR permanente</div>
@@ -3790,6 +3791,57 @@ function renderCartaPdf(){
     s.innerHTML = p ? `<span style="color:var(--ok);font-weight:700">✓ Carta publicada</span> · <strong>${(p.name||'carta.pdf')}</strong><br><span style="color:var(--tl)">Actualizada: ${new Date(p.updatedAt||Date.now()).toLocaleString('es-CL')}</span>`
                     : `<span style="color:var(--wn);font-weight:700">⚠ No hay carta publicada todavía.</span> Sube un PDF para activar el QR.`;
   });
+}
+/* Genera una imagen de la carta con los precios ACTUALES desde menuData (categorías visibles en Carta) */
+function _buildMenuImage(){
+  const rows=[];
+  Object.keys(menuData).filter(c=>_catScope(c).carta).forEach(cat=>{
+    const catRows=[];
+    Object.entries(menuData[cat]).forEach(([sub,items])=>{
+      const active=(items||[]).filter(it=>it.active!==false);
+      if(!active.length)return;
+      catRows.push({type:'sub',text:sub});
+      active.forEach(it=>{
+        if(it.isVariant&&Array.isArray(it.variants)){
+          it.variants.filter(v=>v.active!==false).forEach(v=>catRows.push({type:'item',name:v.name,price:v.price}));
+        }else catRows.push({type:'item',name:it.name,price:it.price});
+      });
+    });
+    if(catRows.length){ rows.push({type:'cat',text:cat}); rows.push(...catRows); }
+  });
+  const scale=2,W=440,pad=28,Hc=42,Hs=24,Hi=25,top=96,bot=44;
+  let h=top; rows.forEach(r=>{h+=r.type==='cat'?Hc:r.type==='sub'?Hs:Hi;}); h+=bot;
+  const c=document.createElement('canvas');c.width=W*scale;c.height=h*scale;
+  const ctx=c.getContext('2d');ctx.scale(scale,scale);
+  ctx.fillStyle='#FAF6EF';ctx.fillRect(0,0,W,h);
+  let y=44;ctx.textAlign='center';
+  ctx.fillStyle='#3D2B1F';ctx.font="700 28px 'Playfair Display',serif";ctx.fillText('EcoNativo',W/2,y);y+=22;
+  ctx.fillStyle='#7A5C45';ctx.font="600 12px 'DM Sans',sans-serif";ctx.fillText('Carta · precios al '+new Date().toLocaleDateString('es-CL'),W/2,y);y+=30;
+  rows.forEach(r=>{
+    if(r.type==='cat'){
+      y+=10;ctx.textAlign='left';ctx.fillStyle='#6B4226';ctx.font="700 19px 'Playfair Display',serif";ctx.fillText(r.text,pad,y);
+      ctx.strokeStyle='#C4A882';ctx.beginPath();ctx.moveTo(pad,y+7);ctx.lineTo(W-pad,y+7);ctx.stroke();y+=Hc-10;
+    }else if(r.type==='sub'){
+      ctx.textAlign='left';ctx.fillStyle='#A8876A';ctx.font="700 11px 'DM Sans',sans-serif";ctx.fillText((r.text||'').toUpperCase(),pad,y);y+=Hs;
+    }else{
+      ctx.textAlign='left';ctx.fillStyle='#2C1A0E';ctx.font="14px 'DM Sans',sans-serif";ctx.fillText(r.name,pad,y);
+      ctx.textAlign='right';ctx.fillStyle='#6B4226';ctx.font="700 14px 'DM Sans',sans-serif";ctx.fillText(fmt(r.price),W-pad,y);y+=Hi;
+    }
+  });
+  return c;
+}
+async function actualizarPreciosCarta(){
+  try{
+    if(!_sb){await initSupabase();}
+    if(!_sb){showToast('Sin conexión a Supabase','del');return;}
+    const rows=Object.keys(menuData).filter(c=>_catScope(c).carta).length;
+    if(!rows){showToast('No hay categorías de carta para publicar','del');return;}
+    showToast('Generando carta con precios…','ok');
+    const dataUrl=_buildMenuImage().toDataURL('image/jpeg',0.9);
+    const {error}=await _sb.from('econativo_state').upsert({key:CARTA_PDF_KEY,payload:{data:dataUrl,name:'Carta con precios actualizados',updatedAt:Date.now(),kind:'image'},updated_at:new Date().toISOString()});
+    if(error){showToast('Error al actualizar: '+error.message,'del');return;}
+    showToast('Precios actualizados y carta publicada ✓','ok');renderCartaPdf();
+  }catch(e){showToast('Error: '+(e&&e.message||e),'del');}
 }
 function uploadCartaPdf(input){
   const file=input.files&&input.files[0];if(!file)return;
@@ -3856,6 +3908,7 @@ async function renderPublicCartaViewer(){
     const {data}=await sb.from('econativo_state').select('payload').eq('key',CARTA_PDF_KEY).maybeSingle();
     const p=data&&data.payload;
     if(!p||!p.data){box.innerHTML='<div style="color:#ddd;text-align:center;padding:60px 20px;font-family:DM Sans,system-ui,sans-serif"><div style="font-size:42px;margin-bottom:10px">🍽️</div>No hay carta publicada en este momento.</div>';return;}
+    if(/^data:image\//i.test(p.data)){box.innerHTML='<img src="'+p.data+'" style="max-width:900px;width:100%;height:auto;display:block;margin:0 auto;background:#fff;border-radius:6px">';return;}
     await _renderPdfFromBase64(box,p.data);
   }catch(e){
     box.innerHTML='<div style="color:#ddd;text-align:center;padding:60px 20px;font-family:DM Sans,system-ui,sans-serif">No se pudo cargar la carta.<br><span style="font-size:12px;color:#999">'+(e&&e.message||'')+'</span></div>';
@@ -3881,9 +3934,13 @@ function renderKitchen(){
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
-      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row">
+      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
         ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
         <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
+        ${o.status!=='canceled'?`<div style="display:flex;gap:6px;width:100%;margin-top:6px">
+          <button onclick="tkItemState('${o.id}',${i},'prep')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--wn);${item.kstate==='prep'?'background:var(--wn);color:#fff':'background:transparent;color:var(--wn)'}">Preparando</button>
+          <button onclick="tkItemState('${o.id}',${i},'listo')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--ok);${item.kstate==='listo'?'background:var(--ok);color:#fff':'background:transparent;color:var(--ok)'}">Listo</button>
+        </div>`:''}
       </div>`).join('')}</div>
       <div class="kac">
         ${o.status==='pending'?`<button class="bks" onclick="kStart('${o.id}')"><i class="ti ti-player-play" style="font-size:15px" aria-hidden="true"></i> Iniciar</button>`:''}
@@ -3894,6 +3951,19 @@ function renderKitchen(){
       </div>
     </div>`;
   }).join('');
+}
+/* Color de fondo del ítem según su estado de preparación (rojo inicial / amarillo / verde) */
+function _kItemBg(state){
+  const d=document.body.classList.contains('dark');
+  if(state==='prep')return d?'#3d3410':'#FFF3CD';   /* amarillo — preparando */
+  if(state==='listo')return d?'#1e3320':'#D4EDDA';  /* verde — listo */
+  return d?'#3d1f1f':'#FBE0E1';                       /* rojo — sin comenzar */
+}
+/* Cambiar el estado de preparación de UN ítem (solo uno activo; se guarda en el ítem y se sincroniza) */
+function tkItemState(oid,i,state){
+  const o=getOrder(oid);if(!o||!o.items[i])return;
+  o.items[i].kstate=(o.items[i].kstate===state)?'':state; /* volver a rojo si se toca el estado activo */
+  renderKitchen();broadcastState();
 }
 function tkI(oid,i){
   /* Marca/desmarca el ítem como completado EN el propio ítem (viaja con el pedido) */
@@ -4274,7 +4344,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v48 (fix copiar imagen en PC: ClipboardItem con Promise del blob)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v49 (actualizar precios de la carta + estados por item en cocina)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
