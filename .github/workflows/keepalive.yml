@@ -1,0 +1,37 @@
+name: Keep Supabase Alive
+
+# Evita que el proyecto de Supabase (plan gratuito) se pause por inactividad (~7 dias).
+# Hace un ping diario (lectura y escritura minima) para mantenerlo activo.
+on:
+  schedule:
+    - cron: '17 9 * * *'    # todos los dias ~09:17 UTC
+    - cron: '17 21 * * *'   # y ~21:17 UTC (doble por si GitHub retrasa/omite alguna)
+  workflow_dispatch:         # permite ejecutarlo a mano desde la pestana Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (lectura)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/econativo_state?select=key&limit=1" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "GET econativo_state -> HTTP $code"
+        env:
+          SUPABASE_URL: https://xtprxnfvvynbakgonoau.supabase.co
+          KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzgwNzQsImV4cCI6MjA5NjQ1NDA3NH0.e8V8A18bgI_q3LwsToQOtqDKIPvEVBgE4q5xONrebU8
+
+      - name: Ping Supabase (escritura keep-alive)
+        run: |
+          ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "$SUPABASE_URL/rest/v1/econativo_state" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{\"key\":\"keepalive\",\"payload\":{\"ping\":\"$ts\"},\"updated_at\":\"$ts\"}")
+          echo "UPSERT keepalive -> HTTP $code"
+        env:
+          SUPABASE_URL: https://xtprxnfvvynbakgonoau.supabase.co
+          KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0cHJ4bmZ2dnluYmFrZ29ub2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzgwNzQsImV4cCI6MjA5NjQ1NDA3NH0.e8V8A18bgI_q3LwsToQOtqDKIPvEVBgE4q5xONrebU8
