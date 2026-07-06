@@ -56,6 +56,11 @@ async function renderPdf(b64){
     const {data}=await sb.from('econativo_state').select('payload').eq('key',CARTA_PDF_KEY).maybeSingle();
     const p=data&&data.payload;
     if(!p||!p.data){showMsg('<div class="big">'+String.fromCodePoint(0x1F37D)+'</div>No hay carta publicada en este momento.');return;}
+    if(/^data:image\//i.test(p.data)){
+      hideMsg();
+      document.getElementById('pages').innerHTML='<img src="'+p.data+'" alt="Carta" style="max-width:900px;width:100%;height:auto;display:block;margin:0 auto;background:#fff;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.5)">';
+      return;
+    }
     await renderPdf(p.data);
   }catch(e){
     showMsg('No se pudo cargar la carta.<br><span style="font-size:12px;color:#999">'+(e&&e.message||'')+'</span>');
