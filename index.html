@@ -82,9 +82,9 @@ window.supabase=supabase;
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  --cr:#FAF6EF;--cr2:#F2EAD8;--bd:#3D2B1F;--bm:#6B4226;--ol:#5C6B40;
-  --sd:#C4A882;--wh:#fff;--tm:#2C1A0E;--ts:#7A5C45;--tl:#A8876A;
-  --br:#DDD0B8;--ok:#4A7C59;--wn:#C4870A;--er:#B04040;--inf:#3A6B9E;
+  --cr:#F3ECDD;--cr2:#E9DCC2;--bd:#3D2B1F;--bm:#6B4226;--ol:#5C6B40;
+  --sd:#B99C6E;--wh:#fff;--tm:#2C1A0E;--ts:#6E5138;--tl:#98764F;
+  --br:#C9B48E;--ok:#4A7C59;--wn:#C4870A;--er:#B04040;--inf:#3A6B9E;
   --r:10px;--rl:14px;
 }
 /* ─── MODO OSCURO (estilo Office) ─── */
@@ -884,6 +884,13 @@ button:active{transform:scale(.97)}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addProdModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewProd()">Agregar</button></div>
 </div></div>
 
+<div class="ov" id="pedidosCatModal"><div class="mb">
+  <h3>Gestionar categorías</h3>
+  <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Elige qué categorías se muestran en la sección Pedidos. Solo controla la visibilidad.</div>
+  <div id="pedidosCatList" style="max-height:55vh;overflow:auto"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;pedidosCatModal&#39;)">Cancelar</button><button class="bc2" onclick="savePedidosCats()">Guardar</button></div>
+</div></div>
+
 <div class="ov" id="cartaButtonsModal"><div class="mb">
   <h3>Botones de categoría</h3>
   <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Marca las categorías que quieres ver como botones arriba de la Carta.</div>
@@ -1584,11 +1591,32 @@ function setPayM(m){selPay=m;renderPaySection();}
 
 /* ── MENU ── */
 let aMenuCat='Bebidas Calientes';
-/* Categorías visibles en el menú de pedidos = solo las con alcance "Carta"
-   (se ocultan las que el admin dejó únicamente en Inventario). Se sincroniza solo
-   porque categoryScopes viaja en el estado global y renderMenu se llama al abrir el pedido. */
-function _menuCats(){return Object.keys(menuData).filter(c=>_catScope(c).carta);}
-function _menuPillsHTML(){return _menuCats().map(c=>`<button class="cb ${c===aMenuCat?'active':''}" onclick="setMC('${c.replace(/'/g,String.fromCharCode(39))}')">${c}</button>`).join('');}
+let pedidosHiddenCats=[]; /* categorías ocultadas manualmente en la sección Pedidos (solo visibilidad) */
+/* Categorías visibles en el menú de pedidos = con alcance "Carta" y NO ocultadas manualmente.
+   Se sincroniza porque categoryScopes y pedidosHiddenCats viajan en el estado global. */
+function _menuCats(){return Object.keys(menuData).filter(c=>_catScope(c).carta && !pedidosHiddenCats.includes(c));}
+function _menuPillsHTML(){
+  return _menuCats().map(c=>`<button class="cb ${c===aMenuCat?'active':''}" onclick="setMC('${c.replace(/'/g,String.fromCharCode(39))}')">${c}</button>`).join('')
+    +(cRole==='admin'?`<button class="cb" style="border-style:dashed;color:var(--bm)" title="Gestionar categorías visibles en Pedidos" onclick="openPedidosCatMgr()"><i class="ti ti-adjustments-horizontal" style="font-size:13px;vertical-align:-2px"></i> Categorías</button>`:'');
+}
+/* Gestor de visibilidad de categorías SOLO para la sección Pedidos (no crea/edita/elimina) */
+function openPedidosCatMgr(){
+  $('pedidosCatList').innerHTML=Object.keys(menuData).map(c=>{
+    const visible=!pedidosHiddenCats.includes(c);
+    return `<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 2px;border-bottom:1px solid var(--cr2);cursor:pointer">
+      <span style="font-size:14px;color:var(--tm)">${c}</span>
+      <input type="checkbox" data-cat="${c.replace(/"/g,'&quot;')}" ${visible?'checked':''} style="width:20px;height:20px;accent-color:var(--bm);cursor:pointer">
+    </label>`;
+  }).join('');
+  openMod('pedidosCatModal');
+}
+function savePedidosCats(){
+  const hidden=[];
+  document.querySelectorAll('#pedidosCatList input[type="checkbox"]').forEach(c=>{ if(!c.checked)hidden.push(c.dataset.cat); });
+  pedidosHiddenCats=hidden;
+  broadcastState();closeMod('pedidosCatModal');renderMenu();
+  showToast('Visibilidad de categorías actualizada','ok');
+}
 function renderMenu(){
   /* Si la categoría activa ya no está visible en Carta, saltar a la primera visible */
   const cats=_menuCats();
@@ -3903,9 +3931,9 @@ function renderKitchen(){
 /* Color de fondo del ítem según su estado de preparación (rojo inicial / amarillo / verde) */
 function _kItemBg(state){
   const d=document.body.classList.contains('dark');
-  if(state==='prep')return d?'#3d3410':'#FFF3CD';   /* amarillo — preparando */
-  if(state==='listo')return d?'#1e3320':'#D4EDDA';  /* verde — listo */
-  return d?'#3d1f1f':'#FBE0E1';                       /* rojo — sin comenzar */
+  if(state==='prep')return d?'#3d3410':'#FCE29A';   /* amarillo — preparando */
+  if(state==='listo')return d?'#1e3320':'#BDE5C6';  /* verde — listo */
+  return d?'#3d1f1f':'#F7C6C9';                       /* rojo — sin comenzar */
 }
 /* Cambiar el estado de preparación de UN ítem (solo uno activo; se guarda en el ítem y se sincroniza) */
 function tkItemState(oid,i,state){
@@ -4292,7 +4320,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v50 (precios actualizados segun carta 30-jun + sin boton actualizar precios)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v51 (contraste tema claro + gestionar categorias en Pedidos)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -4323,6 +4351,7 @@ function getSerializableState(){
     cartaButtons:cartaButtons,
     invButtons:invButtons,
     categoryScopes:JSON.parse(JSON.stringify(categoryScopes)),
+    pedidosHiddenCats:pedidosHiddenCats,
     ts:Date.now()
   });
 }
@@ -4392,6 +4421,7 @@ function applyRemoteState(data){
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
     if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
     if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
+    if(s.pedidosHiddenCats!==undefined)pedidosHiddenCats=Array.isArray(s.pedidosHiddenCats)?s.pedidosHiddenCats:[];
     /* Alinear categorías de inventario con la Carta tras sincronizar */
     if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
