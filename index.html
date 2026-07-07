@@ -1307,6 +1307,8 @@ async function doLogin(){
 }
 function _loginSuccess(name,role){
   cUser=name;cRole=role;
+  /* Guardar sesión en el dispositivo → se mantiene al recargar/actualizar la página */
+  try{localStorage.setItem('econativo_session',JSON.stringify({name,role}));}catch(e){}
   buildRecipes();
   $('loginScreen').style.display='none';$('app').style.display='flex';
   setupNav();
@@ -1316,7 +1318,18 @@ function _loginSuccess(name,role){
   updateOCBadge();
   postLoginInit();
 }
-function logout(){$('app').style.display='none';$('loginScreen').style.display='flex';cart=[];cTable=null;isMC=false;currentAccountId=null;}
+function logout(){
+  try{localStorage.removeItem('econativo_session');}catch(e){} /* cierre manual → no volver a autologuear */
+  $('app').style.display='none';$('loginScreen').style.display='flex';cart=[];cTable=null;isMC=false;currentAccountId=null;
+}
+/* Restaurar sesión guardada al cargar la página (mantener iniciada hasta cierre manual) */
+function _restoreSession(){
+  try{
+    const s=JSON.parse(localStorage.getItem('econativo_session')||'null');
+    if(s&&s.name&&s.role){ _loginSuccess(s.name,s.role); return true; }
+  }catch(e){}
+  return false;
+}
 /* ── MODO OSCURO (preferencia por dispositivo, no se sincroniza) ── */
 function _updateDarkIcon(on){const b=$('darkToggle');if(b)b.innerHTML=`<i class="ti ti-${on?'sun':'moon'}" style="font-size:12px" aria-hidden="true"></i>`;}
 function toggleDark(){
@@ -4322,7 +4335,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v52 (gestion de categorias por dispositivo, no sincronizada)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v53 (mantener sesion iniciada al recargar hasta cierre manual)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -4617,7 +4630,10 @@ renderTables();
   if(p==='/carta'||p.endsWith('/carta')){
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderPublicCartaViewer);
     else renderPublicCartaViewer();
+    return;
   }
+  /* Mantener sesión iniciada tras recargar/actualizar (salvo cierre manual) */
+  _restoreSession();
 })();
 </script>
 
