@@ -130,7 +130,7 @@ button:active{transform:scale(.97)}
 /* Desktop */
 @media(min-width:768px){
   #app{flex-direction:row}
-  .nb{width:210px;flex-direction:column;height:100vh;position:sticky;top:0;padding:1rem .7rem;align-items:stretch;justify-content:flex-start;gap:0;overflow-y:auto}
+  .nb{width:210px;flex-direction:column;height:100vh;position:sticky;top:0;padding:1rem .7rem;align-items:stretch;justify-content:flex-start;gap:0;overflow-y:auto;z-index:100}
   .nb-brand{font-size:17px;margin-bottom:1.2rem;padding:.4rem .4rem}
   .nb-right{flex-direction:column;align-items:flex-start;gap:6px;margin-top:auto;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)}
   .side-tabs{display:flex;flex-direction:column;gap:2px}
@@ -158,8 +158,8 @@ button:active{transform:scale(.97)}
   .app-body{flex:1;display:flex;flex-direction:column}
   .mc{flex:1;padding:.9rem;overflow-y:auto;padding-bottom:1rem}
   /* .nb se convierte en un drawer lateral deslizable */
-  .nb{position:fixed;top:0;left:0;bottom:0;width:252px;max-width:82vw;flex-direction:column;height:100vh;padding:1rem .7rem;align-items:stretch;justify-content:flex-start;transform:translateX(-105%);transition:transform .25s ease;z-index:1000;overflow-y:auto;gap:0}
-  .nb.open{transform:translateX(0);box-shadow:4px 0 26px rgba(0,0,0,.45)}
+  .nb{position:fixed;top:0;left:-270px;bottom:0;width:252px;max-width:82vw;flex-direction:column;height:100vh;padding:1rem .7rem;align-items:stretch;justify-content:flex-start;transition:left .25s ease;z-index:1000;overflow-y:auto;gap:0}
+  .nb.open{left:0;box-shadow:4px 0 26px rgba(0,0,0,.45)}
   .nb .nb-brand{font-size:19px;margin-bottom:1rem;padding:.2rem}
   .side-tabs{display:flex;flex-direction:column;gap:3px}
   .nb-right{flex-direction:column;align-items:stretch;gap:8px;margin-top:auto;padding-top:1rem;border-top:1px solid rgba(255,255,255,.14)}
@@ -175,7 +175,7 @@ button:active{transform:scale(.97)}
   .ci{max-height:160px}
   .kg{display:flex;flex-direction:column;gap:8px}
 }
-.nb{background:var(--bd);color:var(--wh);z-index:100}
+.nb{background:var(--bd);color:var(--wh)}
 .nb-brand{font-family:'Playfair Display',serif;font-weight:700;white-space:nowrap}
 .nb-brand span{color:var(--sd)}
 .nb-badge{background:rgba(255,255,255,.15);padding:3px 8px;border-radius:20px;font-size:11px;white-space:nowrap}
@@ -4364,7 +4364,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v54 (menu hamburguesa lateral en movil + modal categorias tocable)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v54.1 (fix drawer movil: z-index sobre el overlay para que los botones reaccionen)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
