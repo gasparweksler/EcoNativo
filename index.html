@@ -126,6 +126,12 @@ button:active{transform:scale(.97)}
 #app{display:none;flex-direction:column;min-height:100vh}
 #mtopbar{display:none}
 #navOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999}
+/* Editor de ingredientes: cada categoría en un recuadro; ingredientes en columnas en PC */
+.ing-cat{border:1.5px solid var(--bm);border-radius:var(--rl);padding:10px 12px 12px;margin-bottom:12px;background:var(--wh)}
+.ing-cat-title{font-size:12px;font-weight:700;color:var(--bm);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;border-bottom:2px solid var(--br);padding-bottom:5px}
+.ing-grid{display:grid;grid-template-columns:1fr;gap:0 18px;margin-bottom:8px}
+.ing-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--cr2);min-width:0}
+@media(min-width:768px){.ing-grid{grid-template-columns:repeat(3,1fr)}}
 
 /* Desktop */
 @media(min-width:768px){
@@ -3608,12 +3614,12 @@ function renderIngredientEditor(){
     </div>
     ${_ingEditorOpen?`<div style="padding:10px 12px">
       <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Agrega o quita ingredientes. Aparecen al armar pizzas y sándwiches.</div>
-      ${ING_CATS.map(cat=>`<div style="margin-bottom:13px">
-        <div style="font-size:11px;font-weight:700;color:var(--bm);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">${cat}</div>
-        <div style="margin-bottom:7px">
-          ${_ingList(cat).map(n=>{const inv=_ingInvItem(n),out=inv&&inv.stock<=0;return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--cr2)">
-            <span style="flex:1;min-width:0;font-size:14px${out?';color:var(--er)':''}">${n}${out?' <span style="font-size:10px;font-weight:700">(agotado)</span>':''}${!inv?' <span style="font-size:10px;color:var(--tl)">(sin inventario)</span>':''}</span>
-            <input type="text" value="${inv?(inv.unit||'').replace(/"/g,'&quot;'):''}" ${inv?'':'disabled'} placeholder="${inv?'unidad':'—'}" onchange="setIngredienteUnit('${e(n)}',this.value)" title="Unidad de medida (vinculada al inventario)" style="width:60px;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:13px;background:var(--wh);text-align:center;color:var(--tm)${inv?'':';opacity:.5'}">
+      ${ING_CATS.map(cat=>`<div class="ing-cat">
+        <div class="ing-cat-title">${cat}</div>
+        <div class="ing-grid">
+          ${_ingList(cat).map(n=>{const inv=_ingInvItem(n),out=inv&&inv.stock<=0;return `<div class="ing-row">
+            <span style="flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap${out?';color:var(--er)':''}" title="${n.replace(/"/g,'&quot;')}">${n}${out?' <span style="font-size:10px;font-weight:700">(agotado)</span>':''}${!inv?' <span style="font-size:10px;color:var(--tl)">(s/inv)</span>':''}</span>
+            <input type="text" value="${inv?(inv.unit||'').replace(/"/g,'&quot;'):''}" ${inv?'':'disabled'} placeholder="${inv?'un':'—'}" onchange="setIngredienteUnit('${e(n)}',this.value)" title="Unidad de medida (vinculada al inventario)" style="width:52px;padding:4px;border:1px solid var(--br);border-radius:6px;font-size:13px;background:var(--wh);text-align:center;color:var(--tm);flex-shrink:0${inv?'':';opacity:.5'}">
             <button onclick="removeIngrediente('${e(cat)}','${e(n)}')" title="Quitar" style="background:none;border:none;color:var(--er);cursor:pointer;font-size:18px;line-height:1;flex-shrink:0">&times;</button>
           </div>`;}).join('')||'<div style="font-size:12px;color:var(--tl);padding:4px 0">Sin ingredientes</div>'}
         </div>
@@ -4462,7 +4468,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v57 (ingredientes: unidad vinculada al inventario + bloqueo por stock 0)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v58 (editor de ingredientes en 3 columnas con recuadro por categoria en PC)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
