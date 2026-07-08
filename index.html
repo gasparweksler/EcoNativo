@@ -743,6 +743,7 @@ button:active{transform:scale(.97)}
       <div class="page" id="page-inventory">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px"><div class="pt" style="margin-bottom:0">Inventario</div></div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="invSearch" type="text" placeholder="Buscar insumo..." oninput="_invQ=this.value;renderInv()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
+        <div id="ingredientEditor"></div>
         <div class="cat-pills" id="invCatPills"></div>
         <div id="invContent"></div>
       </div>
@@ -780,10 +781,7 @@ button:active{transform:scale(.97)}
 
 <div class="ov" id="pizzaModal"><div class="mb">
   <h3>Armar Pizza</h3><p class="sub" id="pizzaSub"></p>
-  <div style="margin-bottom:.6rem"><h4 style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600">Proteínas</h4><div class="chips"><div class="chip" onclick="tPI(this,&#39;Jamón colonial&#39;)">Jamón colonial</div><div class="chip" onclick="tPI(this,&#39;Jamón Serrano&#39;)">Jamón Serrano</div><div class="chip" onclick="tPI(this,&#39;Chorizo&#39;)">Chorizo</div><div class="chip" onclick="tPI(this,&#39;Pepperoni&#39;)">Pepperoni</div><div class="chip" onclick="tPI(this,&#39;Salame&#39;)">Salame</div><div class="chip" onclick="tPI(this,&#39;Tocino&#39;)">Tocino</div><div class="chip" onclick="tPI(this,&#39;Tofu&#39;)">Tofu</div></div></div>
-  <div style="margin-bottom:.6rem"><h4 style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600">Quesos</h4><div class="chips"><div class="chip" onclick="tPI(this,&#39;Brie&#39;)">Brie</div><div class="chip" onclick="tPI(this,&#39;Camembert&#39;)">Camembert</div><div class="chip" onclick="tPI(this,&#39;Cheddar&#39;)">Cheddar</div><div class="chip" onclick="tPI(this,&#39;Azul&#39;)">Azul</div><div class="chip" onclick="tPI(this,&#39;Cabra&#39;)">Cabra</div><div class="chip" onclick="tPI(this,&#39;Mantecoso&#39;)">Mantecoso</div><div class="chip" onclick="tPI(this,&#39;Philadelphia&#39;)">Philadelphia</div></div></div>
-  <div style="margin-bottom:.6rem"><h4 style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600">Verduras</h4><div class="chips"><div class="chip" onclick="tPI(this,&#39;Aceituna&#39;)">Aceituna</div><div class="chip" onclick="tPI(this,&#39;Alcaparra&#39;)">Alcaparra</div><div class="chip" onclick="tPI(this,&#39;Cebolla&#39;)">Cebolla</div><div class="chip" onclick="tPI(this,&#39;Champiñón&#39;)">Champiñón</div><div class="chip" onclick="tPI(this,&#39;Choclo&#39;)">Choclo</div><div class="chip" onclick="tPI(this,&#39;Espinaca&#39;)">Espinaca</div><div class="chip" onclick="tPI(this,&#39;Morrón&#39;)">Morrón</div><div class="chip" onclick="tPI(this,&#39;Rúcula&#39;)">Rúcula</div><div class="chip" onclick="tPI(this,&#39;Tomate&#39;)">Tomate</div></div></div>
-  <div style="margin-bottom:.6rem"><h4 style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600">Salsa adicional (+$1.500)</h4><div class="chips" id="pSauces"><div class="chip" onclick="tPS(this,&#39;Barbiquiu&#39;)">Barbiquiu</div><div class="chip" onclick="tPS(this,&#39;Paprika picante&#39;)">Paprika picante</div><div class="chip" onclick="tPS(this,&#39;Pesto&#39;)">Pesto</div><div class="chip" onclick="tPS(this,&#39;Jengibre-Ajo&#39;)">Jengibre-Ajo</div></div></div>
+  <div id="pizzaChips"></div>
   <div class="ppi"><strong id="pIngCnt">0 ingredientes</strong> · <span id="pExtra" style="color:var(--ts)">Primeros 3 incluidos</span><br><strong style="color:var(--bm)">Total: <span id="pTotal">$6.000</span></strong></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;pizzaModal&#39;)">Cancelar</button><button class="bc2" onclick="confirmPizza()">Agregar</button></div>
 </div></div>
@@ -2134,7 +2132,16 @@ function _refreshOrderView(order){
 }
 
 /* ── PIZZA ── */
-function openPM(item){pType=item.pizzaType;pIngs=[];pSauce=null;$('pizzaSub').textContent=`${item.name} · Base: ${fmt(item.price)}`;document.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));updPP(item.price);openMod('pizzaModal');}
+function openPM(item){
+  pType=item.pizzaType;pIngs=[];pSauce=null;
+  $('pizzaSub').textContent=`${item.name} · Base: ${fmt(item.price)}`;
+  const esc=n=>n.replace(/'/g,String.fromCharCode(39));
+  const hdr=t=>`<h4 style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600">${t}</h4>`;
+  let html=['Proteínas','Quesos','Verduras'].filter(c=>_ingList(c).length).map(cat=>`<div style="margin-bottom:.6rem">${hdr(cat)}<div class="chips">${_ingList(cat).map(n=>`<div class="chip" onclick="tPI(this,'${esc(n)}')">${n}</div>`).join('')}</div></div>`).join('');
+  if(_ingList('Salsa Adicional').length)html+=`<div style="margin-bottom:.6rem">${hdr('Salsa adicional (+$1.500)')}<div class="chips" id="pSauces">${_ingList('Salsa Adicional').map(n=>`<div class="chip" onclick="tPS(this,'${esc(n)}')">${n}</div>`).join('')}</div></div>`;
+  $('pizzaChips').innerHTML=html;
+  updPP(item.price);openMod('pizzaModal');
+}
 function tPI(el,n){el.classList.toggle('sel');pIngs=el.classList.contains('sel')?[...pIngs,n]:pIngs.filter(i=>i!==n);updPP(pType==='vegana'?7500:6000);}
 function tPS(el,n){document.querySelectorAll('#pSauces .chip').forEach(c=>c.classList.remove('sel'));pSauce=pSauce===n?null:n;if(pSauce)el.classList.add('sel');updPP(pType==='vegana'?7500:6000);}
 function updPP(base){const ex=Math.max(0,pIngs.length-3)*900,sc=pSauce?1500:0;$('pIngCnt').textContent=pIngs.length+' ingrediente'+(pIngs.length!==1?'s':'');$('pExtra').textContent=pIngs.length>3?`${pIngs.length-3} extra = +${fmt(ex)}`:'Primeros 3 incluidos';$('pTotal').textContent=fmt(base+ex+sc);}
@@ -2209,17 +2216,22 @@ function delVariant(cat,sub,i,vi){
 }
 
 /* ── SANDWICH INGREDIENT MODAL ── */
-const SANDWICH_INGREDIENTS = [
-  {cat:'Proteínas',items:['Jamón','Pollo','Pavo','Atún','Huevo']},
-  {cat:'Quesos',items:['Mantecoso','Cheddar','Mozzarella','Philadelphia']},
-  {cat:'Vegetales',items:['Lechuga','Tomate','Cebolla','Palta','Pepinillo','Choclo','Morrón']},
-  {cat:'Salsas',items:['Mayo','Mostaza','Ketchup','Pesto','BBQ']},
-];
+/* Ingredientes de pizzas y sándwiches — EDITABLES en Inventario y sincronizados.
+   Orden fijo de categorías: Proteínas, Quesos, Verduras, Salsa Adicional. */
+const ING_CATS=['Proteínas','Quesos','Verduras','Salsa Adicional'];
+let ingredientes={
+  'Proteínas':['Jamón colonial','Jamón Serrano','Chorizo','Pepperoni','Salame','Tocino','Tofu','Pollo','Pavo','Atún','Huevo'],
+  'Quesos':['Brie','Camembert','Cheddar','Azul','Cabra','Mantecoso','Philadelphia','Mozzarella'],
+  'Verduras':['Aceituna','Alcaparra','Cebolla','Champiñón','Choclo','Espinaca','Morrón','Rúcula','Tomate','Lechuga','Palta','Pepinillo'],
+  'Salsa Adicional':['Barbiquiu','Paprika picante','Pesto','Jengibre-Ajo','Mayo','Mostaza','Ketchup','BBQ']
+};
+function _ingList(cat){return Array.isArray(ingredientes[cat])?ingredientes[cat]:[];}
 function openSM(item){
   sItem=item;sIngs=[];sMax=item.sandwichMax||2;
   $('sandwichSub').textContent=`${item.name} · ${fmt(item.price)} · Incluye ${sMax}, extra +$900 c/u`;
   $('sandwichMaxMsg').textContent=`Incluye ${sMax} · sin extras`;
-  $('sandwichChips').innerHTML=SANDWICH_INGREDIENTS.map(g=>`<div style="margin-bottom:5px"><h4>${g.cat}</h4><div class="chips">${g.items.map(n=>`<div class="chip" onclick="toggleSI(this,'${n}')">${n}</div>`).join('')}</div></div>`).join('');
+  /* Todas las categorías de ingredientes son seleccionables en el sándwich */
+  $('sandwichChips').innerHTML=ING_CATS.filter(c=>_ingList(c).length).map(cat=>`<div style="margin-bottom:5px"><h4>${cat}</h4><div class="chips">${_ingList(cat).map(n=>`<div class="chip" onclick="toggleSI(this,'${n.replace(/'/g,String.fromCharCode(39))}')">${n}</div>`).join('')}</div></div>`).join('');
   updSandwichTotal();openMod('sandwichModal');
 }
 function toggleSI(el,n){
@@ -3580,7 +3592,48 @@ function saveNewProd(){
 let _invSnapshot={};   /* nombre→stock al momento de cargar la vista */
 let _invDirty=new Set(); /* nombres de ítems modificados desde el snapshot */
 
+/* ── Editor de INGREDIENTES (pizzas y sándwiches) dentro de Inventario ── */
+let _ingEditorOpen=false;
+function renderIngredientEditor(){
+  const el=$('ingredientEditor');if(!el)return;
+  if(cRole!=='admin'){el.innerHTML='';return;}
+  const e=n=>String(n).replace(/'/g,String.fromCharCode(39));
+  el.innerHTML=`<div style="background:var(--wh);border:1px solid var(--br);border-radius:var(--rl);margin-bottom:12px;overflow:hidden">
+    <div onclick="_ingEditorOpen=!_ingEditorOpen;renderIngredientEditor()" style="display:flex;align-items:center;justify-content:space-between;padding:11px 12px;cursor:pointer;background:var(--cr2)">
+      <div style="font-size:13px;font-weight:700;color:var(--bd)"><i class="ti ti-salad" style="color:var(--ol)"></i> Ingredientes (pizzas y sándwiches)</div>
+      <i class="ti ti-chevron-${_ingEditorOpen?'up':'down'}" style="color:var(--ts)"></i>
+    </div>
+    ${_ingEditorOpen?`<div style="padding:10px 12px">
+      <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Agrega o quita ingredientes. Aparecen al armar pizzas y sándwiches.</div>
+      ${ING_CATS.map(cat=>`<div style="margin-bottom:13px">
+        <div style="font-size:11px;font-weight:700;color:var(--bm);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">${cat}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px">
+          ${_ingList(cat).map(n=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--cr2);border:1px solid var(--br);border-radius:20px;padding:4px 6px 4px 11px;font-size:13px">${n}<button onclick="removeIngrediente('${e(cat)}','${e(n)}')" title="Quitar" style="background:none;border:none;color:var(--er);cursor:pointer;padding:0 3px;font-size:16px;line-height:1">&times;</button></span>`).join('')||'<span style="font-size:12px;color:var(--tl)">Sin ingredientes</span>'}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="${_ingInputId(cat)}" type="text" placeholder="Nuevo ingrediente…" onkeydown="if(event.key==='Enter')addIngrediente('${e(cat)}')" style="flex:1;padding:8px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;background:var(--wh);box-sizing:border-box">
+          <button class="btn-add-sm" onclick="addIngrediente('${e(cat)}')"><i class="ti ti-plus" style="font-size:12px"></i> Agregar</button>
+        </div>
+      </div>`).join('')}
+    </div>`:''}
+  </div>`;
+}
+function _ingInputId(cat){return 'ingNew_'+cat.replace(/[^a-zA-Z]/g,'');}
+function addIngrediente(cat){
+  const inp=$(_ingInputId(cat));if(!inp)return;
+  const name=(inp.value||'').trim();if(!name){showToast('Escribe un nombre');return;}
+  if(!Array.isArray(ingredientes[cat]))ingredientes[cat]=[];
+  if(ingredientes[cat].some(x=>x.toLowerCase()===name.toLowerCase())){showToast('Ese ingrediente ya existe','del');return;}
+  ingredientes[cat].push(name);
+  broadcastState();renderIngredientEditor();showToast('Ingrediente agregado','ok');
+}
+function removeIngrediente(cat,name){
+  if(!Array.isArray(ingredientes[cat]))return;
+  ingredientes[cat]=ingredientes[cat].filter(x=>x!==name);
+  broadcastState();renderIngredientEditor();showToast('Ingrediente quitado','del');
+}
 function renderInv(){
+  renderIngredientEditor();
   /* Alinear categorías de inventario con la Carta (los productos mandan; insumos intactos).
      Si corrigió algo, persistirlo una vez (es idempotente: no vuelve a cambiar). */
   if(_syncInvCategoriesFromCarta())broadcastState();
@@ -4383,7 +4436,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v55 (eliminar items ya enviados a cocina desde el pedido)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v56 (editor de ingredientes en Inventario para pizzas y sandwiches)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
@@ -4414,6 +4467,7 @@ function getSerializableState(){
     cartaButtons:cartaButtons,
     invButtons:invButtons,
     categoryScopes:JSON.parse(JSON.stringify(categoryScopes)),
+    ingredientes:JSON.parse(JSON.stringify(ingredientes)),
     ts:Date.now()
   });
 }
@@ -4483,6 +4537,7 @@ function applyRemoteState(data){
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
     if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
     if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
+    if(s.ingredientes&&typeof s.ingredientes==='object')ingredientes=s.ingredientes;
     /* Alinear categorías de inventario con la Carta tras sincronizar */
     if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
