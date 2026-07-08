@@ -1705,6 +1705,23 @@ function addItem(item){
 function openNoteModal(idx){noteItemIdx=idx;$('noteItemName').textContent=cart[idx].name;$('noteText').value=cart[idx].note||'';openMod('noteModal');}
 function saveNote(){if(noteItemIdx>=0)cart[noteItemIdx].note=$('noteText').value.trim();renderCart();showToast('Nota guardada','ok');closeMod('noteModal');}
 
+/* Eliminar un ítem YA enviado a cocina (ingresado por error). Devuelve el stock y ajusta el total. */
+function removeSentItem(oid,idx){
+  const o=getOrder(oid);if(!o||!o.items||!o.items[idx])return;
+  const it=o.items[idx];
+  if(!confirm('¿Eliminar "'+it.name+'" del pedido? Se ingresó por error.'))return;
+  /* Reponer el stock si el pedido ya lo había descontado al enviarse a cocina */
+  if(o.stockDescontado&&typeof reponerInventario==='function')reponerInventario([it]);
+  o.items.splice(idx,1);
+  broadcastState();
+  renderCart();
+  if(typeof _updateCobrarBtn==='function')_updateCobrarBtn(o);
+  if(typeof renderDashboard==='function')renderDashboard();
+  if(typeof renderTables==='function')renderTables();
+  if(typeof renderKitchen==='function')renderKitchen();
+  if(typeof renderStockAlerts==='function')renderStockAlerts();
+  showToast('Producto eliminado del pedido','del');
+}
 function renderCart(){
   const el=$('cartItems');
   if(!el)return;
@@ -1718,9 +1735,10 @@ function renderCart(){
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--ts);margin-bottom:6px">
         <i class="ti ti-checks" style="font-size:14px;color:var(--ts)"></i> Ya enviado a cocina · pendiente de cobro
       </div>
-      ${sentItems.map(it=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--ts);padding:3px 0;border-bottom:1px solid var(--br)">
-        <span>${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}${it.note?` <span style="font-size:9px;font-style:italic">— ${it.note}</span>`:''}</span>
+      ${sentItems.map((it,idx)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--ts);padding:4px 0;border-bottom:1px solid var(--br)">
+        <span style="flex:1;min-width:0">${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}${it.note?` <span style="font-size:9px;font-style:italic">— ${it.note}</span>`:''}</span>
         <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
+        <button onclick="removeSentItem('${activeOrder.id}',${idx})" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
       </div>`).join('')}
       <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--tm);margin-top:5px">
         <span>Total enviado</span><span>${fmt(sentTotal)}</span>
@@ -4365,7 +4383,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v54.2 (fix drawer movil: altura 100dvh + scroll a opciones inferiores sin rebote)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v55 (eliminar items ya enviados a cocina desde el pedido)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
