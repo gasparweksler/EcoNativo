@@ -3652,6 +3652,7 @@ function renderMcBody(){
   <div>
     ${subs.length?subs.map((s,idx)=>{
       const same=Object.keys(menuData[s.cat]).filter(x=>x!==s.sub&&menuData[s.cat][x]&&menuData[s.cat][x].length), selId='mcMoveSub_'+idx;
+      const otherCats=Object.keys(menuData).filter(c=>c!==s.cat), catSelId='mcMoveSubCat_'+idx;
       const pid='mcPeekS_'+idx;
       const prodList=(menuData[s.cat][s.sub]||[]).map(p=>p.name).join(', ')||'<span style="color:var(--tl)">Sin productos</span>';
       return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
@@ -3663,8 +3664,13 @@ function renderMcBody(){
           <button onclick="mcRenameSub('${e(s.cat)}','${e(s.sub)}')" title="Renombrar" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:4px 7px;font-size:12px;flex-shrink:0"><i class="ti ti-pencil"></i></button>
         </div>
         <div id="${pid}" style="display:none;background:var(--cr2);border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px;line-height:1.5">${prodList}</div>
+        ${otherCats.length?`<div style="display:flex;gap:5px;align-items:center;margin-bottom:${same.length?'5px':'0'}">
+          <span style="font-size:11px;color:var(--ts);white-space:nowrap">Mover a categoría:</span>
+          <select id="${catSelId}" style="flex:1;min-width:0;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:12px;background:var(--wh)">${otherCats.map(o=>`<option value="${e(o)}">${o}</option>`).join('')}</select>
+          <button class="btn-add-sm" onclick="mcMoveSubToCat('${e(s.cat)}','${e(s.sub)}',document.getElementById('${catSelId}').value)" style="padding:5px 9px">Mover</button>
+        </div>`:''}
         ${same.length?`<div style="display:flex;gap:5px;align-items:center">
-          <span style="font-size:11px;color:var(--ts);white-space:nowrap">Mover a:</span>
+          <span style="font-size:11px;color:var(--ts);white-space:nowrap">Mover a subcategoría:</span>
           <select id="${selId}" style="flex:1;min-width:0;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:12px;background:var(--wh)">${same.map(o=>`<option value="${e(o)}">${o}</option>`).join('')}</select>
           <button class="btn-add-sm" onclick="mcMoveSubProducts('${e(s.cat)}','${e(s.sub)}',document.getElementById('${selId}').value)" style="padding:5px 9px">Mover</button>
         </div>`:''}
@@ -3750,6 +3756,23 @@ function mcMoveSubProducts(cat,sub,destSub){
   delete menuData[cat][sub];
   broadcastState(); renderMcBody(); renderCarta(); if(typeof renderInv==='function')renderInv();
   showToast(n+' producto(s) movidos a "'+destSub+'"','ok');
+}
+/* Mover una subcategoría COMPLETA a otra CATEGORÍA (nivel 1), conservando su nombre de subcategoría */
+function mcMoveSubToCat(cat,sub,newCat){
+  if(!newCat||newCat===cat){showToast('Elige una categoría distinta','del');return;}
+  if(!menuData[newCat]){showToast('Categoría no válida','del');return;}
+  const items=menuData[cat]&&menuData[cat][sub]; if(!items||!items.length){showToast('Sin productos','del');return;}
+  const n=items.length, merge=!!(menuData[newCat][sub]&&menuData[newCat][sub].length);
+  if(!confirm('¿Mover la subcategoría "'+sub+'" ('+n+' producto(s)) de "'+cat+'" a "'+newCat+'"?'+(merge?'\n\nEn "'+newCat+'" ya existe "'+sub+'"; se combinarán.':'')))return;
+  if(!menuData[newCat][sub])menuData[newCat][sub]=[];
+  items.forEach(it=>{
+    menuData[newCat][sub].push(it);
+    if(recipes[it.name])recipes[it.name].cat=newCat;
+    if(it.isVariant&&Array.isArray(it.variants))it.variants.forEach(v=>{if(recipes[v.name])recipes[v.name].cat=newCat;});
+  });
+  delete menuData[cat][sub];
+  broadcastState(); renderMcBody(); renderCarta(); if(typeof renderInv==='function')renderInv();
+  showToast('Subcategoría "'+sub+'" movida a "'+newCat+'"','ok');
 }
 /* Write-through best-effort de un ítem de carta a la tabla `menu` (igual patrón que _invUpsert).
    La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
