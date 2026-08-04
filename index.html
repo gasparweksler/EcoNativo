@@ -3622,7 +3622,7 @@ function renderMcBody(){
       const sc=_catScope(cat);
       const others=Object.keys(menuData).filter(c=>c!==cat), selId='mcMoveCat_'+cat.replace(/[^a-zA-Z0-9]/g,'');
       const pid='mcPeek_'+cat.replace(/[^a-zA-Z0-9]/g,'');
-      const prodList=Object.entries(menuData[cat]||{}).filter(([,it])=>it&&it.length).map(([sub,it])=>`<div style="margin:2px 0"><span style="color:var(--ts);font-weight:600">${sub}:</span> ${it.map(p=>p.name).join(', ')}</div>`).join('')||'<span style="color:var(--tl)">Sin productos</span>';
+      const prodList=Object.entries(menuData[cat]||{}).filter(([,it])=>it&&it.length).map(([sub,it])=>`<div style="margin:2px 0"><span style="color:var(--ts);font-weight:600">${sub}:</span> ${it.map((p,pi)=>`<a onclick="mcGoToProduct('${e(cat)}','${e(sub)}',${pi})" title="Abrir en la Carta" style="color:var(--bm);cursor:pointer;text-decoration:underline;text-underline-offset:2px">${p.name}</a>`).join(', ')}</div>`).join('')||'<span style="color:var(--tl)">Sin productos</span>';
       return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
           <div style="display:flex;align-items:center;gap:5px;min-width:0">
@@ -3654,7 +3654,7 @@ function renderMcBody(){
       const same=Object.keys(menuData[s.cat]).filter(x=>x!==s.sub&&menuData[s.cat][x]&&menuData[s.cat][x].length), selId='mcMoveSub_'+idx;
       const otherCats=Object.keys(menuData).filter(c=>c!==s.cat), catSelId='mcMoveSubCat_'+idx;
       const pid='mcPeekS_'+idx;
-      const prodList=(menuData[s.cat][s.sub]||[]).map(p=>p.name).join(', ')||'<span style="color:var(--tl)">Sin productos</span>';
+      const prodList=(menuData[s.cat][s.sub]||[]).map((p,pi)=>`<a onclick="mcGoToProduct('${e(s.cat)}','${e(s.sub)}',${pi})" title="Abrir en la Carta" style="color:var(--bm);cursor:pointer;text-decoration:underline;text-underline-offset:2px">${p.name}</a>`).join(', ')||'<span style="color:var(--tl)">Sin productos</span>';
       return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
           <div style="display:flex;align-items:center;gap:5px;min-width:0">
@@ -3703,6 +3703,27 @@ function mcMoveCatProducts(from,to){
   showToast(n+' producto(s) movidos a "'+to+'"','ok');
 }
 function mcTogglePeek(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
+/* Desde la lista del ojo → abrir el producto en la Carta (filtra, hace scroll, resalta y enfoca el nombre) */
+function mcGoToProduct(cat,sub,idx){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][idx];
+  const name=item?item.name:null;
+  closeMod('modifyCatModal');
+  if(typeof navTo==='function')navTo('carta'); else if(typeof goPage==='function')goPage('carta');
+  aCartaCat=menuData[cat]?cat:'Todos';
+  _cartaQ=''; const sb=$('cartaSearch'); if(sb)sb.value='';
+  renderCarta();
+  if(!name)return;
+  setTimeout(()=>{
+    const main=$('cartaMain'); if(!main)return;
+    const inp=[...main.querySelectorAll('input[type="text"]')].find(x=>x.value===name);
+    if(!inp)return;
+    const row=inp.closest('tr')||inp;
+    row.scrollIntoView({behavior:'smooth',block:'center'});
+    inp.focus();
+    const old=row.style.background||''; row.style.transition='background .4s'; row.style.background='var(--cr2)';
+    setTimeout(()=>{row.style.background=old;},1800);
+  },160);
+}
 function mcSetScope(cat,key,val){
   const cur=_catScope(cat);
   categoryScopes[cat]={carta:key==='carta'?val:cur.carta, inv:key==='inv'?val:cur.inv};
