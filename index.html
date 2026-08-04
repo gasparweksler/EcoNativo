@@ -3226,6 +3226,21 @@ function moveCartaSub(cat,oldSub,i,newSub){
   _cartaUpsertItem(cat,newSub,item);broadcastState();
   showToast('Subcategoría actualizada','ok');renderCarta();
 }
+/* Mover un producto de la Carta a otra CATEGORÍA (nivel 1), conservando su subcategoría */
+function moveCartaCat(cat,oldSub,i,newCat){
+  const arr=menuData[cat]&&menuData[cat][oldSub];if(!arr)return;
+  const item=arr[i];if(!item)return;
+  if(!newCat||newCat===cat){renderCarta();return;}
+  if(!menuData[newCat]){showToast('Categoría no válida','del');return;}
+  arr.splice(i,1);
+  if(!menuData[newCat][oldSub])menuData[newCat][oldSub]=[];
+  menuData[newCat][oldSub].push(item);
+  if(!arr.length)delete menuData[cat][oldSub];
+  if(recipes[item.name])recipes[item.name].cat=newCat;
+  if(item.isVariant&&Array.isArray(item.variants))item.variants.forEach(v=>{if(recipes[v.name])recipes[v.name].cat=newCat;});
+  _cartaUpsertItem(newCat,oldSub,item);broadcastState();
+  showToast('Producto movido a "'+newCat+'"','ok');renderCarta();
+}
 /* Alinea la categoría de un ítem de inventario (por nombre) con la subcategoría de la Carta */
 function _setInvCat(name,sub){
   const inv=inventoryItems.find(x=>x.name.toLowerCase()===(name||'').toLowerCase());
@@ -3372,6 +3387,7 @@ function renderCarta(){
   const q=_cartaQ.toLowerCase().trim();
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
+  const _catSelHtml=(sel)=>_orderedCats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}"${c===sel?' selected':''}>${c}</option>`).join('');
   let html=`<div style="margin-bottom:.6rem;display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
       <button class="btn-add-sm" style="background:var(--bm)" onclick="openModifyCat()"><i class="ti ti-folders" style="font-size:11px" aria-hidden="true"></i> Modificar categorías</button>
       <button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button>
@@ -3400,7 +3416,12 @@ function renderCarta(){
           ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.isSandwich?'<span style="font-size:9px;color:var(--wn);background:#FDF5E0;padding:1px 4px;border-radius:5px;flex-shrink:0">sándwich</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
         <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${cat}','${sub}',${i},'desc',this.value)" style="font-size:12px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
-        <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin-top:3px;padding:4px 6px;max-width:220px">${_subSelHtml(sub)}</select>
+        <div style="display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center;margin-top:3px">
+          <span style="font-size:10px;color:var(--tl)">Categoría:</span>
+          <select onchange="moveCartaCat('${cat}','${sub}',${i},this.value)" title="Mover el producto a otra categoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;padding:4px 6px;max-width:200px">${_catSelHtml(cat)}</select>
+          <span style="font-size:10px;color:var(--tl)">Subcategoría:</span>
+          <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;padding:4px 6px;max-width:200px">${_subSelHtml(sub)}</select>
+        </div>
         ${(!item.isVariant&&!item.isPizza&&!item.isSandwich)?`<button onclick="enableVariants('${cat}','${sub}',${i})" title="Convertir este producto en uno con variedades" style="display:block;margin-top:3px;font-size:11px;color:var(--bm);background:transparent;border:1px dashed var(--bm);border-radius:6px;padding:3px 8px;cursor:pointer"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Activar variedades</button>`:''}
       </td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${cat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
