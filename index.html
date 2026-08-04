@@ -3600,14 +3600,20 @@ function renderMcBody(){
       const n=Object.values(menuData[cat]||{}).reduce((s,a)=>s+(a?a.length:0),0);
       const sc=_catScope(cat);
       const others=Object.keys(menuData).filter(c=>c!==cat), selId='mcMoveCat_'+cat.replace(/[^a-zA-Z0-9]/g,'');
+      const pid='mcPeek_'+cat.replace(/[^a-zA-Z0-9]/g,'');
+      const prodList=Object.entries(menuData[cat]||{}).filter(([,it])=>it&&it.length).map(([sub,it])=>`<div style="margin:2px 0"><span style="color:var(--ts);font-weight:600">${sub}:</span> ${it.map(p=>p.name).join(', ')}</div>`).join('')||'<span style="color:var(--tl)">Sin productos</span>';
       return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
-          <div style="font-size:14px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis">${cat} <span style="font-size:10px;color:var(--ts);font-weight:400">(${n} prod)</span></div>
+          <div style="display:flex;align-items:center;gap:5px;min-width:0">
+            <span style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cat} <span style="font-size:10px;color:var(--ts);font-weight:400">(${n} prod)</span></span>
+            ${n>0?`<button onclick="mcTogglePeek('${pid}')" title="Ver productos" style="background:none;border:none;color:var(--bm);cursor:pointer;padding:0 2px;font-size:14px;line-height:1;flex-shrink:0"><i class="ti ti-eye"></i></button>`:''}
+          </div>
           <div style="display:flex;gap:5px;flex-shrink:0">
             <button onclick="mcRenameCat('${e(cat)}')" title="Renombrar" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:4px 7px;font-size:12px"><i class="ti ti-pencil"></i></button>
             <button onclick="mcDeleteCat('${e(cat)}')" title="Eliminar" style="background:none;border:1px solid var(--er);border-radius:6px;color:var(--er);cursor:pointer;padding:4px 7px;font-size:12px"><i class="ti ti-trash"></i></button>
           </div>
         </div>
+        ${n>0?`<div id="${pid}" style="display:none;background:var(--cr2);border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px;line-height:1.5">${prodList}</div>`:''}
         <div style="display:flex;gap:14px;align-items:center;margin-bottom:${n>0&&others.length?'6px':'0'}">
           <span style="font-size:11px;color:var(--ts)">Visible en:</span>
           <label style="display:flex;gap:4px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" ${sc.carta?'checked':''} onchange="mcSetScope('${e(cat)}','carta',this.checked)" style="width:15px;height:15px;accent-color:var(--bm)"> Carta</label>
@@ -3625,11 +3631,17 @@ function renderMcBody(){
   <div>
     ${subs.length?subs.map((s,idx)=>{
       const same=Object.keys(menuData[s.cat]).filter(x=>x!==s.sub&&menuData[s.cat][x]&&menuData[s.cat][x].length), selId='mcMoveSub_'+idx;
+      const pid='mcPeekS_'+idx;
+      const prodList=(menuData[s.cat][s.sub]||[]).map(p=>p.name).join(', ')||'<span style="color:var(--tl)">Sin productos</span>';
       return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:${same.length?'6px':'0'}">
-          <div style="font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis">${s.sub} <span style="font-size:10px;color:var(--ts);font-weight:400">(${s.n} prod · en ${s.cat})</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:5px;min-width:0">
+            <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.sub} <span style="font-size:10px;color:var(--ts);font-weight:400">(${s.n} prod · en ${s.cat})</span></span>
+            <button onclick="mcTogglePeek('${pid}')" title="Ver productos" style="background:none;border:none;color:var(--bm);cursor:pointer;padding:0 2px;font-size:14px;line-height:1;flex-shrink:0"><i class="ti ti-eye"></i></button>
+          </div>
           <button onclick="mcRenameSub('${e(s.cat)}','${e(s.sub)}')" title="Renombrar" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:4px 7px;font-size:12px;flex-shrink:0"><i class="ti ti-pencil"></i></button>
         </div>
+        <div id="${pid}" style="display:none;background:var(--cr2);border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px;line-height:1.5">${prodList}</div>
         ${same.length?`<div style="display:flex;gap:5px;align-items:center">
           <span style="font-size:11px;color:var(--ts);white-space:nowrap">Mover a:</span>
           <select id="${selId}" style="flex:1;min-width:0;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:12px;background:var(--wh)">${same.map(o=>`<option value="${e(o)}">${o}</option>`).join('')}</select>
@@ -3663,6 +3675,7 @@ function mcMoveCatProducts(from,to){
   broadcastState(); renderMcBody(); renderCarta();
   showToast(n+' producto(s) movidos a "'+to+'"','ok');
 }
+function mcTogglePeek(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
 function mcSetScope(cat,key,val){
   const cur=_catScope(cat);
   categoryScopes[cat]={carta:key==='carta'?val:cur.carta, inv:key==='inv'?val:cur.inv};
