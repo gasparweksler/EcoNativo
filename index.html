@@ -132,6 +132,11 @@ button:active{transform:scale(.97)}
 .ing-grid{display:grid;grid-template-columns:1fr;gap:0 18px;margin-bottom:8px}
 .ing-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--cr2);min-width:0}
 @media(min-width:768px){.ing-grid{grid-template-columns:repeat(3,1fr)}}
+/* Nota informativa (explicaciones en Carta / Inventario) */
+.info-note{background:#EAF1F8;border:1px solid #C4D8EE;border-left:3px solid var(--inf);border-radius:var(--r);padding:9px 12px;font-size:12px;color:var(--bd);margin-bottom:10px;line-height:1.45}
+.info-note b{color:var(--inf)}
+body.dark .info-note{background:#1e2a36;border-color:#345066;color:var(--tm)}
+body.dark .info-note b{color:#7fb0e0}
 
 /* Desktop */
 @media(min-width:768px){
@@ -740,6 +745,7 @@ button:active{transform:scale(.97)}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Editor de Carta</div>
         </div>
+        <div class="info-note"><b>Cómo funciona la Carta:</b> aquí gestionas los productos que se <b>venden</b> (nombre, precio, categoría y variedades). Al agregar un producto, se crea también en <b>Inventario</b> para llevar su stock. Si el producto tiene <b>receta con insumos</b>, su disponibilidad depende de esos insumos; si no tiene receta, usa su <b>stock propio</b>. Solo se muestran en Pedidos las categorías con alcance "Carta".</div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="cartaSearch" type="text" placeholder="Buscar producto..." oninput="_cartaQ=this.value;renderCarta()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div class="cat-pills" id="cartaCatPills"></div>
         <div id="cartaMain"></div>
@@ -748,6 +754,7 @@ button:active{transform:scale(.97)}
       <!-- INVENTARIO -->
       <div class="page" id="page-inventory">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px"><div class="pt" style="margin-bottom:0">Inventario</div></div>
+        <div class="info-note"><b>No todo lo que agregas aquí aparece en la Carta.</b> El Inventario incluye <b>insumos</b> (materias primas como Leche o Café molido) que solo sirven para controlar stock y <b>no se venden</b>. Para que un producto se venda, agrégalo desde la sección <b>Carta</b> (así se crea en ambos lados). Los productos marcados <b>"Por receta"</b> no tienen stock propio: se controlan por sus insumos.</div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="invSearch" type="text" placeholder="Buscar insumo..." oninput="_invQ=this.value;renderInv()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div id="ingredientEditor"></div>
         <div class="cat-pills" id="invCatPills"></div>
@@ -4478,7 +4485,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v59 (stock por receta O propio, nunca ambos; fix agotado falso)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v60 (notas explicativas en Carta e Inventario)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
