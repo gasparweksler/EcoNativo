@@ -1074,16 +1074,17 @@ let _invQ='';
 let _invCat='';
 function isItemAvailable(itemName){
   if(!Object.keys(recipes).length)buildRecipes();
-  /* 1. Si el producto existe como ítem de inventario y su stock es 0 → agotado */
-  const self=inventoryItems.find(x=>x.name.toLowerCase()===itemName.toLowerCase());
-  if(self&&self.stock<=0)return false;
-  /* 2. Si la receta tiene ingredientes, todos deben tener stock */
   const r=recipes[itemName];
-  if(!r||!r.ingredients.length)return true;
-  return r.ingredients.every(ing=>{
-    const inv=inventoryItems.find(x=>x.name.toLowerCase()===ing.name.toLowerCase());
-    return !inv||inv.stock>0;
-  });
+  /* Producto POR RECETA (hecho al momento): disponible si todos sus insumos tienen stock */
+  if(r&&Array.isArray(r.ingredients)&&r.ingredients.length){
+    return r.ingredients.every(ing=>{
+      const inv=inventoryItems.find(x=>x.name.toLowerCase()===ing.name.toLowerCase());
+      return !inv||inv.stock>0;
+    });
+  }
+  /* Producto PRE-HECHO (sin receta): disponible si su propia línea de inventario tiene stock */
+  const self=inventoryItems.find(x=>x.name.toLowerCase()===itemName.toLowerCase());
+  return !self||self.stock>0;
 }
 let selPay='efectivo';
 let kDone={};
@@ -3255,18 +3256,16 @@ function editInvSub(i,newSub){
    _ajustarStock muta el ÚNICO arreglo de inventario (inventoryItems) y persiste.
    factor = -1 → descuenta (venta/envío a cocina) · factor = +1 → repone (cancelación).
    Afecta el producto final y, si tiene receta, sus componentes (con conversión g→kg / ml→lt). */
+/* Un producto se controla por RECETA (si tiene insumos) o por STOCK PROPIO (si no). Nunca ambos. */
+function _esPorReceta(name){const r=recipes[name];return !!(r&&Array.isArray(r.ingredients)&&r.ingredients.length>0);}
 function _ajustarStock(items,factor){
   if(!Array.isArray(items)||!items.length)return false;
   let changed=false;
   items.forEach(si=>{
     const q=si.qty||1;
-    /* 1. Producto final */
-    const prod=inventoryItems.find(x=>x.name.toLowerCase()===(si.name||'').toLowerCase());
-    if(prod){prod.stock=Math.max(0,(parseFloat(prod.stock)||0)+factor*q);changed=true;}
-    /* 2. Componentes de la receta */
-    const rec=recipes[si.name];
-    if(rec&&Array.isArray(rec.ingredients)){
-      rec.ingredients.forEach(ing=>{
+    if(_esPorReceta(si.name)){
+      /* Producto hecho al momento → se descuentan SOLO los insumos de la receta (no una línea propia) */
+      recipes[si.name].ingredients.forEach(ing=>{
         const inv=inventoryItems.find(x=>x.name.toLowerCase()===(ing.name||'').toLowerCase());
         if(!inv)return;
         let amt=(parseFloat(ing.qty)||0)*q;
@@ -3274,6 +3273,10 @@ function _ajustarStock(items,factor){
         if((iu==='g'&&vu==='kg')||(iu==='ml'&&vu==='lt'))amt/=1000; /* conversión simple */
         inv.stock=Math.max(0,(parseFloat(inv.stock)||0)+factor*amt);changed=true;
       });
+    } else {
+      /* Producto pre-hecho (sin receta) → se descuenta su propia línea de inventario */
+      const prod=inventoryItems.find(x=>x.name.toLowerCase()===(si.name||'').toLowerCase());
+      if(prod){prod.stock=Math.max(0,(parseFloat(prod.stock)||0)+factor*q);changed=true;}
     }
   });
   if(changed){
@@ -3694,12 +3697,19 @@ function renderInv(){
     </div>`+
   (filtered.length?filtered.map((item)=>{
     const i=inventoryItems.indexOf(item);
+    const porRec=_esPorReceta(item.name); /* producto hecho al momento → stock por insumos, no por línea propia */
     const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok';
     const isDirty=_invDirty.has(item.name);
     return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
-      <div class="inv-info"><div class="inv-name">${item.name}${isDirty?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><select onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}</select><div class="inv-stock">${item.stock} <input type="text" value="${(item.unit||'').replace(/"/g,'&quot;')}" onchange="setInvUnit(${i},this.value)" title="Unidad de medida" style="width:46px;border:1px solid var(--br);border-radius:4px;background:var(--wh);font-size:12px;padding:1px 4px;color:var(--tm)"> · mín: ${item.min}${item.area?` · ${item.area}`:''}</div></div>
-      <span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
-      <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">
+      <div class="inv-info"><div class="inv-name">${item.name}${isDirty&&!porRec?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><select onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}</select>
+        ${porRec
+          ? `<div class="inv-stock" style="color:var(--inf)"><i class="ti ti-tools-kitchen-2" style="font-size:11px;vertical-align:-1px"></i> Stock según receta (insumos)</div>`
+          : `<div class="inv-stock">${item.stock} <input type="text" value="${(item.unit||'').replace(/"/g,'&quot;')}" onchange="setInvUnit(${i},this.value)" title="Unidad de medida" style="width:46px;border:1px solid var(--br);border-radius:4px;background:var(--wh);font-size:12px;padding:1px 4px;color:var(--tm)"> · mín: ${item.min}${item.area?` · ${item.area}`:''}</div>`}
+      </div>
+      ${porRec
+        ? `<span class="sbdg" style="background:#E8F0F8;color:var(--inf)">Por receta</span>`
+        : `<span class="sbdg ${lv}">${{ok:'Ok',low:'Bajo',out:'Agotado'}[lv]}</span>
+      <input class="inv-edit" type="number" value="${item.stock}" step="0.5" onchange="invStockChanged(${i},this.value)">`}
       <button class="icon-btn" style="border-color:var(--er);color:var(--er)" onclick="invDeleteItem(${i})"><i class="ti ti-trash" style="font-size:12px" aria-hidden="true"></i></button>
     </div>`;
   }).join(''):'<div class="noo"><i class="ti ti-search" aria-hidden="true"></i><p>Sin resultados</p></div>');
@@ -4468,7 +4478,7 @@ async function initSupabase(){
       applyRemoteState(data.payload);
     }
     console.log('%c[EcoNativo] Supabase Realtime conectado ✓','color:#4A7C59;font-weight:bold');
-    console.log('%c[EcoNativo] BUILD: v58 (editor de ingredientes en 3 columnas con recuadro por categoria en PC)','color:#B5651D;font-weight:bold');
+    console.log('%c[EcoNativo] BUILD: v59 (stock por receta O propio, nunca ambos; fix agotado falso)','color:#B5651D;font-weight:bold');
   }catch(e){
     console.warn('[EcoNativo] Supabase no disponible, usando sync local:',e.message);
   }
