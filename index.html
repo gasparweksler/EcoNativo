@@ -941,7 +941,17 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addCatModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNewCat()">Crear</button></div>
 </div></div>
 
-<div class="ov" id="moveCatModal"><div class="mb">
+<div class="ov" id="modifyCatModal"><div class="mb" style="max-width:560px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:.6rem">
+    <h3 style="margin:0">Modificar categorías</h3>
+    <button class="btn-add-sm" style="background:transparent;color:var(--inf);border:1px solid var(--inf)" onclick="mcToggleInfo()"><i class="ti ti-info-circle" style="font-size:12px"></i> Info</button>
+  </div>
+  <div id="mcInfo" style="display:none"></div>
+  <div id="mcBody"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;modifyCatModal&#39;)">Cerrar</button></div>
+</div></div>
+
+<div class="ov" id="moveCatModal"><div class="mb" style="z-index:1">
   <h3>Eliminar categoría</h3>
   <div id="moveCatMsg" style="font-size:12px;color:var(--ts);margin-bottom:10px"></div>
   <div class="form-item"><label>Mover sus productos a:</label><select id="moveCatDest" style="width:100%;padding:9px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"></select></div>
@@ -3362,15 +3372,9 @@ function renderCarta(){
   const q=_cartaQ.toLowerCase().trim();
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
-  let html=`<div style="margin-bottom:.6rem;display:flex;gap:6px;justify-content:space-between;align-items:center;flex-wrap:wrap">
-    <div style="display:flex;gap:6px">${aCartaCat!=='Todos'?`
-      <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" onclick="renameCat()"><i class="ti ti-pencil" style="font-size:11px" aria-hidden="true"></i> Renombrar</button>
-      <button class="btn-add-sm" style="background:transparent;color:var(--er);border:1px solid var(--er)" onclick="delCat()"><i class="ti ti-trash" style="font-size:11px" aria-hidden="true"></i> Eliminar</button>`:''}</div>
-    <div style="display:flex;gap:6px">
-      <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" title="Visibilidad de categorías (Carta / Inventario)" onclick="openCatScopes()"><i class="ti ti-eye" style="font-size:11px" aria-hidden="true"></i> Visibilidad</button>
-      <button class="btn-add-sm" style="background:var(--bm)" onclick="openMod('addCatModal')"><i class="ti ti-folder-plus" style="font-size:11px" aria-hidden="true"></i> Categoría</button>
+  let html=`<div style="margin-bottom:.6rem;display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
+      <button class="btn-add-sm" style="background:var(--bm)" onclick="openModifyCat()"><i class="ti ti-folders" style="font-size:11px" aria-hidden="true"></i> Modificar categorías</button>
       <button class="btn-add-sm" onclick="openAddProd()"><i class="ti ti-plus" style="font-size:11px" aria-hidden="true"></i> Producto</button>
-    </div>
   </div>`;
   let anyResult=false;
   /* "Todos" recorre todo; una categoría top-level muestra esa categoría; una subcategoría
@@ -3554,7 +3558,164 @@ function confirmDelCat(){
   delete menuData[cat];delete categoryScopes[cat];
   _delCatTarget=null;aCartaCat=dest;
   broadcastState();closeMod('moveCatModal');renderCarta();
+  if($('mcBody'))renderMcBody(); /* refrescar la ventana Modificar categorías si está abierta */
   showToast('Productos movidos a "'+dest+'" y categoría eliminada','ok');
+}
+/* ════════ MODIFICAR CATEGORÍAS (agregar/mover/eliminar/renombrar categorías y subcategorías) ════════ */
+let _mcInfoOpen=false;
+const _mcE=n=>String(n).replace(/'/g,String.fromCharCode(39));
+function openModifyCat(){ _mcInfoOpen=false; renderMcInfo(); renderMcBody(); openMod('modifyCatModal'); }
+function mcToggleInfo(){ _mcInfoOpen=!_mcInfoOpen; renderMcInfo(); }
+function renderMcInfo(){
+  const el=$('mcInfo'); if(!el)return;
+  el.style.display=_mcInfoOpen?'block':'none';
+  el.innerHTML=`<div class="info-note" style="margin-bottom:12px">
+    <b>Categorías (nivel 1):</b> las pestañas de arriba (Bebidas, Platos…). Cada una puede verse en Carta, Inventario o ambas.<br>
+    <b>Subcategorías (nivel 2):</b> agrupan productos dentro de una categoría (Clásicos, Tostadas…). Son los títulos internos y la etiqueta del ítem en Inventario.<br>
+    <b>Visible en (Carta / Inventario):</b> con las casillas de cada categoría eliges dónde aparece. Se aplica al instante en ambas secciones.<br>
+    <b>Mover productos:</b> pasa TODOS los productos de una categoría/subcategoría a otra, sin perderlos.<br>
+    <b>Eliminar categoría:</b> si tiene productos, te pide moverlos primero. Una subcategoría desaparece sola al quedar sin productos.<br>
+    <b>Agregar categoría:</b> eliges si va a Carta, Inventario o ambas; se refleja en cada sección.
+  </div>`;
+}
+function renderMcBody(){
+  const el=$('mcBody'); if(!el)return;
+  const e=_mcE;
+  const cats=[...new Set([...Object.keys(menuData),...Object.keys(categoryScopes)])].sort((a,b)=>a.localeCompare(b,'es'));
+  const subs=[]; Object.keys(menuData).forEach(cat=>Object.entries(menuData[cat]).forEach(([sub,items])=>{ if(items&&items.length)subs.push({cat,sub,n:items.length}); }));
+  el.innerHTML=`
+  <div style="background:var(--cr2);border-radius:var(--r);padding:10px 12px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">Agregar categoría</div>
+    <input type="text" id="mcNewName" placeholder="Nombre de la categoría" onkeydown="if(event.key==='Enter')mcAddCat()" style="width:100%;padding:8px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;background:var(--wh);box-sizing:border-box;margin-bottom:6px">
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+      <label style="font-size:13px;display:flex;gap:7px;align-items:center;cursor:pointer"><input type="radio" name="mcScope" value="both" checked> Carta e Inventario</label>
+      <label style="font-size:13px;display:flex;gap:7px;align-items:center;cursor:pointer"><input type="radio" name="mcScope" value="carta"> Solo Carta</label>
+      <label style="font-size:13px;display:flex;gap:7px;align-items:center;cursor:pointer"><input type="radio" name="mcScope" value="inv"> Solo Inventario</label>
+    </div>
+    <button class="btn-add-sm" style="background:var(--ok)" onclick="mcAddCat()"><i class="ti ti-plus" style="font-size:11px"></i> Agregar categoría</button>
+  </div>
+  <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">Categorías (nivel 1)</div>
+  <div style="margin-bottom:14px">
+    ${cats.map(cat=>{
+      const n=Object.values(menuData[cat]||{}).reduce((s,a)=>s+(a?a.length:0),0);
+      const sc=_catScope(cat);
+      const others=Object.keys(menuData).filter(c=>c!==cat), selId='mcMoveCat_'+cat.replace(/[^a-zA-Z0-9]/g,'');
+      return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="font-size:14px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis">${cat} <span style="font-size:10px;color:var(--ts);font-weight:400">(${n} prod)</span></div>
+          <div style="display:flex;gap:5px;flex-shrink:0">
+            <button onclick="mcRenameCat('${e(cat)}')" title="Renombrar" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:4px 7px;font-size:12px"><i class="ti ti-pencil"></i></button>
+            <button onclick="mcDeleteCat('${e(cat)}')" title="Eliminar" style="background:none;border:1px solid var(--er);border-radius:6px;color:var(--er);cursor:pointer;padding:4px 7px;font-size:12px"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:center;margin-bottom:${n>0&&others.length?'6px':'0'}">
+          <span style="font-size:11px;color:var(--ts)">Visible en:</span>
+          <label style="display:flex;gap:4px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" ${sc.carta?'checked':''} onchange="mcSetScope('${e(cat)}','carta',this.checked)" style="width:15px;height:15px;accent-color:var(--bm)"> Carta</label>
+          <label style="display:flex;gap:4px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" ${sc.inv?'checked':''} onchange="mcSetScope('${e(cat)}','inv',this.checked)" style="width:15px;height:15px;accent-color:var(--bm)"> Inventario</label>
+        </div>
+        ${n>0&&others.length?`<div style="display:flex;gap:5px;align-items:center">
+          <span style="font-size:11px;color:var(--ts);white-space:nowrap">Mover productos a:</span>
+          <select id="${selId}" style="flex:1;min-width:0;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:12px;background:var(--wh)">${others.map(o=>`<option value="${e(o)}">${o}</option>`).join('')}</select>
+          <button class="btn-add-sm" onclick="mcMoveCatProducts('${e(cat)}',document.getElementById('${selId}').value)" style="padding:5px 9px">Mover</button>
+        </div>`:''}
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="font-size:12px;font-weight:700;color:var(--bd);margin-bottom:6px">Subcategorías (nivel 2)</div>
+  <div>
+    ${subs.length?subs.map((s,idx)=>{
+      const same=Object.keys(menuData[s.cat]).filter(x=>x!==s.sub&&menuData[s.cat][x]&&menuData[s.cat][x].length), selId='mcMoveSub_'+idx;
+      return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:8px 10px;margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:${same.length?'6px':'0'}">
+          <div style="font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis">${s.sub} <span style="font-size:10px;color:var(--ts);font-weight:400">(${s.n} prod · en ${s.cat})</span></div>
+          <button onclick="mcRenameSub('${e(s.cat)}','${e(s.sub)}')" title="Renombrar" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:4px 7px;font-size:12px;flex-shrink:0"><i class="ti ti-pencil"></i></button>
+        </div>
+        ${same.length?`<div style="display:flex;gap:5px;align-items:center">
+          <span style="font-size:11px;color:var(--ts);white-space:nowrap">Mover a:</span>
+          <select id="${selId}" style="flex:1;min-width:0;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:12px;background:var(--wh)">${same.map(o=>`<option value="${e(o)}">${o}</option>`).join('')}</select>
+          <button class="btn-add-sm" onclick="mcMoveSubProducts('${e(s.cat)}','${e(s.sub)}',document.getElementById('${selId}').value)" style="padding:5px 9px">Mover</button>
+        </div>`:''}
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:var(--tl)">No hay subcategorías con productos.</div>'}
+  </div>`;
+}
+function mcAddCat(){
+  const name=($('mcNewName').value||'').trim(); if(!name){showToast('Escribe un nombre');return;}
+  const scope=(document.querySelector('input[name="mcScope"]:checked')||{}).value||'both';
+  const inCarta=scope!=='inv', inInv=scope!=='carta';
+  if(inCarta&&menuData[name]){showToast('Esa categoría ya existe','del');return;}
+  categoryScopes[name]={carta:inCarta,inv:inInv};
+  if(inCarta)menuData[name]={};
+  broadcastState(); renderMcBody(); renderCarta(); if(typeof renderInv==='function')renderInv();
+  showToast('Categoría "'+name+'" creada'+(inCarta&&inInv?' (Carta e Inventario)':inCarta?' (solo Carta)':' (solo Inventario)'),'ok');
+}
+function mcMoveCatProducts(from,to){
+  if(!from||!to||from===to){showToast('Elige un destino distinto','del');return;}
+  if(!menuData[from]||!menuData[to]){showToast('Categoría no válida','del');return;}
+  const n=Object.values(menuData[from]).reduce((s,a)=>s+(a?a.length:0),0);
+  if(!n){showToast('Esa categoría no tiene productos','del');return;}
+  if(!confirm('¿Mover '+n+' producto(s) de "'+from+'" a "'+to+'"?'))return;
+  Object.entries(menuData[from]).forEach(([sub,items])=>{
+    if(!menuData[to][sub])menuData[to][sub]=[];
+    (items||[]).forEach(it=>{ menuData[to][sub].push(it); if(recipes[it.name])recipes[it.name].cat=to; });
+  });
+  menuData[from]={};
+  broadcastState(); renderMcBody(); renderCarta();
+  showToast(n+' producto(s) movidos a "'+to+'"','ok');
+}
+function mcSetScope(cat,key,val){
+  const cur=_catScope(cat);
+  categoryScopes[cat]={carta:key==='carta'?val:cur.carta, inv:key==='inv'?val:cur.inv};
+  if(categoryScopes[cat].carta && !menuData[cat]) menuData[cat]={}; /* al hacerse visible en Carta, crea su rama */
+  broadcastState(); if(typeof renderCarta==='function')renderCarta(); if(typeof renderInv==='function')renderInv();
+}
+function mcRenameCat(cat){
+  const nn=prompt('Nuevo nombre de la categoría:',cat); if(nn===null)return;
+  const name=nn.trim(); if(!name||name===cat)return;
+  if(menuData[name]||categoryScopes[name]){showToast('Ya existe "'+name+'"','del');return;}
+  const rebuilt={}; Object.keys(menuData).forEach(k=>{ rebuilt[k===cat?name:k]=menuData[k]; });
+  Object.keys(menuData).forEach(k=>delete menuData[k]); Object.entries(rebuilt).forEach(([k,v])=>menuData[k]=v);
+  Object.values(recipes).forEach(r=>{ if(r&&r.cat===cat)r.cat=name; });
+  if(categoryScopes[cat]){categoryScopes[name]=categoryScopes[cat];delete categoryScopes[cat];}
+  if(aCartaCat===cat)aCartaCat=name;
+  broadcastState(); renderMcBody(); renderCarta();
+  showToast('Categoría renombrada','ok');
+}
+function mcDeleteCat(cat){
+  const n=Object.values(menuData[cat]||{}).reduce((s,a)=>s+(a?a.length:0),0);
+  if(n>0){
+    _delCatTarget=cat;
+    const others=Object.keys(menuData).filter(c=>c!==cat);
+    $('moveCatMsg').textContent=`"${cat}" tiene ${n} producto(s). Elige a qué categoría moverlos; luego se eliminará "${cat}".`;
+    $('moveCatDest').innerHTML=others.length?others.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join(''):'<option value="">(crea otra categoría primero)</option>';
+    openMod('moveCatModal'); return;
+  }
+  if(!confirm('¿Eliminar la categoría "'+cat+'"?'))return;
+  delete menuData[cat]; delete categoryScopes[cat]; if(aCartaCat===cat)aCartaCat='Todos';
+  broadcastState(); renderMcBody(); renderCarta(); if(typeof renderInv==='function')renderInv();
+  showToast('Categoría eliminada','del');
+}
+function mcRenameSub(cat,oldSub){
+  const nn=prompt('Nuevo nombre de la subcategoría:',oldSub); if(nn===null)return;
+  const name=nn.trim(); if(!name||name===oldSub)return;
+  if(menuData[cat][name]){ (menuData[cat][oldSub]||[]).forEach(it=>menuData[cat][name].push(it)); delete menuData[cat][oldSub]; }
+  else { menuData[cat][name]=menuData[cat][oldSub]; delete menuData[cat][oldSub]; }
+  inventoryItems.forEach(x=>{ if(x.cat===oldSub)x.cat=name; });
+  broadcastState(); renderMcBody(); renderCarta(); if(typeof renderInv==='function')renderInv();
+  showToast('Subcategoría renombrada','ok');
+}
+function mcMoveSubProducts(cat,sub,destSub){
+  if(!destSub||sub===destSub){showToast('Elige un destino distinto','del');return;}
+  const items=menuData[cat]&&menuData[cat][sub]; if(!items||!items.length){showToast('Sin productos','del');return;}
+  const n=items.length;
+  if(!confirm('¿Mover '+n+' producto(s) de "'+sub+'" a "'+destSub+'"?'))return;
+  if(!menuData[cat][destSub])menuData[cat][destSub]=[];
+  const movedNames=items.map(it=>(it.name||'').toLowerCase());
+  items.forEach(it=>menuData[cat][destSub].push(it));
+  inventoryItems.forEach(x=>{ if(movedNames.includes((x.name||'').toLowerCase()))x.cat=destSub; });
+  delete menuData[cat][sub];
+  broadcastState(); renderMcBody(); renderCarta(); if(typeof renderInv==='function')renderInv();
+  showToast(n+' producto(s) movidos a "'+destSub+'"','ok');
 }
 /* Write-through best-effort de un ítem de carta a la tabla `menu` (igual patrón que _invUpsert).
    La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
