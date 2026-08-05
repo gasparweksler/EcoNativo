@@ -3986,7 +3986,27 @@ function editCartaName(cat,sub,i,value){
   _cartaUpsertItem(cat,sub,item);broadcastState();
   showToast('Nombre actualizado','ok');renderCarta();
 }
-function delP(cat,sub,i){const name=menuData[cat][sub][i].name;if(!confirm('¿Eliminar "'+name+'"?'))return;menuData[cat][sub].splice(i,1);if(_sb){_sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] Error al eliminar en Supabase:',error.message);});}broadcastState();showToast('Eliminado','del');renderCarta();}
+function delP(cat,sub,i){
+  const name=menuData[cat][sub][i].name;
+  if(!confirm('¿Eliminar "'+name+'" de la Carta?'))return;
+  const hasInv=inventoryItems.some(x=>x.name.toLowerCase()===name.toLowerCase());
+  const alsoInv=hasInv&&confirm('¿Eliminar también "'+name+'" del Inventario?\n\nAceptar = borrar de la Carta y del Inventario.\nCancelar = mantener en el Inventario (solo se quita de la Carta).');
+  menuData[cat][sub].splice(i,1);
+  if(!menuData[cat][sub].length)delete menuData[cat][sub];
+  delete recipes[name];
+  if(_sb){
+    _sb.from('menu').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Carta] Error al eliminar en Supabase:',error.message);});
+    _sb.from('recipes').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Receta] delete',error.message);});
+  }
+  if(alsoInv){
+    const idx=inventoryItems.findIndex(x=>x.name.toLowerCase()===name.toLowerCase());
+    if(idx>=0){inventoryItems.splice(idx,1);if(typeof _invDirty!=='undefined')_invDirty.delete(name);delete _invSnapshot[name];}
+    if(_sb)_sb.from('inventory').delete().eq('name',name).then(({error})=>{if(error)console.warn('[Inv] Error al eliminar en Supabase:',error.message);});
+  }
+  broadcastState();
+  showToast(alsoInv?'Eliminado de Carta e Inventario':'Eliminado de la Carta','del');
+  renderCarta(); if(typeof renderInv==='function')renderInv();
+}
 function saveNewProd(){
   const name=($('npName').value||'').trim(),price=parseInt($('npPrice').value||'0'),sub=($('npSub').value||'').trim(),area=($('npArea')?.value||'').trim();
   /* Categoría: del selector; si no hay (o estamos en "Todos") se exige elegirla */
