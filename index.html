@@ -3355,11 +3355,14 @@ function saveEditRecipe(){
    Lista unificada en tiempo real: subcategorías de la carta + las del inventario
    + categorías fijas de insumos. Carta e Inventario usan SIEMPRE esta misma lista. */
 const _SUBCAT_EXTRA=['Insumos Cafetería','Insumos Cocina','Extras'];
+let _SUBCAT_USER=[]; /* subcategorías creadas manualmente (persisten aunque queden vacías) — se sincroniza */
 function getSubcategorias(){
   const set=new Set();
   Object.values(menuData).forEach(subs=>Object.keys(subs).forEach(s=>set.add(s)));
   inventoryItems.forEach(it=>{ if(it.cat)set.add(it.cat); });
   _SUBCAT_EXTRA.forEach(s=>set.add(s));
+  if(typeof ING_CATS!=='undefined')ING_CATS.forEach(s=>set.add(s)); /* categorías de ingredientes siempre disponibles */
+  if(Array.isArray(_SUBCAT_USER))_SUBCAT_USER.forEach(s=>set.add(s)); /* subcategorías creadas a mano */
   return [...set].sort((a,b)=>a.localeCompare(b,'es'));
 }
 function _fillSubcatOptions(selectId,current){
@@ -3447,7 +3450,14 @@ function _toggleInvSubEdit(i){
   txt.style.display='none'; sel.style.display=''; sel.focus();
 }
 function editInvSub(i,newSub){
-  const item=inventoryItems[i];if(!item||!newSub){renderInv();return;}
+  const item=inventoryItems[i];if(!item){renderInv();return;}
+  if(newSub==='__new__'){
+    const nn=prompt('Nombre de la nueva subcategoría:',''); if(nn===null){renderInv();return;}
+    const name=nn.trim(); if(!name){renderInv();return;}
+    if(!_SUBCAT_USER.includes(name))_SUBCAT_USER.push(name);
+    newSub=name;
+  }
+  if(!newSub){renderInv();return;}
   item.cat=newSub;
   if(_sb)_invUpsert([{name:item.name,cat:item.cat,stock:item.stock,unit:item.unit,min_stock:item.min,area:item.area||null,updated_at:new Date().toISOString()}]).then(()=>{});
   broadcastState();showToast('Subcategoría actualizada','ok');renderInv();
@@ -4141,7 +4151,7 @@ function renderInv(){
         <div id="invSubTxt_${i}" style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:13px;color:var(--ts)">Subcategoría: <b style="color:var(--tm)">${item.cat||'—'}</b>
           <button onclick="_toggleInvSubEdit(${i})" title="Cambiar subcategoría" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:2px 6px;font-size:11px"><i class="ti ti-pencil" style="font-size:11px"></i> Cambiar</button>
         </div>
-        <select id="invSubSel_${i}" onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="display:none;font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}</select>
+        <select id="invSubSel_${i}" onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="display:none;font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}<option value="__new__">➕ Nueva subcategoría…</option></select>
         ${porRec
           ? `<div class="inv-stock" style="color:var(--inf)"><i class="ti ti-tools-kitchen-2" style="font-size:11px;vertical-align:-1px"></i> Stock según receta (insumos)</div>`
           : `<div class="inv-stock">${item.stock} <input type="text" value="${(item.unit||'').replace(/"/g,'&quot;')}" onchange="setInvUnit(${i},this.value)" title="Unidad de medida" style="width:46px;border:1px solid var(--br);border-radius:4px;background:var(--wh);font-size:12px;padding:1px 4px;color:var(--tm)"> · mín: ${item.min}${item.area?` · ${item.area}`:''}</div>`}
@@ -4952,6 +4962,7 @@ function getSerializableState(){
     invButtons:invButtons,
     categoryScopes:JSON.parse(JSON.stringify(categoryScopes)),
     ingredientes:JSON.parse(JSON.stringify(ingredientes)),
+    subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
     ts:Date.now()
   });
 }
@@ -5022,6 +5033,7 @@ function applyRemoteState(data){
     if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
     if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
     if(s.ingredientes&&typeof s.ingredientes==='object')ingredientes=s.ingredientes;
+    if(Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
     /* Alinear categorías de inventario con la Carta tras sincronizar */
     if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
