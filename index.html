@@ -3684,9 +3684,16 @@ function saveCatScopes(){
 let _btnMgrTarget='carta';
 function _openBtnMgr(target,allList,currentSet){
   _btnMgrTarget=target;
-  $('cartaButtonsList').innerHTML=allList.map(n=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;font-size:14px;border-bottom:1px solid var(--cr2);cursor:pointer">
+  const mkRow=n=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;font-size:14px;border-bottom:1px solid var(--cr2);cursor:pointer">
     <input type="checkbox" value="${n.replace(/"/g,'&quot;')}" ${currentSet.has(n)?'checked':''} style="width:18px;height:18px;accent-color:var(--bm)">
-    <span>${n}${menuData[n]?' <span style="font-size:10px;color:var(--ts)">(categoría)</span>':''}</span></label>`).join('');
+    <span>${n}</span></label>`;
+  const title=t=>`<div style="font-size:12px;font-weight:700;color:var(--bd);text-transform:uppercase;letter-spacing:.6px;margin:12px 2px 4px">${t}</div>`;
+  const cats=allList.filter(n=>menuData[n]).sort((a,b)=>a.localeCompare(b,'es'));
+  const subs=allList.filter(n=>!menuData[n]).sort((a,b)=>a.localeCompare(b,'es'));
+  let html='';
+  if(cats.length)html+=title('Categorías').replace('margin:12px','margin:0 2px 4px')+cats.map(mkRow).join('');
+  if(subs.length)html+=title('Subcategorías')+subs.map(mkRow).join('');
+  $('cartaButtonsList').innerHTML=html||'<div style="font-size:13px;color:var(--tl);padding:8px 2px">No hay opciones disponibles.</div>';
   openMod('cartaButtonsModal');
 }
 /* Carta: elige entre categorías con alcance "carta" */
