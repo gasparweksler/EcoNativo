@@ -3830,6 +3830,7 @@ function saveNewProd(){
   let cat=($('npCat')?.value||'').trim();
   if(!cat&&aCartaCat&&aCartaCat!=='Todos'&&menuData[aCartaCat])cat=aCartaCat;
   if(!name||!price||!sub||!cat){showToast('Completa todos los campos (incluida la categoría)');return;}
+  if(!confirm('"'+name+'" se agregará a la Carta y TAMBIÉN se reflejará en el Inventario.\n\n¿Confirmar?'))return;
   if(!menuData[cat])menuData[cat]={};
   if(!menuData[cat][sub])menuData[cat][sub]=[];
   const prod={name,price,active:true};if(area)prod.area=area;
@@ -4029,6 +4030,7 @@ function invStockChanged(i,val){
 
 function invDeleteItem(i){
   const name=inventoryItems[i].name;
+  if(!confirm('¿Eliminar "'+name+'" del Inventario?'))return;
   inventoryItems.splice(i,1);
   _invDirty.delete(name);
   delete _invSnapshot[name];
@@ -4080,6 +4082,7 @@ function saveInvItem(){
   const name=($('invName').value||'').trim(),cat=($('invCat').value||'').trim(),stock=parseFloat($('invStock').value)||0,unit=($('invUnit').value||'').trim(),min=parseFloat($('invMin').value)||1,area=($('invArea')?.value||'').trim();
   if(!name||!cat||!unit){showToast('Completa todos los campos');return;}
   if(inventoryItems.find(x=>x.name===name)){showToast('Ya existe "'+name+'"','del');return;}
+  if(!confirm('"'+name+'" se agregará SOLO al Inventario y NO aparecerá en la Carta.\n\n¿Confirmar?'))return;
   const item={name,cat,stock,unit,min};if(area)item.area=area;
   inventoryItems.push(item);
   _invSnapshot[name]=stock;
