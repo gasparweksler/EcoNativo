@@ -3381,6 +3381,12 @@ function openAddInv(){ _fillSubcatOptions('invCat',''); openMod('addInvModal'); 
 function moveCartaSub(cat,oldSub,i,newSub){
   const arr=menuData[cat]&&menuData[cat][oldSub];if(!arr)return;
   const item=arr[i];if(!item)return;
+  if(newSub==='__new__'){
+    const nn=prompt('Nombre de la nueva subcategoría:',''); if(nn===null){renderCarta();return;}
+    const name=nn.trim(); if(!name){renderCarta();return;}
+    if(Array.isArray(_SUBCAT_USER)&&!_SUBCAT_USER.includes(name))_SUBCAT_USER.push(name);
+    newSub=name;
+  }
   if(!newSub||newSub===oldSub){renderCarta();return;}
   arr.splice(i,1);
   if(!menuData[cat][newSub])menuData[cat][newSub]=[];
@@ -3599,7 +3605,7 @@ function renderCarta(){
           <span style="font-size:10px;color:var(--tl)">Categoría:</span>
           <select onchange="moveCartaCat('${cat}','${sub}',${i},this.value)" title="Mover el producto a otra categoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;padding:4px 6px;max-width:200px">${_catSelHtml(cat)}</select>
           <span style="font-size:10px;color:var(--tl)">Subcategoría:</span>
-          <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;padding:4px 6px;max-width:200px">${_subSelHtml(sub)}</select>
+          <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;padding:4px 6px;max-width:200px">${_subSelHtml(sub)}<option value="__new__">➕ Nueva subcategoría…</option></select>
         </div>
         ${(!item.isVariant&&!item.isPizza&&!item.isSandwich)?`<button onclick="enableVariants('${cat}','${sub}',${i})" title="Convertir este producto en uno con variedades" style="display:block;margin-top:3px;font-size:11px;color:var(--bm);background:transparent;border:1px dashed var(--bm);border-radius:6px;padding:3px 8px;cursor:pointer"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Activar variedades</button>`:''}
       </td>
