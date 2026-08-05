@@ -744,6 +744,11 @@ body.dark .info-note b{color:#7fb0e0}
       <div class="page" id="page-carta">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Editor de Carta</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" title="Descargar la Carta en Excel" onclick="cartaExportXlsx()"><i class="ti ti-download" style="font-size:11px"></i> Excel</button>
+            <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" title="Actualizar la Carta desde un Excel" onclick="_triggerImport('cartaImportFile')"><i class="ti ti-upload" style="font-size:11px"></i> Subir Excel</button>
+            <input type="file" id="cartaImportFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="if(this.files[0])cartaImportXlsx(this.files[0])">
+          </div>
         </div>
         <div class="info-note"><b>Cómo funciona la Carta:</b> aquí gestionas los productos que se <b>venden</b> (nombre, precio, categoría y variedades). Al agregar un producto, se crea también en <b>Inventario</b> para llevar su stock. Si el producto tiene <b>receta con insumos</b>, su disponibilidad depende de esos insumos; si no tiene receta, usa su <b>stock propio</b>. Solo se muestran en Pedidos las categorías con alcance "Carta".</div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="cartaSearch" type="text" placeholder="Buscar producto..." oninput="_cartaQ=this.value;renderCarta()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
@@ -753,7 +758,14 @@ body.dark .info-note b{color:#7fb0e0}
 
       <!-- INVENTARIO -->
       <div class="page" id="page-inventory">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px"><div class="pt" style="margin-bottom:0">Inventario</div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:6px">
+          <div class="pt" style="margin-bottom:0">Inventario</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" title="Descargar el Inventario en Excel" onclick="invExportXlsx()"><i class="ti ti-download" style="font-size:11px"></i> Excel</button>
+            <button class="btn-add-sm" style="background:transparent;color:var(--bm);border:1px solid var(--bm)" title="Actualizar el Inventario desde un Excel" onclick="_triggerImport('invImportFile')"><i class="ti ti-upload" style="font-size:11px"></i> Subir Excel</button>
+            <input type="file" id="invImportFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="if(this.files[0])invImportXlsx(this.files[0])">
+          </div>
+        </div>
         <div class="info-note"><b>No todo lo que agregas aquí aparece en la Carta.</b> El Inventario incluye <b>insumos</b> (materias primas como Leche o Café molido) que solo sirven para controlar stock y <b>no se venden</b>. Para que un producto se venda, agrégalo desde la sección <b>Carta</b> (así se crea en ambos lados). Los productos marcados <b>"Por receta"</b> no tienen stock propio: se controlan por sus insumos.</div>
         <div style="position:relative;margin-bottom:.6rem"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="invSearch" type="text" placeholder="Buscar insumo..." oninput="_invQ=this.value;renderInv()" style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
         <div id="ingredientEditor"></div>
@@ -3051,6 +3063,157 @@ function downloadExcel(){
   XLSX.writeFile(wb,'EcoNativo_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('Excel descargado ✓','ok');
 }
+
+/* ── EXCEL: CARTA e INVENTARIO (exportar / importar) ── */
+const _xlsxDate=()=>new Date().toISOString().slice(0,10);
+const _norm=s=>String(s==null?'':s).trim();
+const _boolCell=v=>{const s=_norm(v).toLowerCase();return !(s==='no'||s==='false'||s==='0'||s==='');};
+/* Lee un archivo .xlsx/.csv y devuelve las filas de la primera hoja como objetos */
+function _readXlsxFile(file,cb){
+  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible');return;}
+  const rd=new FileReader();
+  rd.onload=e=>{try{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    cb(XLSX.utils.sheet_to_json(ws,{defval:''}));
+  }catch(err){showToast('No se pudo leer el archivo','del');console.warn('[XLSX import]',err);}};
+  rd.readAsArrayBuffer(file);
+}
+/* Busca una clave del objeto fila sin importar mayúsculas/acentos/espacios */
+function _rowGet(row,...names){
+  const keys=Object.keys(row);
+  for(const n of names){const k=keys.find(k=>k.toLowerCase().trim()===n.toLowerCase());if(k!==undefined)return row[k];}
+  return undefined;
+}
+
+/* CARTA → Excel */
+function cartaExportXlsx(){
+  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible');return;}
+  const header=['Categoría','Subcategoría','Nombre','Descripción','Precio','Activo','Área','Tipo'];
+  const rows=[];
+  Object.keys(menuData).forEach(cat=>Object.entries(menuData[cat]).forEach(([sub,items])=>{
+    (items||[]).forEach(it=>{
+      const tipo=it.isPizza?'pizza':it.isSandwich?'sándwich':it.isVariant?'variantes':'simple';
+      rows.push([cat,sub,it.name,it.desc||'',it.price||0,it.active===false?'No':'Sí',it.area||'',tipo]);
+    });
+  }));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([header,...rows]),'Carta');
+  XLSX.writeFile(wb,'EcoNativo_Carta_'+_xlsxDate()+'.xlsx');
+  showToast('Carta exportada ✓','ok');
+}
+/* Excel → CARTA (actualiza por Nombre; crea si no existe; nunca borra lo que no está en el archivo) */
+function cartaImportXlsx(file){
+  _readXlsxFile(file,rows=>{
+    if(!rows.length){showToast('El archivo está vacío','del');return;}
+    let upd=0,crt=0,moved=0,skip=0;
+    const pending=[];
+    rows.forEach(row=>{
+      const name=_norm(_rowGet(row,'Nombre','name'));
+      if(!name){skip++;return;}
+      const cat=_norm(_rowGet(row,'Categoría','Categoria','cat'));
+      const sub=_norm(_rowGet(row,'Subcategoría','Subcategoria','sub'));
+      const desc=_rowGet(row,'Descripción','Descripcion','desc');
+      const priceRaw=_rowGet(row,'Precio','price');
+      const activeRaw=_rowGet(row,'Activo','active');
+      const area=_rowGet(row,'Área','Area','area');
+      pending.push({name,cat,sub,desc,priceRaw,activeRaw,area});
+    });
+    if(!pending.length){showToast('No hay filas con Nombre','del');return;}
+    if(!confirm('Se actualizarán '+pending.length+' producto(s) de la Carta desde el archivo.\nLos productos que NO estén en el archivo se conservan sin cambios.\n\n¿Confirmar?'))return;
+    pending.forEach(p=>{
+      const loc=_findMenuItem(p.name);
+      if(loc){
+        const it=loc.item;
+        if(p.desc!==undefined&&p.desc!=='')it.desc=_norm(p.desc);
+        if(p.priceRaw!==undefined&&p.priceRaw!==''){const v=parseInt(p.priceRaw);if(!isNaN(v)){it.price=v;if(recipes[it.name])recipes[it.name].price=v;}}
+        if(p.activeRaw!==undefined&&p.activeRaw!=='')it.active=_boolCell(p.activeRaw);
+        if(p.area!==undefined&&p.area!=='')it.area=_norm(p.area);
+        /* mover de categoría/subcategoría si cambió */
+        const newCat=p.cat&&menuData[p.cat]?p.cat:loc.cat;
+        const newSub=p.sub||loc.sub;
+        if(newCat!==loc.cat||newSub!==loc.sub){
+          loc.arr.splice(loc.i,1); if(!loc.arr.length)delete menuData[loc.cat][loc.sub];
+          if(!menuData[newCat])menuData[newCat]={};
+          if(!menuData[newCat][newSub])menuData[newCat][newSub]=[];
+          menuData[newCat][newSub].push(it);
+          if(recipes[it.name])recipes[it.name].cat=newCat;
+          _setInvCat(it.name,newSub);
+          moved++;
+        }
+        upd++;
+      } else {
+        /* crear nuevo: requiere categoría y subcategoría */
+        if(!p.cat||!p.sub){skip++;return;}
+        const price=parseInt(p.priceRaw)||0;
+        if(!menuData[p.cat])menuData[p.cat]={};
+        if(!menuData[p.cat][p.sub])menuData[p.cat][p.sub]=[];
+        const prod={name:p.name,price,active:p.activeRaw!==undefined&&p.activeRaw!==''?_boolCell(p.activeRaw):true};
+        if(p.desc)prod.desc=_norm(p.desc); if(p.area)prod.area=_norm(p.area);
+        menuData[p.cat][p.sub].push(prod);
+        recipes[p.name]={cat:p.cat,price,ingredients:[]};
+        if(!inventoryItems.find(x=>x.name.toLowerCase()===p.name.toLowerCase()))
+          inventoryItems.push({name:p.name,cat:p.sub,stock:50,unit:'un',min:5,area:p.area||''});
+        crt++;
+      }
+    });
+    broadcastState(); renderCarta(); if(typeof renderInv==='function')renderInv();
+    showToast('Carta: '+upd+' actualizados, '+crt+' nuevos'+(moved?', '+moved+' movidos':'')+(skip?', '+skip+' omitidos':''),'ok');
+  });
+}
+
+/* INVENTARIO → Excel */
+function invExportXlsx(){
+  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible');return;}
+  const header=['Nombre','Categoría','Stock','Unidad','Stock mínimo','Área'];
+  const rows=inventoryItems.map(it=>[it.name,it.cat||'',it.stock==null?0:it.stock,it.unit||'',it.min==null?'':it.min,it.area||'']);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([header,...rows]),'Inventario');
+  XLSX.writeFile(wb,'EcoNativo_Inventario_'+_xlsxDate()+'.xlsx');
+  showToast('Inventario exportado ✓','ok');
+}
+/* Excel → INVENTARIO (actualiza por Nombre; crea si no existe; no borra lo ausente) */
+function invImportXlsx(file){
+  _readXlsxFile(file,rows=>{
+    if(!rows.length){showToast('El archivo está vacío','del');return;}
+    const pending=[];
+    rows.forEach(row=>{
+      const name=_norm(_rowGet(row,'Nombre','name'));
+      if(!name)return;
+      pending.push({name,
+        cat:_rowGet(row,'Categoría','Categoria','cat'),
+        stock:_rowGet(row,'Stock','stock'),
+        unit:_rowGet(row,'Unidad','unit'),
+        min:_rowGet(row,'Stock mínimo','Stock minimo','min','min_stock'),
+        area:_rowGet(row,'Área','Area','area')});
+    });
+    if(!pending.length){showToast('No hay filas con Nombre','del');return;}
+    if(!confirm('Se actualizarán '+pending.length+' ítem(s) del Inventario desde el archivo.\nLos que NO estén en el archivo se conservan sin cambios.\n\n¿Confirmar?'))return;
+    let upd=0,crt=0;
+    pending.forEach(p=>{
+      let it=inventoryItems.find(x=>x.name.toLowerCase()===p.name.toLowerCase());
+      const stock=p.stock!==undefined&&p.stock!==''?parseFloat(p.stock):undefined;
+      const min=p.min!==undefined&&p.min!==''?parseFloat(p.min):undefined;
+      if(it){
+        if(p.cat!==undefined&&_norm(p.cat)!=='')it.cat=_norm(p.cat);
+        if(stock!==undefined&&!isNaN(stock)){it.stock=stock;_invSnapshot[it.name]=stock;}
+        if(p.unit!==undefined&&_norm(p.unit)!=='')it.unit=_norm(p.unit);
+        if(min!==undefined&&!isNaN(min))it.min=min;
+        if(p.area!==undefined&&_norm(p.area)!=='')it.area=_norm(p.area);
+        upd++;
+      } else {
+        const nit={name:p.name,cat:_norm(p.cat)||'Sin categoría',stock:!isNaN(stock)?stock:0,unit:_norm(p.unit)||'un',min:!isNaN(min)?min:1};
+        if(_norm(p.area))nit.area=_norm(p.area);
+        inventoryItems.push(nit);_invSnapshot[nit.name]=nit.stock;crt++;
+      }
+    });
+    if(_sb){const now=new Date().toISOString();_invUpsert(inventoryItems.map(x=>({name:x.name,cat:x.cat,stock:x.stock,unit:x.unit,min_stock:x.min,area:x.area||null,updated_at:now}))).then(()=>{});}
+    broadcastState(); if(typeof renderInv==='function')renderInv();
+    showToast('Inventario: '+upd+' actualizados'+(crt?', '+crt+' nuevos':''),'ok');
+  });
+}
+/* Disparadores de los <input file> ocultos */
+function _triggerImport(id){const el=$(id);if(el){el.value='';el.click();}}
 
 /* ── RECIPES — full CRUD ── */
 function renderRecipes(){
