@@ -3165,7 +3165,7 @@ function cartaImportXlsx(file){
 /* INVENTARIO → Excel */
 function invExportXlsx(){
   if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible');return;}
-  const header=['Nombre','Categoría','Stock','Unidad','Stock mínimo','Área'];
+  const header=['Nombre','Subcategoría','Stock','Unidad','Stock mínimo','Área'];
   const rows=inventoryItems.map(it=>[it.name,it.cat||'',it.stock==null?0:it.stock,it.unit||'',it.min==null?'':it.min,it.area||'']);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([header,...rows]),'Inventario');
@@ -3181,7 +3181,7 @@ function invImportXlsx(file){
       const name=_norm(_rowGet(row,'Nombre','name'));
       if(!name)return;
       pending.push({name,
-        cat:_rowGet(row,'Categoría','Categoria','cat'),
+        cat:_rowGet(row,'Subcategoría','Subcategoria','Categoría','Categoria','cat'),
         stock:_rowGet(row,'Stock','stock'),
         unit:_rowGet(row,'Unidad','unit'),
         min:_rowGet(row,'Stock mínimo','Stock minimo','min','min_stock'),
