@@ -3440,8 +3440,14 @@ function _syncInvCategoriesFromCarta(){
   return changed;
 }
 /* Reasignar subcategoría de un ítem de Inventario */
+/* Mostrar el desplegable de subcategoría solo al pulsar "Cambiar" */
+function _toggleInvSubEdit(i){
+  const txt=$('invSubTxt_'+i), sel=$('invSubSel_'+i);
+  if(!txt||!sel)return;
+  txt.style.display='none'; sel.style.display=''; sel.focus();
+}
 function editInvSub(i,newSub){
-  const item=inventoryItems[i];if(!item||!newSub)return;
+  const item=inventoryItems[i];if(!item||!newSub){renderInv();return;}
   item.cat=newSub;
   if(_sb)_invUpsert([{name:item.name,cat:item.cat,stock:item.stock,unit:item.unit,min_stock:item.min,area:item.area||null,updated_at:new Date().toISOString()}]).then(()=>{});
   broadcastState();showToast('Subcategoría actualizada','ok');renderInv();
@@ -4131,7 +4137,11 @@ function renderInv(){
     const lv=item.stock<=0?'out':item.stock<item.min?'low':'ok';
     const isDirty=_invDirty.has(item.name);
     return `<div class="inv-item" style="${isDirty?'border-left:3px solid var(--bm);':''}">
-      <div class="inv-info"><div class="inv-name">${item.name}${isDirty&&!porRec?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div><select onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}</select>
+      <div class="inv-info"><div class="inv-name">${item.name}${isDirty&&!porRec?'<span style="font-size:9px;color:var(--bm);margin-left:4px;font-weight:700">✏ sin guardar</span>':''}</div>
+        <div id="invSubTxt_${i}" style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:13px;color:var(--ts)">Subcategoría: <b style="color:var(--tm)">${item.cat||'—'}</b>
+          <button onclick="_toggleInvSubEdit(${i})" title="Cambiar subcategoría" style="background:none;border:1px solid var(--br);border-radius:6px;color:var(--ts);cursor:pointer;padding:2px 6px;font-size:11px"><i class="ti ti-pencil" style="font-size:11px"></i> Cambiar</button>
+        </div>
+        <select id="invSubSel_${i}" onchange="editInvSub(${i},this.value)" title="Reasignar subcategoría" style="display:none;font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;margin:3px 0;padding:4px 6px;max-width:220px">${_subSelHtml(item.cat)}</select>
         ${porRec
           ? `<div class="inv-stock" style="color:var(--inf)"><i class="ti ti-tools-kitchen-2" style="font-size:11px;vertical-align:-1px"></i> Stock según receta (insumos)</div>`
           : `<div class="inv-stock">${item.stock} <input type="text" value="${(item.unit||'').replace(/"/g,'&quot;')}" onchange="setInvUnit(${i},this.value)" title="Unidad de medida" style="width:46px;border:1px solid var(--br);border-radius:4px;background:var(--wh);font-size:12px;padding:1px 4px;color:var(--tm)"> · mín: ${item.min}${item.area?` · ${item.area}`:''}</div>`}
