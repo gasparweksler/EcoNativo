@@ -779,9 +779,17 @@ body.dark .info-note b{color:#7fb0e0}
 
       <!-- COCINA -->
       <div class="page" id="page-kitchen">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
-          <div class="pt" style="margin-bottom:0">Cocina</div>
-          <span id="kitCount" style="font-size:11px;color:var(--inf);font-weight:600"></span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div class="pt" style="margin-bottom:0">Cocina</div>
+            <span id="kitCount" style="font-size:11px;color:var(--inf);font-weight:600"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;padding:5px 12px">
+            <button id="alarmIcon" onclick="toggleAlarmMute()" title="Silenciar / activar alarma" style="background:none;border:none;cursor:pointer;color:var(--bm);font-size:16px;line-height:1;padding:0;display:flex"><i class="ti ti-volume"></i></button>
+            <input id="alarmVol" type="range" min="0" max="100" step="5" oninput="setAlarmVol(this.value)" style="width:120px;accent-color:var(--bm)">
+            <span id="alarmVolPct" style="font-size:11px;color:var(--ts);font-weight:600;min-width:34px;text-align:right">50%</span>
+            <button onclick="playBell()" title="Probar alarma" style="background:none;border:1px solid var(--br);border-radius:6px;cursor:pointer;color:var(--ts);font-size:11px;padding:3px 8px">Probar</button>
+          </div>
         </div>
         <div class="kg" id="kitchenGrid"><div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div></div>
       </div>
@@ -1064,8 +1072,26 @@ function showToast(msg,type=''){
 /* Bell — slides up from bottom, auto-hides */
 let bellTm=null;
 let _audioCtx=null;
+/* Volumen de la alarma — PREFERENCIA POR DISPOSITIVO (localStorage, NO se sincroniza).
+   Escala 0..100 (%); 50% ≈ el volumen original. Pico de ganancia = (vol/100)*0.8. */
+let _alarmVol=(()=>{ try{const v=localStorage.getItem('econativo_alarm_vol');return v==null?50:Math.max(0,Math.min(100,parseInt(v)||0));}catch(e){return 50;} })();
+function _alarmPeak(){ return (_alarmVol/100)*0.8; }
+function setAlarmVol(v){
+  _alarmVol=Math.max(0,Math.min(100,parseInt(v)||0));
+  try{localStorage.setItem('econativo_alarm_vol',String(_alarmVol));}catch(e){}
+  _updateAlarmUI();
+}
+function toggleAlarmMute(){ setAlarmVol(_alarmVol>0?0:50); }
+function _updateAlarmUI(){
+  const sl=$('alarmVol'),pct=$('alarmVolPct'),ic=$('alarmIcon');
+  if(sl&&sl.value!=String(_alarmVol))sl.value=_alarmVol;
+  if(pct)pct.textContent=_alarmVol+'%';
+  if(ic)ic.innerHTML=_alarmVol===0?'<i class="ti ti-volume-off"></i>':_alarmVol<=40?'<i class="ti ti-volume-2"></i>':'<i class="ti ti-volume"></i>';
+}
 function playBell(){
   try{
+    const peak=_alarmPeak();
+    if(peak<=0)return; /* silenciado */
     /* Reutilizar UN solo AudioContext (crear uno nuevo cada vez agota el límite
        del navegador y el sonido deja de reproducirse). */
     if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
@@ -1076,7 +1102,7 @@ function playBell(){
       o.connect(g);g.connect(ctx.destination);
       o.frequency.value=880-i*80;o.type='sine';
       g.gain.setValueAtTime(0,ctx.currentTime+d);
-      g.gain.linearRampToValueAtTime(.4,ctx.currentTime+d+.05);
+      g.gain.linearRampToValueAtTime(peak,ctx.currentTime+d+.05);
       g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.6);
       o.start(ctx.currentTime+d);o.stop(ctx.currentTime+d+.7);
     });
@@ -4662,6 +4688,7 @@ async function renderPublicCartaViewer(){
 
 /* ── KITCHEN ── */
 function renderKitchen(){
+  _updateAlarmUI();
   const active=orders.filter(o=>o.status!=='closed'&&!o.kitchenHidden);
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
