@@ -638,6 +638,7 @@ body.dark .info-note b{color:#7fb0e0}
           <div class="cp">
             <div class="ch"><h3>Pedido</h3><div class="cbdg" id="cartBadge">—</div>
               <button id="btnAddClient" onclick="addClientToOrder()" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-user-plus" style="font-size:9px"></i> Cliente</button>
+              <button id="btnChangeTable" onclick="openChangeTable()" title="Trasladar el pedido (completo o parte) a otra mesa" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-arrows-exchange" style="font-size:9px"></i> Cambiar Mesa</button>
             </div>
             <div class="ci" id="cartItems"><div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div></div>
             <div class="cf">
@@ -938,6 +939,13 @@ body.dark .info-note b{color:#7fb0e0}
   <div style="font-size:11px;color:var(--ts);margin-bottom:8px">Marca las categorías que quieres ver como botones arriba de la Carta.</div>
   <div id="cartaButtonsList" style="max-height:55vh;overflow:auto"></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;cartaButtonsModal&#39;)">Cancelar</button><button class="bc2" onclick="saveCartaButtons()">Guardar</button></div>
+</div></div>
+
+<!-- CAMBIAR MESA: trasladar pedido completo o parcial a otra mesa -->
+<div class="ov" id="changeTableModal"><div class="mb">
+  <h3 id="ctTitle"><i class="ti ti-arrows-exchange" style="color:var(--bm)"></i> Cambiar Mesa</h3>
+  <div id="ctBody" style="max-height:65vh;overflow:auto"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;changeTableModal&#39;)">Cerrar</button></div>
 </div></div>
 
 <div class="ov" id="addCatModal"><div class="mb">
@@ -1504,6 +1512,137 @@ function renderTables(){
   }).join('');
 }
 
+/* ════════ CAMBIAR MESA — trasladar pedido completo o parcial a otra mesa ════════
+   Reutiliza el modelo existente: `orders` es la única fuente de verdad. El estado de cada
+   ítem (kdone/kstate/note/price) viaja EN el ítem, y `stockDescontado` es por pedido; por eso
+   trasladar = reasignar tableId (completo) o mover objetos-ítem entre pedidos (parcial), sin
+   tocar inventario. broadcastState() sincroniza en tiempo real a todos los dispositivos. */
+let _ctSourceId=null;
+function _ctActiveOrders(tid){return orders.filter(o=>o.tableId===tid&&o.status!=='closed'&&o.status!=='canceled');}
+function _ctTableOccupied(tid){return _ctActiveOrders(tid).length>0;}
+function _ctDestOptions(){
+  return tables.filter(t=>t.id!==_ctSourceId).map(t=>`<option value="${t.id}">Mesa ${t.id}${_ctTableOccupied(t.id)?' (ocupada)':' (libre)'}</option>`).join('');
+}
+function openChangeTable(){
+  const tid=cTable&&cTable.id; if(!tid){showToast('Abre una mesa primero','del');return;}
+  if(!_ctActiveOrders(tid).length){showToast('Esta mesa no tiene pedido activo','del');return;}
+  _ctSourceId=tid; _ctRenderMenu(); openMod('changeTableModal');
+}
+function _ctRenderMenu(){
+  const tid=_ctSourceId;
+  $('ctBody').innerHTML=`
+    <div style="font-size:13px;color:var(--ts);margin-bottom:12px">Mesa de origen: <b style="color:var(--tm)">Mesa ${tid}</b></div>
+    <button class="btn-add-sm" style="width:100%;padding:14px;background:var(--bm);margin-bottom:4px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px" onclick="_ctFullStart()"><i class="ti ti-arrows-exchange-2"></i> Cambiar Mesa Completa</button>
+    <div style="font-size:11px;color:var(--ts);margin:0 2px 14px">Traslada TODO el pedido a otra mesa. La mesa actual queda libre.</div>
+    <button class="btn-add-sm" style="width:100%;padding:14px;background:var(--inf);font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px" onclick="_ctPartStart()"><i class="ti ti-list-check"></i> Cambiar Parte de la Mesa</button>
+    <div style="font-size:11px;color:var(--ts);margin:4px 2px 0">Elige productos y cantidades a trasladar. Los demás quedan en esta mesa.</div>`;
+}
+function _ctBackBtn(){return `<button onclick="_ctRenderMenu()" style="background:none;border:none;color:var(--bm);cursor:pointer;font-size:12px;margin-bottom:10px;padding:0"><i class="ti ti-arrow-left" style="vertical-align:-1px"></i> Volver</button>`;}
+/* ---- COMPLETA ---- */
+function _ctFullStart(){
+  const tid=_ctSourceId, ords=_ctActiveOrders(tid);
+  const nItems=ords.reduce((s,o)=>s+o.items.reduce((a,i)=>a+i.qty,0),0);
+  const total=ords.reduce((s,o)=>s+oTotal(o),0);
+  $('ctBody').innerHTML=`${_ctBackBtn()}
+    <div style="font-weight:700;margin-bottom:8px">Cambiar Mesa Completa</div>
+    <div style="font-size:13px;color:var(--ts);margin-bottom:4px">Origen: <b style="color:var(--tm)">Mesa ${tid}</b> · ${nItems} ítem(s) · ${fmt(total)}</div>
+    <div style="font-size:13px;margin:12px 0 4px">Mesa de destino:</div>
+    <select id="ctDestSel" style="width:100%;padding:9px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;background:var(--wh);margin-bottom:14px"><option value="">Selecciona…</option>${_ctDestOptions()}</select>
+    <button class="btn-add-sm" style="width:100%;padding:12px;background:var(--ok);font-size:14px" onclick="_ctFullConfirm()"><i class="ti ti-check"></i> Confirmar traslado completo</button>`;
+}
+function _ctFullConfirm(){
+  const dest=parseInt($('ctDestSel').value);
+  if(!dest){showToast('Elige la mesa de destino','del');return;}
+  if(dest===_ctSourceId){showToast('El destino no puede ser la misma mesa','del');return;}
+  const ords=_ctActiveOrders(_ctSourceId);
+  if(!ords.length){showToast('No hay pedido para trasladar','del');return;}
+  const destOcc=_ctTableOccupied(dest);
+  if(!confirm('¿Trasladar TODO el pedido de la Mesa '+_ctSourceId+' a la Mesa '+dest+'?'+(destOcc?'\n\nLa Mesa '+dest+' ya está ocupada: el pedido se sumará como otra cuenta.':'\n\nLa Mesa '+_ctSourceId+' quedará libre.')))return;
+  ords.forEach(o=>{o.tableId=dest;});
+  broadcastState();
+  showToast('Pedido trasladado a Mesa '+dest,'ok');
+  closeMod('changeTableModal'); _ctExit();
+}
+/* ---- PARCIAL ---- */
+function _ctPartStart(){
+  const tid=_ctSourceId, ords=_ctActiveOrders(tid), rows=[];
+  ords.forEach(o=>o.items.forEach((it,idx)=>{
+    const key=o.id+'|'+idx;
+    rows.push(`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--cr2)">
+      <input type="checkbox" data-key="${key}" style="width:17px;height:17px;accent-color:var(--bm);flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>
+        <div style="font-size:10px;color:var(--ts)">${fmt(it.price)} c/u${it.note?' · '+it.note:''}${o.clientName?' · '+o.clientName:''}</div>
+      </div>
+      <input type="number" data-qty="${key}" value="${it.qty}" min="1" max="${it.qty}" style="width:52px;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:13px;text-align:center;flex-shrink:0">
+      <span style="font-size:10px;color:var(--ts);flex-shrink:0">/ ${it.qty}</span>
+    </div>`);
+  }));
+  $('ctBody').innerHTML=`${_ctBackBtn()}
+    <div style="font-weight:700;margin-bottom:6px">Cambiar Parte de la Mesa</div>
+    <div style="font-size:12px;color:var(--ts);margin-bottom:8px">Origen: <b style="color:var(--tm)">Mesa ${tid}</b>. Marca los productos y ajusta cuántas unidades trasladar.</div>
+    ${rows.join('')||'<div style="color:var(--tl);font-size:13px">Sin productos.</div>'}
+    <div style="font-size:13px;margin:14px 0 4px">Mesa de destino:</div>
+    <select id="ctDestSel" style="width:100%;padding:9px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;background:var(--wh);margin-bottom:14px"><option value="">Selecciona…</option>${_ctDestOptions()}</select>
+    <button class="btn-add-sm" style="width:100%;padding:12px;background:var(--ok);font-size:14px" onclick="_ctPartConfirm()"><i class="ti ti-check"></i> Revisar y confirmar</button>`;
+}
+function _ctPartConfirm(){
+  const dest=parseInt($('ctDestSel').value);
+  if(!dest){showToast('Elige la mesa de destino','del');return;}
+  if(dest===_ctSourceId){showToast('El destino no puede ser la misma mesa','del');return;}
+  const sels=[];
+  document.querySelectorAll('#ctBody input[type="checkbox"][data-key]').forEach(chk=>{
+    if(!chk.checked)return;
+    const key=chk.dataset.key, [oid,idxs]=key.split('|'), idx=parseInt(idxs);
+    const o=getOrder(oid); if(!o||!o.items[idx])return;
+    const qInp=document.querySelector('#ctBody input[data-qty="'+key.replace(/"/g,'')+'"]');
+    let qty=parseInt(qInp&&qInp.value)||0;
+    qty=Math.max(1,Math.min(qty,o.items[idx].qty)); /* nunca más de lo disponible */
+    sels.push({oid,idx,qty,name:o.items[idx].name});
+  });
+  if(!sels.length){showToast('Marca al menos un producto','del');return;}
+  const resumen=sels.map(s=>'• '+s.qty+'× '+s.name).join('\n');
+  if(!confirm('Trasladar de Mesa '+_ctSourceId+' → Mesa '+dest+':\n\n'+resumen+'\n\n¿Confirmar?'))return;
+  _ctPartApply(sels,dest);
+}
+function _ctPartApply(sels,dest){
+  /* pedido de destino: reutiliza uno activo o crea uno nuevo */
+  let destOrder=_ctActiveOrders(dest).find(o=>!o.kitchenHidden)||_ctActiveOrders(dest)[0];
+  if(!destOrder){
+    destOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:dest,type:'mesa',waiter:cUser||'—',time:Date.now(),status:'preparing',kitchenStartTime:Date.now(),tip:0,pago:'efectivo',items:[],clientName:'',stockDescontado:true};
+    kDone[destOrder.id]=[]; orders.push(destOrder); totalOrdsIn++;
+  }
+  destOrder.stockDescontado=true; /* recibe ítems ya descontados; no se toca inventario */
+  /* agrupar por pedido y remover desde el índice mayor para no invalidar índices */
+  const byOrder={};
+  sels.forEach(s=>{(byOrder[s.oid]=byOrder[s.oid]||[]).push(s);});
+  Object.keys(byOrder).forEach(oid=>{
+    const o=getOrder(oid); if(!o)return;
+    byOrder[oid].sort((a,b)=>b.idx-a.idx).forEach(s=>{
+      const it=o.items[s.idx]; if(!it)return;
+      const moveQty=Math.min(s.qty,it.qty);
+      if(moveQty>=it.qty){ o.items.splice(s.idx,1); destOrder.items.push(it); }
+      else { it.qty-=moveQty; destOrder.items.push({...it,qty:moveQty}); }
+    });
+  });
+  /* liberar la mesa de origen: quitar pedidos activos que quedaron sin ítems */
+  for(let i=orders.length-1;i>=0;i--){
+    const o=orders[i];
+    if(o.tableId===_ctSourceId&&o.status!=='closed'&&o.status!=='canceled'&&!o.items.length){ delete kDone[o.id]; orders.splice(i,1); }
+  }
+  broadcastState();
+  showToast('Productos trasladados a Mesa '+dest,'ok');
+  closeMod('changeTableModal'); _ctExit();
+}
+/* Salir de la vista de pedido a la grilla de Mesas tras un traslado */
+function _ctExit(){
+  cart=[]; currentAccountId=null; cTable=null; isMC=false;
+  const ma=$('mesaActions');if(ma)ma.style.display='none';
+  renderTables();
+  if(typeof renderKitchen==='function')renderKitchen();
+  goPage('tables');
+}
+
 let currentAccountId=null;
 
 function tableClick(id){
@@ -1530,6 +1669,8 @@ function loadTableOrder(id,order){
   const mcob=$('mcOrderBtns');if(mcob)mcob.style.display='none';
   /* Mostrar botón agregar cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
+  /* Mostrar botón Cambiar Mesa (solo en mesas, no mostrador) */
+  const btnCT=$('btnChangeTable');if(btnCT)btnCT.style.display=(cTable&&cTable.id)?'':'none';
   /* Mostrar cobrar solo si hay ítems enviados a cocina */
   _updateCobrarBtn(order);
   /* Si el pedido ya tiene ítems enviados, mostrar resumen; si no, cargar al carrito */
@@ -1573,6 +1714,7 @@ function cancelarPedido(){
   const ma2=$('mesaActions');if(ma2)ma2.style.display='none';
   const cb2=$('cobrarBtns');if(cb2)cb2.style.display='none';
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   broadcastState();
   showToast('Pedido cancelado. Mesa '+mesa+' disponible.','ok');
@@ -1596,6 +1738,7 @@ function cerrarSinCobrar(){
   if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
   /* Ocultar btn cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   const btnCO2=$('btnCancelOrder');if(btnCO2)btnCO2.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   broadcastState();
@@ -1641,6 +1784,7 @@ function openMostrador(){
   const _ma=$('mesaActions');if(_ma)_ma.style.display='none';
   const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='block';
   const _bac=$('btnAddClient');if(_bac)_bac.style.display='none';
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   $('kitchenCheckWrap').style.display='block';
   $('mcSplitBtns').style.display='flex';
   selPay='efectivo';$('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
@@ -1650,6 +1794,7 @@ function backFromOrder(){
   const cb=$('cobrarBtns');if(cb)cb.style.display='none';
   const mc=$('mcOrderBtns');if(mc)mc.style.display='none';
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   renderTables();goPage('tables');
 }
@@ -1981,6 +2126,7 @@ function confirmarCobro(oid,sub){
   document.getElementById('cobrarModal')?.remove();
   /* Limpiar UI */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   const ma=$('mesaActions');if(ma)ma.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(sub+tip),'ok');
