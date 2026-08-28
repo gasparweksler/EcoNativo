@@ -2282,8 +2282,12 @@ function gestionarPedidoCocina(items, tableId){
   const targetTable = tableId || cTable?.id;
   const itemsToSend = items || cart.map(i=>({...i}));
   if(!itemsToSend.length){showToast('El carrito está vacío');return;}
-  let order = currentAccountId ? getOrder(currentAccountId)
-    : orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
+  let order = currentAccountId ? getOrder(currentAccountId) : null;
+  /* VALIDACIÓN CLAVE: el pedido apuntado por currentAccountId debe pertenecer a la mesa
+     seleccionada (targetTable). Si no coincide (o ya no existe), se descarta y se usa/crea
+     el pedido de la mesa correcta. Así el envío SIEMPRE va a la mesa que eligió el usuario. */
+  if(order && order.tableId!==targetTable) order=null;
+  if(!order) order = orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
   if(order&&order.status!=='closed'){
     order.items=[...order.items,...itemsToSend];
     if(order.kitchenHidden){
@@ -4413,7 +4417,9 @@ function invStockChanged(i,val){
   }
   /* Propagación en vivo por el canal probado del estado global (econativo_state) */
   broadcastState();
-  renderInv();
+  /* Solo reconstruir la lista si NO se está editando otro campo (evita robar el foco al
+     pasar de un campo a otro con Tab). El valor ya quedó guardado en el ítem. */
+  if(_isEditingField())_refreshActualizarBtn(); else renderInv();
 }
 
 function invDeleteItem(i){
@@ -5041,6 +5047,9 @@ async function initSupabase(){
         })
       /* Realtime: inventario */
       .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},payload=>{
+        /* No aplicar ecos de inventario mientras el usuario edita esa sección: evitaría
+           reordenar/reconstruir la lista y romper el foco del campo en edición. */
+        if(_isEditingField()&&_activePageIsInventory()){_pendingRefresh=true;return;}
         if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
           const r=payload.new;
           const ex=inventoryItems.find(x=>x.name===r.name);
@@ -5139,7 +5148,9 @@ function getSerializableState(){
     ordCnt,totalOrdsIn,clientCnt,
     kDone:JSON.parse(JSON.stringify(kDone)),
     caja:{...caja,movements:[...caja.movements],log:[...caja.log]},
-    currentAccountId,
+    /* currentAccountId es un PUNTERO DE UI POR DISPOSITIVO (qué pedido edita esta pantalla).
+       NO debe sincronizarse: si viaja en el estado global, un dispositivo pisa la selección
+       de otro y el envío termina en la mesa equivocada (bug "siempre Mesa 3"). */
     inventory:inventoryItems.map(x=>({...x})),
     waiters:waiters.map(w=>({...w})),
     menu:JSON.parse(JSON.stringify(menuData)),
@@ -5189,15 +5200,18 @@ function applyRemoteState(data){
     if(s.totalOrdsIn!==undefined)totalOrdsIn=s.totalOrdsIn;
     if(s.clientCnt!==undefined)clientCnt=s.clientCnt;
     if(s.kDone)Object.assign(kDone,s.kDone);
-    if(s.currentAccountId!==undefined)currentAccountId=s.currentAccountId;
+    /* NO aplicar s.currentAccountId: es local por dispositivo (ver getSerializableState). */
     if(s.caja){
       caja.open=s.caja.open;caja.openTime=s.caja.openTime;
       caja.fondo=s.caja.fondo;
       caja.movements=[...(s.caja.movements||[])];
       caja.log=[...(s.caja.log||[])];
     }
-    /* Inventario: sincroniza por el mismo canal probado del estado global */
-    if(Array.isArray(s.inventory)&&s.inventory.length){
+    /* Inventario: sincroniza por el mismo canal probado del estado global.
+       PERO si el usuario está editando en la sección Inventario, NO reemplazar el arreglo:
+       reemplazarlo invalidaría los índices de las filas y pisaría lo que está escribiendo.
+       El estado entrante se aplicará al terminar la edición (focusout → refresh diferido). */
+    if(Array.isArray(s.inventory)&&s.inventory.length&&!(_isEditingField()&&_activePageIsInventory())){
       inventoryItems.length=0;
       s.inventory.forEach(x=>inventoryItems.push({...x}));
       _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
@@ -5220,8 +5234,9 @@ function applyRemoteState(data){
     if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
     if(s.ingredientes&&typeof s.ingredientes==='object')ingredientes=s.ingredientes;
     if(Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
-    /* Alinear categorías de inventario con la Carta tras sincronizar */
-    if(typeof _syncInvCategoriesFromCarta==='function')_syncInvCategoriesFromCarta();
+    /* Alinear categorías de inventario con la Carta tras sincronizar.
+       No hacerlo mientras se edita Inventario (evita mutar el arreglo bajo el campo activo). */
+    if(typeof _syncInvCategoriesFromCarta==='function'&&!(_isEditingField()&&_activePageIsInventory()))_syncInvCategoriesFromCarta();
     /* Recetas: misma sincronización instantánea por estado global */
     if(s.recipes&&typeof s.recipes==='object'){
       Object.keys(recipes).forEach(k=>delete recipes[k]);
@@ -5231,7 +5246,24 @@ function applyRemoteState(data){
   }catch(e){console.warn('[EcoNativo] Sync error:',e);}
 }
 
+/* ¿El usuario está escribiendo en un campo editable ahora mismo?
+   Si es así, NO se debe reconstruir el DOM (destruiría el input enfocado y bloquearía la
+   escritura). Se usa para diferir renders provocados por sincronización en tiempo real. */
+function _isEditingField(){
+  const el=document.activeElement;
+  if(!el)return false;
+  const t=el.tagName;
+  if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT')return false;
+  const ty=(el.type||'').toLowerCase();
+  if(ty==='range'||ty==='checkbox'||ty==='radio'||ty==='button'||ty==='submit')return false;
+  return !el.readOnly&&!el.disabled;
+}
+function _activePageIsInventory(){const ap=document.querySelector('.page.active');return !!ap&&ap.id==='page-inventory';}
+let _pendingRefresh=false;
 function _refreshActiveView(){
+  /* Diferir mientras se escribe: evita re-render que roba el foco / bloquea la escritura */
+  if(_isEditingField()){_pendingRefresh=true;return;}
+  _pendingRefresh=false;
   const ap=document.querySelector('.page.active');
   if(!ap)return;
   const pid=ap.id?.replace('page-','');
@@ -5239,6 +5271,8 @@ function _refreshActiveView(){
   if(map[pid])map[pid]();
   updateOCBadge();
 }
+/* Al salir de un campo, si quedó un refresh pendiente por sincronización, aplicarlo una vez. */
+document.addEventListener('focusout',()=>{ setTimeout(()=>{ if(_pendingRefresh&&!_isEditingField())_refreshActiveView(); },80); });
 
 /* ── Capa 1: BroadcastChannel listener ── */
 if(bc){
