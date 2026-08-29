@@ -781,6 +781,19 @@ body.dark .info-note b{color:#7fb0e0}
       <!-- PERSONAL -->
       <div class="page" id="page-staff"><div id="staffPageHeader" class="pt" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">Personal<button id="btnConfirmStaff" class="bgrn" style="font-size:12px;padding:7px 14px;display:none" onclick="syncStaffToSupabase()"><i class="ti ti-cloud-upload" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Guardar Cambios</button></div><div id="staffContent"></div></div>
 
+      <!-- BIBLIOTECA (venta de libros) -->
+      <div class="page" id="page-biblioteca">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
+          <div class="pt" style="margin-bottom:0"><i class="ti ti-books" style="color:var(--bm)"></i> Biblioteca</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="openBookSale()" class="btn-add-sm" style="background:var(--bm)"><i class="ti ti-plus" style="font-size:11px"></i> Registrar venta de libro</button>
+            <button onclick="delAllBooks()" style="padding:5px 10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-trash" style="font-size:11px;vertical-align:-1px"></i> Eliminar historial</button>
+          </div>
+        </div>
+        <div class="info-note">Registra la venta de libros de la cafetería literaria. El precio es libre (lo define el comprador). Esta sección es independiente: no afecta ventas de cafetería, estadísticas, inventario ni pedidos.</div>
+        <div id="bibliotecaContent"></div>
+      </div>
+
       <!-- COCINA -->
       <div class="page" id="page-kitchen">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:8px">
@@ -849,8 +862,18 @@ body.dark .info-note b{color:#7fb0e0}
 
 <div class="ov" id="noteModal"><div class="mb">
   <h3>Nota para el producto</h3><p class="sub" id="noteItemName"></p>
-  <div class="form-item"><label>Instrucción especial</label><textarea id="noteText" rows="3" placeholder="Ej: sin sal, sin gluten, término medio..." style="resize:none"></textarea></div>
-  <div class="ma"><button class="bs2" onclick="closeMod(&#39;noteModal&#39;)">Cancelar</button><button class="bc2" onclick="saveNote()">Guardar</button></div>
+  <div class="form-item"><label>Instrucción especial</label><textarea id="noteText" rows="3" placeholder="Ej: sin azúcar, sin cebolla, extra caliente, preparar aparte..." style="resize:none"></textarea></div>
+  <div id="noteKitchenHint" style="display:none;font-size:11px;color:var(--wn);background:#FDF5E0;border-radius:6px;padding:6px 9px;margin-bottom:8px"><i class="ti ti-info-circle" style="font-size:12px;vertical-align:-1px"></i> Este producto ya está <b>Listo</b> y salió de Cocina: la nota será visible solo para Administrador y Garzón.</div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;noteModal&#39;)">Cancelar</button><button id="noteDelBtn" class="bs2" style="display:none;border-color:var(--er);color:var(--er)" onclick="delNote()">Eliminar nota</button><button class="bc2" onclick="saveNote()">Guardar</button></div>
+</div></div>
+
+<div class="ov" id="bookModal"><div class="mb">
+  <h3 id="bookModalTitle"><i class="ti ti-book" style="color:var(--bm)"></i> Registrar venta de libro</h3>
+  <div class="form-item"><label>Nombre del libro *</label><input type="text" id="bookName" placeholder="Ej: Cien años de soledad"></div>
+  <div class="form-item"><label>Nombre del comprador *</label><input type="text" id="bookBuyer" placeholder="Ej: Camila Rojas"></div>
+  <div class="form-item"><label>Precio de venta ($) *</label><input type="number" id="bookPrice" min="0" placeholder="0" inputmode="numeric"></div>
+  <div class="form-item"><label>Fecha de compra *</label><input type="date" id="bookDate"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;bookModal&#39;)">Cancelar</button><button class="bc2" onclick="saveBookSale()">Guardar</button></div>
 </div></div>
 
 <div class="ov" id="splitModal"><div class="mb" id="splitContent"></div></div>
@@ -1054,11 +1077,17 @@ body.dark .info-note b{color:#7fb0e0}
 const $=id=>document.getElementById(id);
 function fmt(n){return '$'+Math.round(n).toLocaleString('es-CL')}
 function elapsed(ts){const m=Math.floor((Date.now()-ts)/60000);return m<60?m+'min':Math.floor(m/60)+'h '+(m%60)+'min'}
+/* Duración mm:ss (para el cronómetro por producto en Cocina) */
+function _fmtDur(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);const mm=Math.floor(s/60),ss=s%60;return String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');}
+/* Texto del cronómetro de un ítem: fijo si terminó, en vivo si está corriendo, 00:00 si no inició */
+function _itemTimerText(it){if(it&&it.kStart&&it.kEnd)return _fmtDur(it.kEnd-it.kStart);if(it&&it.kStart)return _fmtDur(Date.now()-it.kStart);return '00:00';}
 function ftime(ts){return new Date(ts).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}
 function fdate(ts){return new Date(ts).toLocaleDateString('es-CL')}
 function getTable(id){return tables.find(t=>t.id===id)}
 function getOrder(id){return orders.find(o=>o.id===id)}
 function oTotal(o){return o.items.reduce((s,i)=>s+i.price*i.qty,0)}
+/* Total NETO de la venta = subtotal menos descuento aplicado (para estadísticas/informes/Excel). */
+function oNet(o){return Math.max(0,oTotal(o)-((o&&o.discount)||0))}
 function openMod(id){$(id).classList.add('open')}
 function closeMod(id){$(id).classList.remove('open')}
 
@@ -1184,6 +1213,12 @@ let orders=[];
 let ordCnt=1;
 
 let closedSales=[];
+
+/* ── BIBLIOTECA (venta de libros — temática literaria) ── */
+let bookSales=[];   /* {id, book, buyer, price, date:'YYYY-MM-DD', ts} */
+let bookCnt=1;
+let _bookSort='fecha';  /* fecha | libro | comprador */
+let _bookQ='';
 
 /* ── CLIENTS ── */
 let clients=[
@@ -1452,7 +1487,7 @@ function setFontScale(dir){
 /* ── NAV ── */
 const TABS={
   waiter:[{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'clients',label:'Clientes',icon:'ti-users'}],
-  admin:[{id:'dashboard',label:'Inicio',icon:'ti-home'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Estadísticas',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'cartapdf',label:'Carta PDF',icon:'ti-qrcode'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
+  admin:[{id:'dashboard',label:'Inicio',icon:'ti-home'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Estadísticas',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'cartapdf',label:'Carta PDF',icon:'ti-qrcode'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'biblioteca',label:'Biblioteca',icon:'ti-books'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
   kitchen:[{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'}]
 };
 
@@ -1479,6 +1514,7 @@ function navTo(id){
     carta:()=>{renderCarta();goPage('carta')},
     cartapdf:()=>{renderCartaPdf();goPage('cartapdf')},
     inventory:()=>{renderInv();goPage('inventory')},
+    biblioteca:()=>{renderBiblioteca();goPage('biblioteca')},
     staff:()=>{renderStaff();goPage('staff')},
     kitchen:()=>{renderKitchen();goPage('kitchen')},
   })[id]?.();
@@ -1911,8 +1947,44 @@ function addItem(item){
   if(ex)ex.qty++;else cart.push({name:item.name,price:item.price,qty:1,detail:item.detail||'',note:''});
   renderCart();showToast(item.name+' agregado','ok');
 }
-function openNoteModal(idx){noteItemIdx=idx;$('noteItemName').textContent=cart[idx].name;$('noteText').value=cart[idx].note||'';openMod('noteModal');}
-function saveNote(){if(noteItemIdx>=0)cart[noteItemIdx].note=$('noteText').value.trim();renderCart();showToast('Nota guardada','ok');closeMod('noteModal');}
+/* Modo de nota: 'cart' (ítem nuevo en carrito) o 'sent' (ítem ya enviado a un pedido) */
+let _noteMode='cart',_noteOid=null;
+function openNoteModal(idx){
+  _noteMode='cart';noteItemIdx=idx;_noteOid=null;
+  $('noteItemName').textContent=cart[idx].name;
+  $('noteText').value=cart[idx].note||'';
+  $('noteKitchenHint').style.display='none';
+  $('noteDelBtn').style.display=cart[idx].note?'':'none';
+  openMod('noteModal');
+}
+function openSentNoteModal(oid,idx){
+  const o=getOrder(oid);if(!o||!o.items[idx])return;
+  _noteMode='sent';_noteOid=oid;noteItemIdx=idx;
+  const it=o.items[idx];
+  $('noteItemName').textContent=it.name;
+  $('noteText').value=it.note||'';
+  /* Si el producto ya está Listo, avisar que la nota NO irá a Cocina */
+  $('noteKitchenHint').style.display=(it.kstate==='listo')?'':'none';
+  $('noteDelBtn').style.display=it.note?'':'none';
+  openMod('noteModal');
+}
+function saveNote(){
+  const val=$('noteText').value.trim();
+  if(_noteMode==='sent'){
+    const o=getOrder(_noteOid);if(!o||!o.items[noteItemIdx]){closeMod('noteModal');return;}
+    const it=o.items[noteItemIdx];
+    it.note=val;
+    /* Visibilidad en Cocina: solo si el producto NO está aún Listo (no reaparece tras salir de cocina) */
+    it.noteKitchen=(it.kstate!=='listo');
+    broadcastState();renderCart();
+    if(typeof renderKitchen==='function')renderKitchen();
+  } else {
+    if(noteItemIdx>=0)cart[noteItemIdx].note=val;
+    renderCart();
+  }
+  showToast(val?'Nota guardada':'Nota eliminada','ok');closeMod('noteModal');
+}
+function delNote(){$('noteText').value='';saveNote();}
 
 /* Eliminar un ítem YA enviado a cocina (ingresado por error). Devuelve el stock y ajusta el total. */
 function removeSentItem(oid,idx){
@@ -1944,10 +2016,14 @@ function renderCart(){
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--ts);margin-bottom:6px">
         <i class="ti ti-checks" style="font-size:14px;color:var(--ts)"></i> Ya enviado a cocina · pendiente de cobro
       </div>
-      ${sentItems.map((it,idx)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--ts);padding:4px 0;border-bottom:1px solid var(--br)">
-        <span style="flex:1;min-width:0">${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}${it.note?` <span style="font-size:9px;font-style:italic">— ${it.note}</span>`:''}</span>
-        <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
-        <button onclick="removeSentItem('${activeOrder.id}',${idx})" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
+      ${sentItems.map((it,idx)=>`<div style="padding:4px 0;border-bottom:1px solid var(--br)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--ts)">
+          <span style="flex:1;min-width:0">${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}</span>
+          <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
+          <button onclick="removeSentItem('${activeOrder.id}',${idx})" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
+        </div>
+        ${it.note?`<div style="font-size:10px;color:var(--bm);font-style:italic;background:var(--cr);border-radius:6px;padding:3px 7px;margin-top:3px;display:flex;align-items:center;gap:4px"><i class="ti ti-note" style="font-size:11px"></i> ${it.note}</div>`:''}
+        <button onclick="openSentNoteModal('${activeOrder.id}',${idx})" style="background:none;border:1px dashed var(--bm);color:var(--bm);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px"><i class="ti ti-pencil" style="font-size:10px;vertical-align:-1px"></i> ${it.note?'Editar Nota':'Agregar Nota'}</button>
       </div>`).join('')}
       <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--tm);margin-top:5px">
         <span>Total enviado</span><span>${fmt(sentTotal)}</span>
@@ -2007,7 +2083,26 @@ function cobrarYCerrar(){
       ${o.items.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
     </div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem;margin-bottom:.8rem">
-      <div class="dir"><span style="color:var(--ts)">Subtotal</span><span>${fmt(sub)}</span></div>
+      <div class="dir"><span style="color:var(--ts)">Subtotal</span><span id="cobrarSubAmt">${fmt(sub)}</span></div>
+      <div class="dir" style="align-items:center;margin-top:6px">
+        <span style="color:var(--ts)">Descuento</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="cobrarDescAmt" style="font-size:12px;color:var(--er);font-weight:700">−${fmt(0)}</span>
+          <button onclick="openDescuento(${sub})" style="padding:3px 9px;border:1px solid var(--bm);background:transparent;color:var(--bm);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap"><i class="ti ti-discount-2" style="font-size:11px;vertical-align:-1px"></i> Hacer descuento</button>
+        </div>
+      </div>
+      <div id="descuentoPanel" style="display:none;background:var(--cr);border-radius:var(--r);padding:9px 11px;margin-top:6px">
+        <div style="display:flex;gap:6px;margin-bottom:7px">
+          <button id="descModePct" onclick="setDescMode('pct',${sub})" style="flex:1;padding:6px;border:1px solid var(--bm);background:var(--bm);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">Porcentaje %</button>
+          <button id="descModeAmt" onclick="setDescMode('amt',${sub})" style="flex:1;padding:6px;border:1px solid var(--br);background:transparent;color:var(--ts);border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">Monto fijo $</button>
+        </div>
+        <input type="number" id="descInput" min="0" placeholder="0" oninput="previewDescuento(${sub})" style="width:100%;padding:7px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;text-align:center;box-sizing:border-box">
+        <div id="descPreview" style="font-size:11px;color:var(--ts);margin-top:6px;text-align:center"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button onclick="quitarDescuento(${sub})" style="flex:1;padding:7px;border:1px solid var(--br);background:transparent;color:var(--ts);border-radius:6px;cursor:pointer;font-size:12px">Quitar</button>
+          <button onclick="aplicarDescuento(${sub})" style="flex:2;padding:7px;border:none;background:var(--ok);color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">Aplicar descuento</button>
+        </div>
+      </div>
       <div class="dir" style="align-items:center;margin-top:6px">
         <span style="color:var(--ts)">Propina</span>
         <div style="display:flex;align-items:center;gap:5px">
@@ -2042,7 +2137,60 @@ function cobrarYCerrar(){
   window._cobrarSub=sub;
   window._cobrarTipMode='pct';
   window._cobrarTip=defaultTip;
+  window._cobrarDiscount=0;window._cobrarDiscInfo='';window._cobrarDiscMode='pct';
   _renderCobrarDetail();
+}
+/* ── Descuento en el cobro ── */
+function openDescuento(sub){const p=$('descuentoPanel');if(p)p.style.display=p.style.display==='none'?'block':'none';previewDescuento(sub);}
+function setDescMode(mode,sub){
+  window._cobrarDiscMode=mode;
+  const bp=$('descModePct'),ba=$('descModeAmt');
+  const on='background:var(--bm);color:#fff;border:1px solid var(--bm)',off='background:transparent;color:var(--ts);border:1px solid var(--br)';
+  if(bp)bp.style.cssText='flex:1;padding:6px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;'+(mode==='pct'?on:off);
+  if(ba)ba.style.cssText='flex:1;padding:6px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;'+(mode==='amt'?on:off);
+  const inp=$('descInput');if(inp)inp.placeholder=mode==='pct'?'Ej: 10 (=10%)':'Ej: 2000';
+  previewDescuento(sub);
+}
+/* Calcula el monto de descuento a partir del input, validando límites */
+function _calcDescuento(sub){
+  const v=parseFloat($('descInput')?.value)||0;
+  if(v<=0)return {amount:0,info:'',error:''};
+  if(window._cobrarDiscMode==='pct'){
+    if(v>100)return {amount:0,info:'',error:'El porcentaje no puede superar 100%'};
+    return {amount:Math.round(sub*v/100),info:v+'%'};
+  }
+  if(v>sub)return {amount:0,info:'',error:'El descuento supera el subtotal ('+fmt(sub)+')'};
+  return {amount:Math.round(v),info:fmt(Math.round(v))};
+}
+function previewDescuento(sub){
+  const el=$('descPreview');if(!el)return;
+  const r=_calcDescuento(sub);
+  if(r.error){el.style.color='var(--er)';el.textContent=r.error;return;}
+  el.style.color='var(--ts)';
+  el.innerHTML=r.amount>0?`Subtotal ${fmt(sub)} · Descuento −${fmt(r.amount)} · <b style="color:var(--tm)">Nuevo subtotal ${fmt(sub-r.amount)}</b>`:'Ingresa un valor de descuento';
+}
+function aplicarDescuento(sub){
+  const r=_calcDescuento(sub);
+  if(r.error){showToast(r.error,'del');return;}
+  if(r.amount<=0){showToast('Ingresa un descuento válido','del');return;}
+  window._cobrarDiscount=r.amount;window._cobrarDiscInfo=r.info;
+  $('descuentoPanel').style.display='none';
+  _syncCobrarTotals(sub);
+  showToast('Descuento aplicado: −'+fmt(r.amount),'ok');
+}
+function quitarDescuento(sub){
+  window._cobrarDiscount=0;window._cobrarDiscInfo='';
+  const inp=$('descInput');if(inp)inp.value='';
+  $('descuentoPanel').style.display='none';
+  _syncCobrarTotals(sub);
+}
+/* Refresca subtotal/descuento/total en el modal según descuento y propina actuales */
+function _syncCobrarTotals(sub){
+  const disc=window._cobrarDiscount||0;
+  if($('cobrarDescAmt'))$('cobrarDescAmt').textContent='−'+fmt(disc);
+  if($('cobrarTotalAmt'))$('cobrarTotalAmt').textContent=fmt(_cobrarTotalNow());
+  if(window._cobrarPago==='efectivo')_cobrarCalcChange();
+  else if(window._cobrarPago==='mixto')_cobrarCalcMix();
 }
 /* Dejar la propina en 0 (funciona en modo % o monto) */
 function setNoTip(sub){
@@ -2071,7 +2219,7 @@ function cobrarUpdateTip(sub){
   $('cobrarTipAmt').textContent=(window._cobrarTipMode==='amt')
     ? ('≈ '+(sub>0?Math.round(tip/sub*100):0)+'%')
     : fmt(tip);
-  $('cobrarTotalAmt').textContent=fmt(sub+tip);
+  $('cobrarTotalAmt').textContent=fmt(_cobrarTotalNow());
   /* Refrescar cálculos de vuelto / mixto con el nuevo total */
   if(window._cobrarPago==='efectivo')_cobrarCalcChange();
   else if(window._cobrarPago==='mixto')_cobrarCalcMix();
@@ -2083,9 +2231,9 @@ function setCobrarPago(pago,el){
   el.classList.add('active');
   _renderCobrarDetail();
 }
-/* Total actual (subtotal + propina) del modal de cobro */
+/* Total actual del modal de cobro = (subtotal − descuento) + propina */
 function _cobrarTotalNow(){
-  return (window._cobrarSub||0)+(window._cobrarTip||0);
+  return Math.max(0,(window._cobrarSub||0)-(window._cobrarDiscount||0))+(window._cobrarTip||0);
 }
 /* Detalle según método: efectivo (vuelto) o mixto (tarjeta+efectivo con "falta") */
 function _renderCobrarDetail(){
@@ -2130,9 +2278,13 @@ function _cobrarCalcMix(edited){
 function confirmarCobro(oid,sub){
   const o=getOrder(oid);if(!o)return;
   const tip=window._cobrarTip||0;
-  const total=sub+tip;
+  const disc=Math.max(0,Math.min(window._cobrarDiscount||0,sub)); /* nunca mayor al subtotal */
+  const netSub=sub-disc;
+  const total=netSub+tip;
   const pago=window._cobrarPago||'efectivo';
   const lugar=(o.tableId?'Mesa '+o.tableId:'Mostrador');
+  /* Guardar el descuento en el pedido para historial/estadísticas/Excel */
+  o.discount=disc;o.discountInfo=disc>0?(window._cobrarDiscInfo||fmt(disc)):'';
   if(pago==='mixto'){
     const card=parseInt($('cobrarMixCard')?.value)||0;
     const cash=parseInt($('cobrarMixCash')?.value)||0;
@@ -2159,7 +2311,7 @@ function confirmarCobro(oid,sub){
   {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   const ma=$('mesaActions');if(ma)ma.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
-  showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(sub+tip),'ok');
+  showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(total)+(disc>0?' (desc. −'+fmt(disc)+')':''),'ok');
   updateOCBadge();renderDashboard();renderTables();broadcastState();
   goPage('tables');
 }
@@ -3182,14 +3334,15 @@ function renderStats(){
     const msg=_statsPeriod==='fecha'?('No hay ventas registradas para el '+rng.label+'.'):('Sin ventas para «'+rng.label+'».');
     $('statsContent').innerHTML='<div class="noo"><i class="ti ti-chart-bar" aria-hidden="true"></i><p>'+msg+'</p></div>';return;
   }
-  const tv=all.reduce((s,o)=>s+oTotal(o),0);
+  const tv=all.reduce((s,o)=>s+oNet(o),0);
   const tips=all.reduce((s,o)=>s+(o.tip||0),0);
+  const descTot=all.reduce((s,o)=>s+((o.discount)||0),0);
   const ticket=Math.round(tv/(all.length||1));
-  const mcv=all.filter(o=>o.type==='mostrador').reduce((s,o)=>s+oTotal(o),0);
-  const pm={efectivo:0,tarjeta:0,transferencia:0};all.forEach(o=>{pm[o.pago]=(pm[o.pago]||0)+oTotal(o);});
+  const mcv=all.filter(o=>o.type==='mostrador').reduce((s,o)=>s+oNet(o),0);
+  const pm={efectivo:0,tarjeta:0,transferencia:0};all.forEach(o=>{pm[o.pago]=(pm[o.pago]||0)+oNet(o);});
   const prodC={};all.forEach(o=>o.items.forEach(i=>{prodC[i.name]=(prodC[i.name]||0)+i.qty;}));
   const top=Object.entries(prodC).sort((a,b)=>b[1]-a[1]).slice(0,6);const mx=top[0]?top[0][1]:1;
-  const wMap={};all.forEach(o=>{wMap[o.waiter]=(wMap[o.waiter]||0)+oTotal(o);});
+  const wMap={};all.forEach(o=>{wMap[o.waiter]=(wMap[o.waiter]||0)+oNet(o);});
   const topW=Object.entries(wMap).sort((a,b)=>b[1]-a[1]);const mxW=topW[0]?topW[0][1]:1;
   const consumoPromCliente=clients.length?Math.round(clients.reduce((s,c)=>s+c.totalSpent,0)/clients.length):0;
 
@@ -3205,6 +3358,7 @@ function renderStats(){
       <div class="sc"><div class="sl">Mostrador</div><div class="sv">${fmt(mcv)}</div></div>
       <div class="sc"><div class="sl">Órdenes ingresadas</div><div class="sv">${totalOrdsIn}</div></div>
       <div class="sc"><div class="sl">Consumo prom. cliente</div><div class="sv">${fmt(consumoPromCliente)}</div><div class="ss">${clients.length} clientes</div></div>
+      ${descTot>0?`<div class="sc"><div class="sl">Descuentos aplicados</div><div class="sv" style="color:var(--er)">−${fmt(descTot)}</div></div>`:''}
     </div>
 
     <div class="chart-card"><h3>Método de pago</h3>
@@ -3243,7 +3397,8 @@ function renderStats(){
           <div style="font-size:10px;color:var(--ts)">${s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join(', ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="color:var(--bm);font-weight:700">${fmt(oTotal(s))}</div>
+          <div style="color:var(--bm);font-weight:700">${fmt(oNet(s))}</div>
+          ${s.discount?`<div style="font-size:10px;color:var(--er)">desc. −${fmt(s.discount)}</div>`:''}
           ${s.tip?`<div style="font-size:10px;color:var(--ts)">+${fmt(s.tip)} propina</div>`:''}
         </div>
       </div>`).join(''):`<div style="color:var(--tl);font-size:12px;padding:.5rem 0">Sin ventas de mesas</div>`}
@@ -3258,7 +3413,7 @@ function renderStats(){
           <div style="font-size:10px;color:var(--ts)">${s.waiter} · ${ftime(s.closedAt||s.time)} · ${s.pago}</div>
           <div style="font-size:10px;color:var(--ts)">${s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join(', ')}</div>
         </div>
-        <div style="text-align:right;flex-shrink:0"><div style="color:var(--bm);font-weight:700">${fmt(oTotal(s))}</div></div>
+        <div style="text-align:right;flex-shrink:0"><div style="color:var(--bm);font-weight:700">${fmt(oNet(s))}</div>${s.discount?`<div style="font-size:10px;color:var(--er)">desc. −${fmt(s.discount)}</div>`:''}</div>
       </div>`).join(''):`<div style="color:var(--tl);font-size:12px;padding:.5rem 0">Sin ventas de mostrador</div>`}
     </div>`;
 }
@@ -3286,6 +3441,77 @@ function eliminarHistorial(){
   renderStats();
 }
 
+/* ════════ BIBLIOTECA — venta de libros (independiente de la cafetería) ════════ */
+function openBookSale(){
+  $('bookName').value='';$('bookBuyer').value='';$('bookPrice').value='';
+  $('bookDate').value=new Date().toISOString().slice(0,10);
+  openMod('bookModal');
+}
+function saveBookSale(){
+  const book=($('bookName').value||'').trim();
+  const buyer=($('bookBuyer').value||'').trim();
+  const price=Math.round(parseFloat($('bookPrice').value)||0);
+  const date=$('bookDate').value||new Date().toISOString().slice(0,10);
+  if(!book){showToast('Escribe el nombre del libro','del');return;}
+  if(!buyer){showToast('Escribe el nombre del comprador','del');return;}
+  if(!(price>0)){showToast('Ingresa un precio válido','del');return;}
+  bookSales.push({id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now()});
+  broadcastState();
+  closeMod('bookModal');
+  showToast('Venta de libro registrada','ok');
+  renderBiblioteca();
+}
+function setBookSort(s){_bookSort=s;renderBiblioteca();}
+function _bookSearch(v){_bookQ=v;renderBiblioteca();}
+function delBook(id){
+  const b=bookSales.find(x=>x.id===id);if(!b)return;
+  if(!confirm('¿Eliminar permanentemente esta venta?\n\n«'+b.book+'» · '+b.buyer+' · '+fmt(b.price)+'\n\nNo se podrá recuperar.'))return;
+  bookSales=bookSales.filter(x=>x.id!==id);
+  broadcastState();showToast('Registro eliminado','del');renderBiblioteca();
+}
+function delAllBooks(){
+  if(!bookSales.length){showToast('No hay registros de libros','del');return;}
+  if(!confirm('⚠️ ELIMINAR TODO EL HISTORIAL DE BIBLIOTECA\n\nSe eliminarán PERMANENTEMENTE las '+bookSales.length+' venta(s) de libros y no se podrán recuperar.\n\nEsto NO afecta ventas de cafetería, estadísticas, inventario, pedidos ni usuarios.\n\n¿Confirmar?'))return;
+  bookSales=[];
+  broadcastState();showToast('Historial de Biblioteca eliminado','del');renderBiblioteca();
+}
+function renderBiblioteca(){
+  const cont=$('bibliotecaContent');if(!cont)return;
+  const q=(_bookQ||'').toLowerCase().trim();
+  let list=bookSales.filter(b=>!q||b.book.toLowerCase().includes(q)||b.buyer.toLowerCase().includes(q));
+  list=[...list].sort((a,b)=>{
+    if(_bookSort==='libro')return a.book.localeCompare(b.book,'es');
+    if(_bookSort==='comprador')return a.buyer.localeCompare(b.buyer,'es');
+    return (b.ts||0)-(a.ts||0); /* fecha desc */
+  });
+  const totalUnidades=bookSales.length;
+  const totalDinero=bookSales.reduce((s,b)=>s+(b.price||0),0);
+  cont.innerHTML=`
+    <div class="sg" style="margin-bottom:.8rem">
+      <div class="sc hi"><div class="sl">Libros vendidos</div><div class="sv hi">${totalUnidades}</div></div>
+      <div class="sc"><div class="sl">Total obtenido</div><div class="sv">${fmt(totalDinero)}</div></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:.7rem">
+      <div style="position:relative;flex:1;min-width:160px"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input type="text" value="${(_bookQ||'').replace(/"/g,'&quot;')}" oninput="_bookSearch(this.value)" placeholder="Buscar por libro o comprador..." style="width:100%;padding:6px 8px 6px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);box-sizing:border-box"></div>
+      <select onchange="setBookSort(this.value)" style="padding:6px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh)">
+        <option value="fecha"${_bookSort==='fecha'?' selected':''}>Ordenar: Fecha (reciente)</option>
+        <option value="libro"${_bookSort==='libro'?' selected':''}>Ordenar: Libro (A-Z)</option>
+        <option value="comprador"${_bookSort==='comprador'?' selected':''}>Ordenar: Comprador (A-Z)</option>
+      </select>
+    </div>
+    ${list.length?`<div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Libro</th><th>Comprador</th><th>Fecha</th><th>Precio</th><th></th></tr></thead><tbody>
+      ${list.map(b=>`<tr>
+        <td style="font-weight:600">${_esc(b.book)}</td>
+        <td>${_esc(b.buyer)}</td>
+        <td style="white-space:nowrap">${_bookDateFmt(b.date)}</td>
+        <td style="color:var(--bm);font-weight:700;white-space:nowrap">${fmt(b.price)}</td>
+        <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar este registro" onclick="delBook('${b.id}')"><i class="ti ti-trash" style="font-size:12px"></i></button></td>
+      </tr>`).join('')}
+    </tbody></table></div>`:`<div class="noo"><i class="ti ti-book" aria-hidden="true"></i><p>${bookSales.length?'Sin resultados para la búsqueda':'Aún no hay ventas de libros registradas'}</p></div>`}`;
+}
+function _bookDateFmt(d){try{return new Date(d+'T00:00:00').toLocaleDateString('es-CL');}catch(e){return d;}}
+function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
 /* ── EXCEL EXPORT ── */
 /* Formato de moneda NUMÉRICO real de Excel (los valores siguen siendo números).
    "$" #,##0 → Excel muestra el separador de miles según la configuración regional (p.ej. $ 25.000). */
@@ -3302,10 +3528,11 @@ function downloadExcel(){
   if(!sales.length){showToast('Sin ventas para exportar en «'+rng.label+'»','del');return;}
   const wb=XLSX.utils.book_new();
   /* ── Cálculos (todos sobre el conjunto filtrado) ── */
-  const tv=sales.reduce((s,o)=>s+oTotal(o),0);
+  const tv=sales.reduce((s,o)=>s+oNet(o),0); /* neto: descuentos ya aplicados */
   const tips=sales.reduce((s,o)=>s+(o.tip||0),0);
+  const descTot=sales.reduce((s,o)=>s+((o.discount)||0),0);
   const ticket=Math.round(tv/(sales.length||1));
-  const ventasPago=p=>sales.filter(s=>s.pago===p).reduce((s,o)=>s+oTotal(o),0);
+  const ventasPago=p=>sales.filter(s=>s.pago===p).reduce((s,o)=>s+oNet(o),0);
   /* Propinas por método: efectivo recoge también 'mixto'/otros → la suma coincide con el total */
   let tipsEf=0,tipsTa=0,tipsTr=0;
   sales.forEach(o=>{const t=o.tip||0;if(!t)return;if(o.pago==='tarjeta')tipsTa+=t;else if(o.pago==='transferencia')tipsTr+=t;else tipsEf+=t;});
@@ -3315,32 +3542,33 @@ function downloadExcel(){
     ['Período',rng.label],                       //1
     [],                                          //2
     ['RESUMEN GENERAL'],                         //3
-    ['Total Ventas',tv],                         //4  money B
-    ['Propinas Totales',tips],                   //5  money B
-    ['   Propinas en Efectivo',tipsEf],          //6  money B
-    ['   Propinas con Tarjeta',tipsTa],          //7  money B
-    ['   Propinas por Transferencia',tipsTr],    //8  money B
-    ['Transacciones',sales.length],              //9  (número, no moneda)
-    ['Ticket Promedio',ticket],                  //10 money B
-    [],                                          //11
-    ['VENTAS POR MÉTODO DE PAGO'],               //12
-    ['Efectivo',ventasPago('efectivo')],         //13 money B
-    ['Tarjeta',ventasPago('tarjeta')],           //14 money B
-    ['Transferencia',ventasPago('transferencia')],//15 money B
-    [],                                          //16
-    ['Fondo inicial caja',caja.fondo],           //17 money B
-    ['Efectivo en caja',caja.fondo+cajaByPago('efectivo')], //18 money B
+    ['Total Ventas (neto)',tv],                  //4  money B
+    ['Descuentos aplicados',descTot],            //5  money B
+    ['Propinas Totales',tips],                   //6  money B
+    ['   Propinas en Efectivo',tipsEf],          //7  money B
+    ['   Propinas con Tarjeta',tipsTa],          //8  money B
+    ['   Propinas por Transferencia',tipsTr],    //9  money B
+    ['Transacciones',sales.length],              //10 (número, no moneda)
+    ['Ticket Promedio',ticket],                  //11 money B
+    [],                                          //12
+    ['VENTAS POR MÉTODO DE PAGO'],               //13
+    ['Efectivo',ventasPago('efectivo')],         //14 money B
+    ['Tarjeta',ventasPago('tarjeta')],           //15 money B
+    ['Transferencia',ventasPago('transferencia')],//16 money B
+    [],                                          //17
+    ['Fondo inicial caja',caja.fondo],           //18 money B
+    ['Efectivo en caja',caja.fondo+cajaByPago('efectivo')], //19 money B
   ];
   const wsR=XLSX.utils.aoa_to_sheet(resumen);
-  _xlSetMoney(wsR,[[4,1],[5,1],[6,1],[7,1],[8,1],[10,1],[13,1],[14,1],[15,1],[17,1],[18,1]]);
+  _xlSetMoney(wsR,[[4,1],[5,1],[6,1],[7,1],[8,1],[9,1],[11,1],[14,1],[15,1],[16,1],[18,1],[19,1]]);
   wsR['!cols']=[{wch:26},{wch:16}];
   XLSX.utils.book_append_sheet(wb,wsR,'Resumen');
   /* ── Hoja Ventas detalle ── */
-  const header=['ID','Tipo','Mesa/Mostrador','Garzón','Fecha','Productos','Subtotal','Propina','Total','Método Pago'];
-  const rows=sales.map(s=>[s.id,s.type,s.tableId||'Mostrador',s.waiter,new Date(s.closedAt||s.time).toLocaleString('es-CL'),s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),oTotal(s),s.tip||0,oTotal(s)+(s.tip||0),s.pago]);
+  const header=['ID','Tipo','Mesa/Mostrador','Garzón','Fecha','Productos','Subtotal','Descuento','Propina','Total','Método Pago'];
+  const rows=sales.map(s=>[s.id,s.type,s.tableId||'Mostrador',s.waiter,new Date(s.closedAt||s.time).toLocaleString('es-CL'),s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),oTotal(s),(s.discount||0),s.tip||0,oNet(s)+(s.tip||0),s.pago]);
   const wsD=XLSX.utils.aoa_to_sheet([header,...rows]);
-  _xlMoneyCol(wsD,6,1,rows.length); _xlMoneyCol(wsD,7,1,rows.length); _xlMoneyCol(wsD,8,1,rows.length); /* Subtotal, Propina, Total */
-  wsD['!cols']=[{wch:10},{wch:10},{wch:14},{wch:14},{wch:18},{wch:40},{wch:12},{wch:10},{wch:12},{wch:12}];
+  _xlMoneyCol(wsD,6,1,rows.length); _xlMoneyCol(wsD,7,1,rows.length); _xlMoneyCol(wsD,8,1,rows.length); _xlMoneyCol(wsD,9,1,rows.length); /* Subtotal, Descuento, Propina, Total */
+  wsD['!cols']=[{wch:10},{wch:10},{wch:14},{wch:14},{wch:18},{wch:40},{wch:12},{wch:11},{wch:10},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb,wsD,'Ventas detalle');
   /* ── Hoja Productos ── */
   const prodC={};sales.forEach(o=>o.items.forEach(i=>{if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=i.qty;prodC[i.name].total+=i.price*i.qty;}));
@@ -4829,7 +5057,8 @@ function renderKitchen(){
       </div>
       <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
         ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
-        <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${item.note?`<div class="ki-note"><i class="ti ti-alert-circle" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
+        <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${(item.note&&item.noteKitchen!==false)?`<div class="ki-note" style="background:var(--wn);color:#fff;border-radius:6px;padding:3px 8px;margin-top:4px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><i class="ti ti-alert-triangle" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:${item.kstate==='listo'?'var(--ok)':item.kStart?'var(--wn)':'var(--ts)'}"><i class="ti ti-stopwatch" style="font-size:13px"></i> <span id="kitim-${o.id}-${i}">${_itemTimerText(item)}</span>${item.kstate==='listo'&&item.kStart&&item.kEnd?' <span style="font-size:10px;font-weight:600;color:var(--ts)">(preparación)</span>':''}</div>
         ${o.status!=='canceled'?`<div style="display:flex;gap:6px;width:100%;margin-top:6px">
           <button onclick="tkItemState('${o.id}',${i},'prep')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--wn);${item.kstate==='prep'?'background:var(--wn);color:#fff':'background:transparent;color:var(--wn)'}">Preparando</button>
           <button onclick="tkItemState('${o.id}',${i},'listo')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--ok);${item.kstate==='listo'?'background:var(--ok);color:#fff':'background:transparent;color:var(--ok)'}">Listo</button>
@@ -4855,7 +5084,15 @@ function _kItemBg(state){
 /* Cambiar el estado de preparación de UN ítem (solo uno activo; se guarda en el ítem y se sincroniza) */
 function tkItemState(oid,i,state){
   const o=getOrder(oid);if(!o||!o.items[i])return;
-  o.items[i].kstate=(o.items[i].kstate===state)?'':state; /* volver a rojo si se toca el estado activo */
+  const it=o.items[i];
+  const wasActive=(it.kstate===state);
+  if(state==='prep'){
+    if(wasActive){it.kstate='';it.kStart=null;it.kEnd=null;} /* apagar preparando → reinicia cronómetro */
+    else{it.kstate='prep';it.kStart=Date.now();it.kEnd=null;} /* iniciar cronómetro */
+  } else if(state==='listo'){
+    if(wasActive){it.kstate='';it.kEnd=null;} /* quitar Listo → vuelve a correr */
+    else{it.kstate='listo';if(!it.kStart)it.kStart=Date.now();it.kEnd=Date.now();} /* detener y fijar duración */
+  }
   renderKitchen();broadcastState();
 }
 function tkI(oid,i){
@@ -5275,6 +5512,7 @@ function getSerializableState(){
     categoryScopes:JSON.parse(JSON.stringify(categoryScopes)),
     ingredientes:JSON.parse(JSON.stringify(ingredientes)),
     subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
+    bookSales:bookSales.map(b=>({...b})),bookCnt,
     ts:Date.now()
   });
 }
@@ -5349,6 +5587,8 @@ function applyRemoteState(data){
     if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
     if(s.ingredientes&&typeof s.ingredientes==='object')ingredientes=s.ingredientes;
     if(Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
+    if(Array.isArray(s.bookSales)){bookSales.length=0;s.bookSales.forEach(b=>bookSales.push({...b}));}
+    if(s.bookCnt!==undefined&&s.bookCnt>bookCnt)bookCnt=s.bookCnt;
     /* Alinear categorías de inventario con la Carta tras sincronizar.
        No hacerlo mientras se edita Inventario (evita mutar el arreglo bajo el campo activo). */
     if(typeof _syncInvCategoriesFromCarta==='function'&&!(_isEditingField()&&_activePageIsInventory()))_syncInvCategoriesFromCarta();
@@ -5382,7 +5622,7 @@ function _refreshActiveView(){
   const ap=document.querySelector('.page.active');
   if(!ap)return;
   const pid=ap.id?.replace('page-','');
-  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,cartapdf:renderCartaPdf,inventory:renderInv,staff:renderStaff};
+  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,cartapdf:renderCartaPdf,inventory:renderInv,staff:renderStaff,biblioteca:renderBiblioteca};
   if(map[pid])map[pid]();
   updateOCBadge();
 }
@@ -5545,7 +5785,7 @@ function nuevoDia(){
 let _bellReady=false;
 setTimeout(()=>{ _bellReady=true; },6000);
 
-/* Actualizar cronómetros de cocina cada 30 segundos */
+/* Actualizar cronómetros de cocina cada 30 segundos (nivel pedido) */
 setInterval(()=>{
   const ap=document.querySelector('.page.active');
   if(ap?.id==='page-kitchen'){
@@ -5555,6 +5795,22 @@ setInterval(()=>{
     });
   }
 },30000);
+/* Cronómetro POR PRODUCTO (mm:ss) — actualiza cada segundo solo los que están corriendo.
+   Solo toca el texto del span (no re-renderiza), y usa item.kStart persistente → sobrevive
+   recargas/otros dispositivos. */
+setInterval(()=>{
+  const ap=document.querySelector('.page.active');
+  if(ap?.id!=='page-kitchen')return;
+  orders.forEach(o=>{
+    if(o.status==='closed')return;
+    (o.items||[]).forEach((it,i)=>{
+      if(it.kStart&&!it.kEnd){
+        const el=document.getElementById('kitim-'+o.id+'-'+i);
+        if(el)el.textContent=_fmtDur(Date.now()-it.kStart);
+      }
+    });
+  });
+},1000);
 
 renderTables();
 
