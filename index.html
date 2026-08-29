@@ -1077,10 +1077,10 @@ body.dark .info-note b{color:#7fb0e0}
 const $=id=>document.getElementById(id);
 function fmt(n){return '$'+Math.round(n).toLocaleString('es-CL')}
 function elapsed(ts){const m=Math.floor((Date.now()-ts)/60000);return m<60?m+'min':Math.floor(m/60)+'h '+(m%60)+'min'}
-/* Duración mm:ss (para el cronómetro por producto en Cocina) */
-function _fmtDur(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);const mm=Math.floor(s/60),ss=s%60;return String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');}
+/* Duración hh:mm:ss (para los cronómetros de Cocina: pedido y por producto) */
+function _fmtDur(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);const hh=Math.floor(s/3600),mm=Math.floor((s%3600)/60),ss=s%60;return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');}
 /* Texto del cronómetro de un ítem: fijo si terminó, en vivo si está corriendo, 00:00 si no inició */
-function _itemTimerText(it){if(it&&it.kStart&&it.kEnd)return _fmtDur(it.kEnd-it.kStart);if(it&&it.kStart)return _fmtDur(Date.now()-it.kStart);return '00:00';}
+function _itemTimerText(it){if(it&&it.kStart&&it.kEnd)return _fmtDur(it.kEnd-it.kStart);if(it&&it.kStart)return _fmtDur(Date.now()-it.kStart);return '00:00:00';}
 function ftime(ts){return new Date(ts).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}
 function fdate(ts){return new Date(ts).toLocaleDateString('es-CL')}
 function getTable(id){return tables.find(t=>t.id===id)}
@@ -5051,7 +5051,7 @@ function renderKitchen(){
         <div><div class="ktn">${o.tableId?'Mesa '+o.tableId:'Mostrador'}</div><div class="kw"><i class="ti ti-user" style="font-size:9px" aria-hidden="true"></i> ${o.waiter}</div></div>
         <div style="text-align:right">
           <div class="ktm" style="font-size:10px;color:var(--ts)">Ingresado hace ${elapsed(o.time)}</div>
-          ${o.kitchenStartTime?`<div class="ktm" style="color:var(--bm);font-weight:700" id="ktimer-${o.id}"><i class="ti ti-clock" style="font-size:9px"></i> ${elapsed(o.kitchenStartTime)}</div>`:''}
+          ${o.kitchenStartTime?`<div class="ktm" style="color:var(--bm);font-weight:700;font-variant-numeric:tabular-nums" id="ktimer-${o.id}"><i class="ti ti-clock" style="font-size:9px"></i> ${_fmtDur(Date.now()-o.kitchenStartTime)}</div>`:''}
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
@@ -5785,24 +5785,20 @@ function nuevoDia(){
 let _bellReady=false;
 setTimeout(()=>{ _bellReady=true; },6000);
 
-/* Actualizar cronómetros de cocina cada 30 segundos (nivel pedido) */
-setInterval(()=>{
-  const ap=document.querySelector('.page.active');
-  if(ap?.id==='page-kitchen'){
-    orders.filter(o=>o.status!=='closed'&&o.kitchenStartTime).forEach(o=>{
-      const el=document.getElementById('ktimer-'+o.id);
-      if(el)el.innerHTML='<i class="ti ti-clock" style="font-size:9px"></i> '+elapsed(o.kitchenStartTime);
-    });
-  }
-},30000);
-/* Cronómetro POR PRODUCTO (mm:ss) — actualiza cada segundo solo los que están corriendo.
-   Solo toca el texto del span (no re-renderiza), y usa item.kStart persistente → sobrevive
-   recargas/otros dispositivos. */
+/* Cronómetros de Cocina (hh:mm:ss) — actualizan cada segundo solo lo que está corriendo.
+   Solo tocan el texto del span (no re-renderizan) y usan marcas de tiempo persistentes
+   (kitchenStartTime / item.kStart) → sobreviven recargas y otros dispositivos. */
 setInterval(()=>{
   const ap=document.querySelector('.page.active');
   if(ap?.id!=='page-kitchen')return;
   orders.forEach(o=>{
     if(o.status==='closed')return;
+    /* Cronómetro del pedido completo */
+    if(o.kitchenStartTime){
+      const el=document.getElementById('ktimer-'+o.id);
+      if(el)el.innerHTML='<i class="ti ti-clock" style="font-size:9px"></i> '+_fmtDur(Date.now()-o.kitchenStartTime);
+    }
+    /* Cronómetro por producto */
     (o.items||[]).forEach((it,i)=>{
       if(it.kStart&&!it.kEnd){
         const el=document.getElementById('kitim-'+o.id+'-'+i);
