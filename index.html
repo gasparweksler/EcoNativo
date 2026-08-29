@@ -719,14 +719,18 @@ body.dark .info-note b{color:#7fb0e0}
           <div class="pt" style="margin-bottom:0">Estadísticas</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button onclick="downloadExcel()" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Excel</button>
-            <button onclick="resetStats()" style="padding:5px 10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-refresh" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Reiniciar</button>
+            <button onclick="eliminarHistorial()" style="padding:5px 10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-trash" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Eliminar Historial</button>
             <button onclick="nuevoDia()" style="padding:5px 10px;border:1px solid var(--ol);color:var(--ol);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-sun" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Nuevo Día</button>
           </div>
         </div>
-        <div style="display:flex;gap:5px;margin-bottom:.8rem;overflow-x:auto">
+        <div style="display:flex;gap:5px;margin-bottom:.8rem;overflow-x:auto;align-items:center">
           <button class="st2 active" onclick="setStatsPeriod(&#39;hoy&#39;,this)">Hoy</button>
           <button class="st2" onclick="setStatsPeriod(&#39;semana&#39;,this)">Semana</button>
           <button class="st2" onclick="setStatsPeriod(&#39;mes&#39;,this)">Mes</button>
+          <span style="width:1px;height:20px;background:var(--br);margin:0 2px;flex-shrink:0"></span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ts);white-space:nowrap"><i class="ti ti-calendar" style="font-size:13px;color:var(--bm)"></i>
+            <input type="date" id="statsDate" onchange="setStatsDate(this.value)" style="padding:4px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--wh);color:var(--tm)">
+          </label>
         </div>
         <div id="statsContent"></div>
       </div>
@@ -3119,10 +3123,65 @@ function cerrarCaja(){
 }
 
 /* ── STATS ── */
-function setStatsPeriod(p,el){document.querySelectorAll('.st2').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderStats();}
+/* ── Filtrado de estadísticas por período / fecha ──
+   FUENTE ÚNICA de ventas: closedSales (actuales, sincronizadas) + econativo_history
+   (días archivados por nuevoDia, en localStorage). Se deduplica por id. Tanto la pantalla
+   como el Excel usan _statsSales(), así los datos mostrados y exportados coinciden. */
+let _statsPeriod='hoy', _statsDate='';
+function _archivedSales(){
+  try{const h=JSON.parse(localStorage.getItem('econativo_history')||'[]');
+    if(!Array.isArray(h))return [];
+    const out=[];h.forEach(d=>{(d&&Array.isArray(d.sales)?d.sales:[]).forEach(s=>out.push(s));});
+    return out;
+  }catch(e){return [];}
+}
+function _salesPool(){
+  const map={};let k=0;
+  closedSales.forEach(s=>{const id=(s&&s.id!=null)?s.id:('_c'+(k++));map[id]=s;});
+  _archivedSales().forEach(s=>{const id=(s&&s.id!=null)?s.id:('_a'+(k++));if(!(id in map))map[id]=s;});
+  return Object.values(map);
+}
+function _statsRange(){
+  const now=new Date();
+  const startToday=new Date(now);startToday.setHours(0,0,0,0);
+  const endToday=new Date(now);endToday.setHours(23,59,59,999);
+  if(_statsPeriod==='fecha'&&_statsDate){
+    const d=new Date(_statsDate+'T00:00:00');
+    const s=new Date(d);s.setHours(0,0,0,0);const e=new Date(d);e.setHours(23,59,59,999);
+    return {from:s.getTime(),to:e.getTime(),label:d.toLocaleDateString('es-CL')};
+  }
+  if(_statsPeriod==='semana'){const s=new Date(startToday);s.setDate(s.getDate()-6);return {from:s.getTime(),to:endToday.getTime(),label:'Últimos 7 días'};}
+  if(_statsPeriod==='mes'){const s=new Date(now.getFullYear(),now.getMonth(),1,0,0,0,0);return {from:s.getTime(),to:endToday.getTime(),label:'Mes actual'};}
+  return {from:startToday.getTime(),to:endToday.getTime(),label:'Hoy'};
+}
+function _statsSales(){const {from,to}=_statsRange();return _salesPool().filter(o=>{const t=(o&&(o.closedAt||o.time))||0;return t>=from&&t<=to;});}
+function setStatsPeriod(p,el){
+  _statsPeriod=p;_statsDate='';
+  const di=$('statsDate');if(di)di.value='';
+  document.querySelectorAll('.st2').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');
+  renderStats();
+}
+function setStatsDate(v){
+  if(!v){_statsPeriod='hoy';document.querySelectorAll('.st2').forEach((t,i)=>t.classList.toggle('active',i===0));renderStats();return;}
+  _statsPeriod='fecha';_statsDate=v;
+  document.querySelectorAll('.st2').forEach(t=>t.classList.remove('active'));
+  renderStats();
+}
 function renderStats(){
-  const all=closedSales;
-  if(!all.length){$('statsContent').innerHTML='<div class="noo"><i class="ti ti-chart-bar" aria-hidden="true"></i><p>Sin datos aún</p></div>';return;}
+  /* Ajustar límites del selector de fecha al rango real con datos */
+  const di=$('statsDate');
+  if(di){
+    const pool=_salesPool();
+    const ts=pool.map(o=>(o&&(o.closedAt||o.time))||0).filter(Boolean);
+    di.max=new Date().toISOString().slice(0,10);
+    if(ts.length)di.min=new Date(Math.min(...ts)).toISOString().slice(0,10);
+  }
+  const rng=_statsRange();
+  const all=_statsSales();
+  if(!all.length){
+    const msg=_statsPeriod==='fecha'?('No hay ventas registradas para el '+rng.label+'.'):('Sin ventas para «'+rng.label+'».');
+    $('statsContent').innerHTML='<div class="noo"><i class="ti ti-chart-bar" aria-hidden="true"></i><p>'+msg+'</p></div>';return;
+  }
   const tv=all.reduce((s,o)=>s+oTotal(o),0);
   const tips=all.reduce((s,o)=>s+(o.tip||0),0);
   const ticket=Math.round(tv/(all.length||1));
@@ -3138,6 +3197,7 @@ function renderStats(){
   const mcSales=all.filter(o=>o.type==='mostrador');
 
   $('statsContent').innerHTML=`
+    <div style="font-size:12px;color:var(--ts);margin-bottom:.5rem;display:flex;align-items:center;gap:6px"><i class="ti ti-calendar-stats" style="color:var(--bm)"></i> Mostrando: <b style="color:var(--tm)">${rng.label}</b> · ${all.length} venta(s)</div>
     <div class="sg">
       <div class="sc hi"><div class="sl">Total ventas</div><div class="sv hi">${fmt(tv)}</div><div class="ss">${all.length} transacciones</div></div>
       <div class="sc"><div class="sl">Ticket promedio</div><div class="sv">${fmt(ticket)}</div></div>
@@ -3203,40 +3263,95 @@ function renderStats(){
     </div>`;
 }
 
-function resetStats(){
-  if(!confirm('¿Reiniciar estadísticas de ventas?'))return;
-  closedSales=[];caja.movements=[];caja.log=[];totalOrdsIn=0;
-  showToast('Estadísticas reiniciadas','del');renderStats();
+/* Eliminar historial: borra ventas anteriores y días archivados (libera espacio).
+   NO toca datos operativos: pedidos activos, mesas, caja, carta, inventario, clientes. */
+function eliminarHistorial(){
+  if(!confirm(
+    '⚠️ ELIMINAR HISTORIAL — ACCIÓN PERMANENTE\n\n'+
+    'Se eliminarán DEFINITIVAMENTE y sin posibilidad de recuperar:\n'+
+    '• Todo el historial de ventas (ventas anteriores)\n'+
+    '• Las estadísticas de los días archivados\n\n'+
+    'Ya no podrás consultar ni descargar Excel de esos períodos.\n\n'+
+    'NO se afectan: pedidos activos, mesas, caja, carta, inventario ni clientes.\n\n'+
+    '¿Confirmar eliminación permanente del historial?'
+  ))return;
+  closedSales.length=0;      /* ventas históricas (sincronizado a todos los dispositivos) */
+  totalOrdsIn=0;             /* contador de estadística */
+  try{localStorage.removeItem('econativo_history');}catch(e){} /* días archivados (este dispositivo) */
+  _statsPeriod='hoy';_statsDate='';
+  const di=$('statsDate');if(di)di.value='';
+  document.querySelectorAll('.st2').forEach((t,i)=>t.classList.toggle('active',i===0));
+  broadcastState();
+  showToast('Historial eliminado','del');
+  renderStats();
 }
 
 /* ── EXCEL EXPORT ── */
+/* Formato de moneda NUMÉRICO real de Excel (los valores siguen siendo números).
+   "$" #,##0 → Excel muestra el separador de miles según la configuración regional (p.ej. $ 25.000). */
+const _XL_MONEY='"$"\\ #,##0';
+function _xlSetMoney(ws,cells){
+  cells.forEach(([r,c])=>{const a=XLSX.utils.encode_cell({r,c});const cell=ws[a];if(cell&&typeof cell.v==='number'){cell.t='n';cell.z=_XL_MONEY;}});
+}
+function _xlMoneyCol(ws,col,fromRow,toRow){const cells=[];for(let r=fromRow;r<=toRow;r++)cells.push([r,col]);_xlSetMoney(ws,cells);}
 function downloadExcel(){
   if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible');return;}
-  if(!closedSales.length){showToast('Sin datos para exportar');return;}
+  /* MISMA fuente que la pantalla: el período/fecha seleccionado */
+  const sales=_statsSales();
+  const rng=_statsRange();
+  if(!sales.length){showToast('Sin ventas para exportar en «'+rng.label+'»','del');return;}
   const wb=XLSX.utils.book_new();
-  /* Resumen */
-  const tv=closedSales.reduce((s,o)=>s+oTotal(o),0);
+  /* ── Cálculos (todos sobre el conjunto filtrado) ── */
+  const tv=sales.reduce((s,o)=>s+oTotal(o),0);
+  const tips=sales.reduce((s,o)=>s+(o.tip||0),0);
+  const ticket=Math.round(tv/(sales.length||1));
+  const ventasPago=p=>sales.filter(s=>s.pago===p).reduce((s,o)=>s+oTotal(o),0);
+  /* Propinas por método: efectivo recoge también 'mixto'/otros → la suma coincide con el total */
+  let tipsEf=0,tipsTa=0,tipsTr=0;
+  sales.forEach(o=>{const t=o.tip||0;if(!t)return;if(o.pago==='tarjeta')tipsTa+=t;else if(o.pago==='transferencia')tipsTr+=t;else tipsEf+=t;});
+  /* ── Hoja Resumen ── */
   const resumen=[
-    ['EcoNativo — Reporte de Ventas','','',new Date().toLocaleString('es-CL')],
-    [],
-    ['RESUMEN GENERAL'],
-    ['Total Ventas',tv],['Propinas Totales',closedSales.reduce((s,o)=>s+(o.tip||0),0)],
-    ['Transacciones',closedSales.length],['Ticket Promedio',Math.round(tv/(closedSales.length||1))],
-    [],['VENTAS POR MÉTODO DE PAGO'],
-    ['Efectivo',closedSales.filter(s=>s.pago==='efectivo').reduce((s,o)=>s+oTotal(o),0)],
-    ['Tarjeta',closedSales.filter(s=>s.pago==='tarjeta').reduce((s,o)=>s+oTotal(o),0)],
-    ['Transferencia',closedSales.filter(s=>s.pago==='transferencia').reduce((s,o)=>s+oTotal(o),0)],
-    [],['Fondo inicial caja',caja.fondo],['Efectivo en caja',caja.fondo+cajaByPago('efectivo')],
+    ['EcoNativo — Reporte de Ventas','',new Date().toLocaleString('es-CL')], //0
+    ['Período',rng.label],                       //1
+    [],                                          //2
+    ['RESUMEN GENERAL'],                         //3
+    ['Total Ventas',tv],                         //4  money B
+    ['Propinas Totales',tips],                   //5  money B
+    ['   Propinas en Efectivo',tipsEf],          //6  money B
+    ['   Propinas con Tarjeta',tipsTa],          //7  money B
+    ['   Propinas por Transferencia',tipsTr],    //8  money B
+    ['Transacciones',sales.length],              //9  (número, no moneda)
+    ['Ticket Promedio',ticket],                  //10 money B
+    [],                                          //11
+    ['VENTAS POR MÉTODO DE PAGO'],               //12
+    ['Efectivo',ventasPago('efectivo')],         //13 money B
+    ['Tarjeta',ventasPago('tarjeta')],           //14 money B
+    ['Transferencia',ventasPago('transferencia')],//15 money B
+    [],                                          //16
+    ['Fondo inicial caja',caja.fondo],           //17 money B
+    ['Efectivo en caja',caja.fondo+cajaByPago('efectivo')], //18 money B
   ];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(resumen),'Resumen');
-  /* Ventas detalle */
-  const header=['ID','Tipo','Mesa/Mostrador','Garzón','Hora','Productos','Subtotal','Propina','Total','Método Pago'];
-  const rows=closedSales.map(s=>[s.id,s.type,s.tableId||'Mostrador',s.waiter,ftime(s.closedAt||s.time),s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),oTotal(s),s.tip||0,oTotal(s)+(s.tip||0),s.pago]);
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([header,...rows]),'Ventas detalle');
-  /* Productos */
-  const prodC={};closedSales.forEach(o=>o.items.forEach(i=>{if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=i.qty;prodC[i.name].total+=i.price*i.qty;}));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Producto','Unidades vendidas','Ingresos'],...Object.entries(prodC).sort((a,b)=>b[1].qty-a[1].qty).map(([n,d])=>[n,d.qty,d.total])]),'Productos');
-  XLSX.writeFile(wb,'EcoNativo_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  const wsR=XLSX.utils.aoa_to_sheet(resumen);
+  _xlSetMoney(wsR,[[4,1],[5,1],[6,1],[7,1],[8,1],[10,1],[13,1],[14,1],[15,1],[17,1],[18,1]]);
+  wsR['!cols']=[{wch:26},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,wsR,'Resumen');
+  /* ── Hoja Ventas detalle ── */
+  const header=['ID','Tipo','Mesa/Mostrador','Garzón','Fecha','Productos','Subtotal','Propina','Total','Método Pago'];
+  const rows=sales.map(s=>[s.id,s.type,s.tableId||'Mostrador',s.waiter,new Date(s.closedAt||s.time).toLocaleString('es-CL'),s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),oTotal(s),s.tip||0,oTotal(s)+(s.tip||0),s.pago]);
+  const wsD=XLSX.utils.aoa_to_sheet([header,...rows]);
+  _xlMoneyCol(wsD,6,1,rows.length); _xlMoneyCol(wsD,7,1,rows.length); _xlMoneyCol(wsD,8,1,rows.length); /* Subtotal, Propina, Total */
+  wsD['!cols']=[{wch:10},{wch:10},{wch:14},{wch:14},{wch:18},{wch:40},{wch:12},{wch:10},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsD,'Ventas detalle');
+  /* ── Hoja Productos ── */
+  const prodC={};sales.forEach(o=>o.items.forEach(i=>{if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=i.qty;prodC[i.name].total+=i.price*i.qty;}));
+  const prodRows=Object.entries(prodC).sort((a,b)=>b[1].qty-a[1].qty).map(([n,d])=>[n,d.qty,d.total]);
+  const wsP=XLSX.utils.aoa_to_sheet([['Producto','Unidades vendidas','Ingresos'],...prodRows]);
+  _xlMoneyCol(wsP,2,1,prodRows.length); /* Ingresos */
+  wsP['!cols']=[{wch:30},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,wsP,'Productos');
+  /* Nombre de archivo según el período/fecha */
+  const tag=(_statsPeriod==='fecha'&&_statsDate)?_statsDate:_statsPeriod+'_'+new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,'EcoNativo_'+tag+'.xlsx');
   showToast('Excel descargado ✓','ok');
 }
 
