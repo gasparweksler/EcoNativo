@@ -8,3 +8,7 @@
   Cache-Control: no-cache, no-store, must-revalidate
 /carta/
   Cache-Control: no-cache, no-store, must-revalidate
+/catalogo
+  Cache-Control: no-cache, no-store, must-revalidate
+/catalogo/
+  Cache-Control: no-cache, no-store, must-revalidate
