@@ -2022,12 +2022,13 @@ function renderCart(){
       </div>
       ${sentItems.map((it,idx)=>`<div style="padding:4px 0;border-bottom:1px solid var(--br)">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--ts)">
-          <span style="flex:1;min-width:0">${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}</span>
+          <span style="flex:1;min-width:0">${it.isBook?'<i class="ti ti-book" style="font-size:11px;color:var(--bm)"></i> ':''}${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}</span>
           <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
+          ${it.isBook?`<button onclick="openBookEdit('${it.bookId}')" title="Editar libro (nombre, comprador, precio)" style="background:none;border:1px solid var(--bm);color:var(--bm);border-radius:6px;padding:2px 7px;font-size:10px;cursor:pointer;flex-shrink:0"><i class="ti ti-edit" style="font-size:11px;vertical-align:-1px"></i> Editar</button>`:''}
           <button onclick="removeSentItem('${activeOrder.id}',${idx})" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
         </div>
         ${it.note?`<div style="font-size:10px;color:var(--bm);font-style:italic;background:var(--cr);border-radius:6px;padding:3px 7px;margin-top:3px;display:flex;align-items:center;gap:4px"><i class="ti ti-note" style="font-size:11px"></i> ${it.note}</div>`:''}
-        <button onclick="openSentNoteModal('${activeOrder.id}',${idx})" style="background:none;border:1px dashed var(--bm);color:var(--bm);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px"><i class="ti ti-pencil" style="font-size:10px;vertical-align:-1px"></i> ${it.note?'Editar Nota':'Agregar Nota'}</button>
+        ${it.isBook?'':`<button onclick="openSentNoteModal('${activeOrder.id}',${idx})" style="background:none;border:1px dashed var(--bm);color:var(--bm);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px"><i class="ti ti-pencil" style="font-size:10px;vertical-align:-1px"></i> ${it.note?'Editar Nota':'Agregar Nota'}</button>`}
       </div>`).join('')}
       <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--tm);margin-top:5px">
         <span>Total enviado</span><span>${fmt(sentTotal)}</span>
@@ -3447,8 +3448,9 @@ function eliminarHistorial(){
 
 /* ════════ BIBLIOTECA — venta de libros (independiente de la cafetería) ════════ */
 let _bookTableId=null; /* mesa de origen si la venta se registra desde una mesa abierta */
+let _bookEditId=null;  /* id del libro que se está editando (null = nueva venta) */
 function openBookSale(tableId){
-  _bookTableId=(tableId!=null)?tableId:null;
+  _bookTableId=(tableId!=null)?tableId:null;_bookEditId=null;
   $('bookName').value='';$('bookBuyer').value='';$('bookPrice').value='';
   $('bookDate').value=new Date().toISOString().slice(0,10);
   const t=$('bookModalTitle');
@@ -3457,6 +3459,17 @@ function openBookSale(tableId){
 }
 /* Abrir "Vender Libro" desde la mesa abierta actual */
 function openBookSaleForTable(){ openBookSale(cTable&&cTable.id?cTable.id:null); }
+/* Abrir un libro YA registrado para editarlo (desde el Pedido o desde Biblioteca) */
+function openBookEdit(id){
+  const rec=bookSales.find(b=>b.id===id);
+  if(!rec){showToast('No se encontró el registro del libro','del');return;}
+  _bookEditId=id;_bookTableId=null;
+  $('bookName').value=rec.book||'';$('bookBuyer').value=rec.buyer||'';
+  $('bookPrice').value=rec.price||'';$('bookDate').value=rec.date||new Date().toISOString().slice(0,10);
+  const t=$('bookModalTitle');
+  if(t)t.innerHTML='<i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro'+(rec.tableId?(' · Mesa '+rec.tableId):'');
+  openMod('bookModal');
+}
 function saveBookSale(){
   const book=($('bookName').value||'').trim();
   const buyer=($('bookBuyer').value||'').trim();
@@ -3465,6 +3478,20 @@ function saveBookSale(){
   if(!book){showToast('Escribe el nombre del libro','del');return;}
   if(!buyer){showToast('Escribe el nombre del comprador','del');return;}
   if(!(price>0)){showToast('Ingresa un precio válido','del');return;}
+  /* ── MODO EDICIÓN: actualiza el registro y la línea del pedido vinculada (si sigue abierta) ── */
+  if(_bookEditId){
+    const rec=bookSales.find(b=>b.id===_bookEditId);
+    if(rec){rec.book=book;rec.buyer=buyer;rec.price=price;rec.date=date;}
+    /* Actualizar la línea del pedido con el mismo bookId, si el pedido sigue activo */
+    orders.forEach(o=>{if(o.status==='closed')return;(o.items||[]).forEach(it=>{if(it.isBook&&it.bookId===_bookEditId){it.name='Libro: '+book;it.price=price;it.note='Comprador: '+buyer;}});});
+    _bookEditId=null;
+    broadcastState();closeMod('bookModal');showToast('Libro actualizado','ok');
+    if(typeof renderCart==='function')renderCart();
+    if(typeof _updateCobrarBtn==='function'){const o2=currentAccountId?getOrder(currentAccountId):null;if(o2)_updateCobrarBtn(o2);}
+    if(typeof renderBiblioteca==='function')renderBiblioteca();
+    if(typeof renderTables==='function')renderTables();
+    return;
+  }
   /* Registro ÚNICO en bookSales (fuente de verdad) → historial de Biblioteca y Excel del día
      leen de aquí. Si viene de una mesa, se guarda su tableId. */
   const rec={id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now(),tableId:(_bookTableId!=null?_bookTableId:null)};
@@ -3527,14 +3554,17 @@ function renderBiblioteca(){
         <option value="comprador"${_bookSort==='comprador'?' selected':''}>Ordenar: Comprador (A-Z)</option>
       </select>
     </div>
-    ${list.length?`<div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Libro</th><th>Comprador</th><th>Origen</th><th>Fecha y hora</th><th>Precio</th>${isAdmin?'<th></th>':''}</tr></thead><tbody>
+    ${list.length?`<div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Libro</th><th>Comprador</th><th>Origen</th><th>Fecha y hora</th><th>Precio</th><th></th></tr></thead><tbody>
       ${list.map(b=>`<tr>
         <td style="font-weight:600">${_esc(b.book)}</td>
         <td>${_esc(b.buyer)}</td>
         <td style="white-space:nowrap">${b.tableId?'<span class="sale-badge sb-mesa">Mesa '+b.tableId+'</span>':'<span style="font-size:10px;color:var(--ts)">Directa</span>'}</td>
         <td style="white-space:nowrap;font-size:11px">${_bookDateTimeFmt(b)}</td>
         <td style="color:var(--bm);font-weight:700;white-space:nowrap">${fmt(b.price)}</td>
-        ${isAdmin?`<td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar este registro" onclick="delBook('${b.id}')"><i class="ti ti-trash" style="font-size:12px"></i></button></td>`:''}
+        <td><div style="display:flex;gap:5px;justify-content:flex-end">
+          <button class="icon-btn" style="border-color:var(--bm);color:var(--bm)" title="Editar (nombre, comprador, precio)" onclick="openBookEdit('${b.id}')"><i class="ti ti-edit" style="font-size:12px"></i></button>
+          ${isAdmin?`<button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar este registro" onclick="delBook('${b.id}')"><i class="ti ti-trash" style="font-size:12px"></i></button>`:''}
+        </div></td>
       </tr>`).join('')}
     </tbody></table></div>`:`<div class="noo"><i class="ti ti-book" aria-hidden="true"></i><p>${bookSales.length?'Sin resultados para la búsqueda':'Aún no hay ventas de libros registradas'}</p></div>`}`;
 }
