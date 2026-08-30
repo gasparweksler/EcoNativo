@@ -801,13 +801,14 @@ body.dark .info-note b{color:#7fb0e0}
           <button onclick="openCatAdd()" title="Agregar un libro nuevo al catálogo (el código se genera solo)" style="padding:5px 10px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px;vertical-align:-1px"></i> Agregar libro</button>
           <button onclick="shareCatalog()" title="Compartir el catálogo con los clientes (link + código QR, solo lectura)" style="padding:5px 10px;border:none;color:#fff;background:var(--inf);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-share" style="font-size:11px;vertical-align:-1px"></i> Compartir Catálogo</button>
           <button onclick="printLabels()" title="Descargar PDF de etiquetas (15×20 mm) de los libros filtrados" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tag" style="font-size:11px;vertical-align:-1px"></i> Etiquetas PDF</button>
+          <button onclick="exportCatalogXlsx()" title="Descargar el catálogo completo en Excel" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px"></i> Exportar Excel</button>
           <button id="btnCatImport" onclick="_triggerImport('catImportFile')" title="Actualizar el catálogo desde el Excel" style="padding:5px 10px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-upload" style="font-size:11px;vertical-align:-1px"></i> Importar Excel</button>
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-bottom:.7rem">
           <div style="position:relative;grid-column:1/-1"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="catQ" type="text" oninput="applyCatFilter()" placeholder="Buscar por título o código…" style="width:100%;padding:7px 8px 7px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);box-sizing:border-box"></div>
           <input id="catAutor" list="catAutoresDL" oninput="applyCatFilter()" placeholder="Autor…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
-          <select id="catNac" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Nacionalidad (todas)</option></select>
+          <select id="catNac" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">País (todos)</option></select>
           <input id="catGen" list="catGenerosDL" oninput="applyCatFilter()" placeholder="Género…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
           <input id="catSub" list="catSubgenerosDL" oninput="applyCatFilter()" placeholder="Subgénero…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
           <button onclick="clearCatFilter()" style="padding:7px 8px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px"><i class="ti ti-x" style="font-size:11px;vertical-align:-1px"></i> Limpiar</button>
@@ -913,7 +914,7 @@ body.dark .info-note b{color:#7fb0e0}
   <h3 id="catEditTitle" style="margin-bottom:.6rem"><i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro</h3>
   <div class="form-item"><label>Título *</label><input type="text" id="ceT"></div>
   <div class="form-item"><label>Autor *</label><input type="text" id="ceA"></div>
-  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Nacionalidad</label><input type="text" id="ceNC"></div><div class="form-item" style="flex:1"><label>País</label><input type="text" id="cePais"></div></div>
+  <div class="form-item"><label>País</label><input type="text" id="cePais" list="cefPaisDL" placeholder="Ej: Chile, Francia, Estados Unidos…"></div><datalist id="cefPaisDL"></datalist>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Género</label><input type="text" id="ceG"></div><div class="form-item" style="flex:1"><label>Subgénero</label><input type="text" id="ceSG"></div></div>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Idioma</label><input type="text" id="ceID"></div><div class="form-item" style="flex:1"><label>ISBN</label><input type="text" id="ceIB"></div></div>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Editorial</label><input type="text" id="ceED"></div><div class="form-item" style="flex:1"><label>Edición</label><input type="text" id="ceEC"></div></div>
@@ -3631,7 +3632,7 @@ function renderCatalogo(){
   }
   /* Poblar selects/datalists una vez */
   const nac=$('catNac');
-  if(nac&&nac.options.length<=1){_catUniq('nc').forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;nac.appendChild(o);});}
+  if(nac&&nac.options.length<=1){_catUniq('pais').forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;nac.appendChild(o);});}
   const fillDL=(id,k)=>{const dl=$(id);if(dl&&!dl.childElementCount){dl.innerHTML=_catUniq(k).map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}};
   fillDL('catAutoresDL','a');fillDL('catGenerosDL','g');fillDL('catSubgenerosDL','sg');
   renderCatResults();
@@ -3642,13 +3643,13 @@ function renderCatResults(){
   const cont=$('catResults');if(!cont)return;
   const q=($('catQ')?.value||'').toLowerCase().trim();
   const au=($('catAutor')?.value||'').toLowerCase().trim();
-  const nc=($('catNac')?.value||'').trim();
+  const pa=($('catNac')?.value||'').trim();
   const ge=($('catGen')?.value||'').toLowerCase().trim();
   const sg=($('catSub')?.value||'').toLowerCase().trim();
   _catFiltered=bookCatalog.filter(b=>
     (!q||_cg(b,'t').toLowerCase().includes(q)||_cg(b,'code').toLowerCase().includes(q))&&
     (!au||_cg(b,'a').toLowerCase().includes(au))&&
-    (!nc||_cg(b,'nc')===nc)&&
+    (!pa||_cg(b,'pais')===pa)&&
     (!ge||_cg(b,'g').toLowerCase().includes(ge))&&
     (!sg||_cg(b,'sg').toLowerCase().includes(sg))
   );
@@ -3661,7 +3662,7 @@ function renderCatResults(){
           ${_cg(b,'code')?`<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;color:var(--bm);background:var(--cr);border:1px solid var(--br);border-radius:5px;padding:1px 5px;flex-shrink:0;white-space:nowrap">${_esc(_cg(b,'code'))}</span>`:''}
           <span style="font-size:14px;font-weight:600;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))}</span>
         </div>
-        <div style="font-size:11px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${_esc(_cg(b,'a'))}${_cg(b,'nc')?' · '+_esc(_cg(b,'nc')):''}</div>
+        <div style="font-size:11px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${_esc(_cg(b,'a'))}${_cg(b,'pais')?' · '+_esc(_cg(b,'pais')):''}</div>
         <div style="font-size:10px;color:var(--tl);margin-top:1px">${[_cg(b,'g'),_cg(b,'sg')].filter(Boolean).map(_esc).join(' · ')}</div>
       </div>
       <i class="ti ti-chevron-right" style="color:var(--ts);flex-shrink:0"></i>
@@ -3699,7 +3700,7 @@ function openBookInfo(i){
   const code=_cg(b,'code');
   $('biTitle').innerHTML=(code?`<span style="display:inline-block;font-size:12px;font-weight:700;font-family:ui-monospace,monospace;color:#fff;background:var(--bm);border-radius:6px;padding:2px 8px;margin-bottom:6px">${_esc(code)}</span><br>`:'')+_esc(_cg(b,'t'));
   $('biAuthor').innerHTML='<i class="ti ti-user" style="font-size:11px;vertical-align:-1px"></i> '+(_esc(_cg(b,'a'))||'—');
-  const rows=[['Nacionalidad','nc'],['País','pais'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib']];
+  const rows=[['País','pais'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib']];
   $('biMeta').innerHTML=rows.filter(([,k])=>_cg(b,k)).map(([lbl,k])=>`<div style="color:var(--ts);font-weight:600">${lbl}</div><div style="color:var(--tm)">${_esc(_cg(b,k))}</div>`).join('');
   const desc=_cg(b,'d');
   $('biDescWrap').style.display=desc?'block':'none';
@@ -3787,7 +3788,8 @@ function openCatEdit(){
   const b=_biBook;if(!b)return;
   _catAddMode=false;
   $('catEditTitle').innerHTML='<i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro';
-  $('ceT').value=_cg(b,'t');$('ceA').value=_cg(b,'a');$('ceNC').value=_cg(b,'nc');$('cePais').value=_cg(b,'pais');
+  _fillPaisDL();
+  $('ceT').value=_cg(b,'t');$('ceA').value=_cg(b,'a');$('cePais').value=_cg(b,'pais');
   $('ceG').value=_cg(b,'g');$('ceSG').value=_cg(b,'sg');$('ceID').value=_cg(b,'id');$('ceIB').value=_cg(b,'ib');
   $('ceED').value=_cg(b,'ed');$('ceEC').value=_cg(b,'ec');$('ceD').value=_cg(b,'d');
   {const d=$('ceDelBtn');if(d)d.style.display='';} /* eliminar disponible al editar */
@@ -3801,17 +3803,20 @@ function deleteCatBook(){
   if(i>=0)bookCatalog.splice(i,1);
   _codifyCatalog(bookCatalog); /* renumera el grupo afectado para mantener la correlatividad */
   ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
-  const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">Nacionalidad (todas)</option>';
+  const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">País (todos)</option>';
   renderCatalogo();
   _saveCatalogToCloud().then(r=>{ if(r&&r.error){showToast('Eliminado localmente, pero no se pudo sincronizar','del');}else showToast('Libro eliminado','del'); });
   closeMod('catEditModal');
 }
+/* Rellena el datalist de países del editor con los países ya presentes en el catálogo */
+function _fillPaisDL(){const dl=$('cefPaisDL');if(!dl)return;dl.innerHTML=_catUniq('pais').map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}
 /* Abrir el editor VACÍO para AGREGAR un libro nuevo */
 function openCatAdd(){
   _catAddMode=true;
   {const d=$('ceDelBtn');if(d)d.style.display='none';} /* al agregar no hay nada que eliminar */
   $('catEditTitle').innerHTML='<i class="ti ti-book-plus" style="color:var(--ok)"></i> Agregar libro';
-  ['ceT','ceA','ceNC','cePais','ceG','ceSG','ceIB','ceED','ceEC','ceD'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  _fillPaisDL();
+  ['ceT','ceA','cePais','ceG','ceSG','ceIB','ceED','ceEC','ceD'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const idi=$('ceID');if(idi)idi.value='Español';
   openMod('catEditModal');
 }
@@ -3819,10 +3824,9 @@ function saveCatEdit(){
   const t=_cln($('ceT').value),a=_cln($('ceA').value);
   if(!t){showToast('El título es obligatorio','del');return;}
   if(!a){showToast('El autor es obligatorio','del');return;}
-  let nc=_cln($('ceNC').value), pais=_cln($('cePais').value);
-  if(!pais&&nc&&_NAT2PAIS[_nm(nc)])pais=_NAT2PAIS[_nm(nc)]; /* autocompletar país desde nacionalidad */
+  const pais=_cln($('cePais').value);
   let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';
-  const data={t,a,nc,pais,g:_cln($('ceG').value),sg:_cln($('ceSG').value),id:_cln($('ceID').value),ib,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
+  const data={t,a,pais,g:_cln($('ceG').value),sg:_cln($('ceSG').value),id:_cln($('ceID').value),ib,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
   let b;
   if(_catAddMode){
     b={code:'',...data};          /* código vacío → se generará automáticamente */
@@ -3835,7 +3839,7 @@ function saveCatEdit(){
   _codifyCatalog(bookCatalog);     /* genera/renumera códigos (incluye el nuevo/editado) */
   /* repoblar filtros con los datos nuevos */
   ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
-  const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">Nacionalidad (todas)</option>';
+  const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">País (todos)</option>';
   const wasAdd=_catAddMode;_catAddMode=false;
   /* si agregó, mostrarlo (limpiar filtros y buscar por su título) */
   if(wasAdd){['catQ','catAutor','catGen','catSub'].forEach(id=>{const e=$(id);if(e)e.value='';});$('catNac').value='';$('catQ').value=b.t;}
@@ -3870,14 +3874,16 @@ function importCatalogXlsx(file){
       const row=aoa[r];if(!row)continue;const t=at(row,ci.t);if(!t)continue;
       const gRaw=at(row,ci.g);let g=gRaw,sg='';const ix=gRaw.indexOf('/');if(ix>=0){g=_cln(gRaw.slice(0,ix));sg=_cln(gRaw.slice(ix+1));}
       let ib=at(row,ci.ib);if(ib==='-'||ib==='?')ib='';
-      books.push({code:at(row,ci.code),t,a:at(row,ci.a),nc:at(row,ci.nc),pais:at(row,ci.pais),ib,ed:at(row,ci.ed),ec:at(row,ci.ec),id:at(row,ci.id),g,sg,d:at(row,ci.d)});
+      let pais=at(row,ci.pais);const ncRaw=at(row,ci.nc);
+      if(!pais&&ncRaw){const p=_NAT2PAIS[_nm(String(ncRaw).split(/[\/,]|–|-/)[0])];if(p)pais=p;} /* consolidar: si trae Nacionalidad y no País, derivar País */
+      books.push({code:at(row,ci.code),t,a:at(row,ci.a),pais,ib,ed:at(row,ci.ed),ec:at(row,ci.ec),id:at(row,ci.id),g,sg,d:at(row,ci.d)});
     }
     if(!books.length){showToast('No se encontraron libros (revisa la columna «Título»)','del');return;}
     _codifyCatalog(books); /* corrige/completa códigos y numera correlativo */
     if(!confirm('Se cargará el catálogo con '+books.length+' libro(s), con códigos generados/corregidos, reemplazando el actual.\n\n¿Confirmar?'))return;
     bookCatalog=books;_catLoaded=true;
     ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
-    const n=$('catNac');if(n)n.innerHTML='<option value="">Nacionalidad (todas)</option>';
+    const n=$('catNac');if(n)n.innerHTML='<option value="">País (todos)</option>';
     if(_sb){const ts=new Date().toISOString();
       _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,count:books.length,books},updated_at:ts})
         .then(({error})=>{if(error){console.warn('[Biblioteca] guardar catálogo',error.message);showToast('Cargado local, pero no se pudo guardar en la nube','del');}else showToast('Catálogo actualizado y codificado ('+books.length+' libros)','ok');});
@@ -3887,6 +3893,19 @@ function importCatalogXlsx(file){
   rd.readAsArrayBuffer(file);
 }
 function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* Exportar el catálogo COMPLETO de la Biblioteca a Excel */
+function exportCatalogXlsx(){
+  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible','del');return;}
+  if(!bookCatalog.length){showToast('El catálogo está vacío','del');return;}
+  const header=['Código','Título','Autor','País','Idioma','Género','Subgénero','Editorial','Edición','ISBN','Descripción'];
+  const rows=bookCatalog.map(b=>[_cg(b,'code'),_cg(b,'t'),_cg(b,'a'),_cg(b,'pais'),_cg(b,'id'),_cg(b,'g'),_cg(b,'sg'),_cg(b,'ed'),_cg(b,'ec'),_cg(b,'ib'),_cg(b,'d')]);
+  const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+  ws['!cols']=[{wch:16},{wch:34},{wch:24},{wch:16},{wch:10},{wch:18},{wch:18},{wch:20},{wch:16},{wch:18},{wch:50}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Biblioteca');
+  XLSX.writeFile(wb,'EcoNativo_Biblioteca_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast('Catálogo exportado ('+bookCatalog.length+' libros) ✓','ok');
+}
 
 /* ── EXCEL EXPORT ── */
 /* Formato de moneda NUMÉRICO real de Excel (los valores siguen siendo números).
