@@ -799,6 +799,7 @@ body.dark .info-note b{color:#7fb0e0}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0"><i class="ti ti-library" style="color:var(--bm)"></i> Biblioteca <span id="catCount" style="font-size:11px;color:var(--ts);font-weight:600"></span></div>
           <button onclick="openCatAdd()" title="Agregar un libro nuevo al catálogo (el código se genera solo)" style="padding:5px 10px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px;vertical-align:-1px"></i> Agregar libro</button>
+          <button onclick="shareCatalog()" title="Compartir el catálogo con los clientes (link + código QR, solo lectura)" style="padding:5px 10px;border:none;color:#fff;background:var(--inf);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-share" style="font-size:11px;vertical-align:-1px"></i> Compartir Catálogo</button>
           <button onclick="printLabels()" title="Descargar PDF de etiquetas (15×20 mm) de los libros filtrados" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tag" style="font-size:11px;vertical-align:-1px"></i> Etiquetas PDF</button>
           <button id="btnCatImport" onclick="_triggerImport('catImportFile')" title="Actualizar el catálogo desde el Excel" style="padding:5px 10px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-upload" style="font-size:11px;vertical-align:-1px"></i> Importar Excel</button>
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
@@ -919,6 +920,17 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="form-item"><label>Descripción</label><textarea id="ceD" rows="3" style="resize:none"></textarea></div>
   <div style="font-size:11px;color:var(--ts);background:var(--cr);border-radius:6px;padding:6px 9px;margin-bottom:8px"><i class="ti ti-info-circle" style="font-size:12px;vertical-align:-1px"></i> El <b>código de lomo</b> se recalcula automáticamente según Género + País + Apellido.</div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;catEditModal&#39;)">Cancelar</button><button class="bc2" onclick="saveCatEdit()">Guardar</button></div>
+</div></div>
+
+<div class="ov" id="shareCatModal"><div class="mb" style="max-width:360px;width:100%;text-align:center">
+  <h3 style="margin-bottom:.5rem"><i class="ti ti-share" style="color:var(--inf)"></i> Compartir Catálogo</h3>
+  <p style="font-size:12px;color:var(--ts);margin-bottom:.8rem">Los clientes podrán <b>buscar y navegar</b> el catálogo completo (solo lectura). Escanea el QR o comparte el enlace.</p>
+  <div id="shareQR" style="display:flex;justify-content:center;margin-bottom:.7rem"></div>
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:.8rem">
+    <input id="shareLink" type="text" readonly onclick="this.select()" style="flex:1;min-width:0;padding:8px;border:1px solid var(--br);border-radius:var(--r);font-size:12px;background:var(--cr);color:var(--tm)">
+    <button onclick="_copyShareLink()" title="Copiar enlace" style="padding:8px 10px;border:1px solid var(--bm);background:var(--bm);color:#fff;border-radius:var(--r);cursor:pointer;font-size:12px"><i class="ti ti-copy"></i></button>
+  </div>
+  <div class="ma"><button class="bc2" onclick="closeMod(&#39;shareCatModal&#39;)">Cerrar</button></div>
 </div></div>
 
 <div class="ov" id="splitModal"><div class="mb" id="splitContent"></div></div>
@@ -3754,6 +3766,22 @@ const _NAT2PAIS=(()=>{const M={};const a=(pais,...ks)=>ks.forEach(k=>M[_nm(k)]=p
   a('Chile','chilena','chileno');a('Estados Unidos','estadounidense');a('Reino Unido','britanica','britanico','inglesa','ingles','escocesa','escoces');a('España','espanola','espanol','catalana');a('Francia','francesa','frances');a('Alemania','alemana','aleman');a('Italia','italiana','italiano');a('Argentina','argentina','argentino');a('Colombia','colombiana','colombiano');a('Perú','peruana','peruano');a('México','mexicana','mexicano');a('Uruguay','uruguaya','uruguayo');a('Rusia','rusa','ruso');a('Grecia','griega','griego');a('Irlanda','irlandesa','irlandes');a('Austria','austriaca','austriaco');a('Chequia','checa','checo');a('Japón','japonesa','japones');a('Noruega','noruega','noruego');a('Polonia','polaca','polaco');a('Venezuela','venezolana','venezolano');a('Portugal','portuguesa','portugues');a('Canadá','canadiense');a('Australia','australiana','australiano');a('Suiza','suiza','suizo');a('China','china','chino');a('Guatemala','guatemalteca','guatemalteco');a('Dinamarca','danesa','danes');a('Bélgica','belga');a('Suecia','sueca','sueco');a('India','india','indio');a('Cuba','cubana','cubano');
   return M;})();
 let _catAddMode=false;
+/* Compartir el catálogo: genera el enlace público de solo lectura (/catalogo) y su QR */
+function _catShareURL(){ return location.origin.replace(/\/$/,'')+'/catalogo'; }
+function shareCatalog(){
+  const url=_catShareURL();
+  $('shareLink').value=url;
+  const q=$('shareQR');
+  const src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data='+encodeURIComponent(url);
+  q.innerHTML='<img src="'+src+'" alt="QR del catálogo" width="200" height="200" style="border:1px solid var(--br);border-radius:8px;background:#fff" onerror="this.style.display=\'none\'">';
+  openMod('shareCatModal');
+}
+function _copyShareLink(){
+  const url=$('shareLink').value;
+  const done=()=>showToast('Enlace copiado','ok');
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(done).catch(()=>{const i=$('shareLink');i.select();try{document.execCommand('copy');done();}catch(e){showToast('Copia manualmente el enlace','del');}});}
+  else{const i=$('shareLink');i.select();try{document.execCommand('copy');done();}catch(e){showToast('Copia manualmente el enlace','del');}}
+}
 /* Abrir el editor con los datos del libro de la ficha actual (EDICIÓN) */
 function openCatEdit(){
   const b=_biBook;if(!b)return;
