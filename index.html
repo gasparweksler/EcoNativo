@@ -798,6 +798,7 @@ body.dark .info-note b{color:#7fb0e0}
       <div class="page" id="page-catalogo">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0"><i class="ti ti-library" style="color:var(--bm)"></i> Biblioteca <span id="catCount" style="font-size:11px;color:var(--ts);font-weight:600"></span></div>
+          <button onclick="printLabels()" title="Descargar PDF de etiquetas (15×20 mm) de los libros filtrados" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tag" style="font-size:11px;vertical-align:-1px"></i> Etiquetas PDF</button>
           <button id="btnCatImport" onclick="_triggerImport('catImportFile')" title="Actualizar el catálogo desde el Excel" style="padding:5px 10px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-upload" style="font-size:11px;vertical-align:-1px"></i> Importar Excel</button>
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
         </div>
@@ -903,7 +904,20 @@ body.dark .info-note b{color:#7fb0e0}
     <div style="font-size:11px;font-weight:700;color:var(--bd);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Descripción</div>
     <div id="biDesc" style="font-size:13px;line-height:1.55;color:var(--tm);background:var(--cr);border-radius:var(--r);padding:9px 11px"></div>
   </div>
-  <div class="ma"><button class="bc2" onclick="closeMod(&#39;bookInfoModal&#39;)">Cerrar</button></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;bookInfoModal&#39;)">Cerrar</button><button class="bc2" onclick="openCatEdit()"><i class="ti ti-edit" style="font-size:13px"></i> Editar</button></div>
+</div></div>
+
+<div class="ov" id="catEditModal"><div class="mb" style="max-width:470px;width:100%">
+  <h3 style="margin-bottom:.6rem"><i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro</h3>
+  <div class="form-item"><label>Título *</label><input type="text" id="ceT"></div>
+  <div class="form-item"><label>Autor *</label><input type="text" id="ceA"></div>
+  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Nacionalidad</label><input type="text" id="ceNC"></div><div class="form-item" style="flex:1"><label>País</label><input type="text" id="cePais"></div></div>
+  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Género</label><input type="text" id="ceG"></div><div class="form-item" style="flex:1"><label>Subgénero</label><input type="text" id="ceSG"></div></div>
+  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Idioma</label><input type="text" id="ceID"></div><div class="form-item" style="flex:1"><label>ISBN</label><input type="text" id="ceIB"></div></div>
+  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Editorial</label><input type="text" id="ceED"></div><div class="form-item" style="flex:1"><label>Edición</label><input type="text" id="ceEC"></div></div>
+  <div class="form-item"><label>Descripción</label><textarea id="ceD" rows="3" style="resize:none"></textarea></div>
+  <div style="font-size:11px;color:var(--ts);background:var(--cr);border-radius:6px;padding:6px 9px;margin-bottom:8px"><i class="ti ti-info-circle" style="font-size:12px;vertical-align:-1px"></i> El <b>código de lomo</b> se recalcula automáticamente según Género + País + Apellido.</div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;catEditModal&#39;)">Cancelar</button><button class="bc2" onclick="saveCatEdit()">Guardar</button></div>
 </div></div>
 
 <div class="ov" id="splitModal"><div class="mb" id="splitContent"></div></div>
@@ -3640,8 +3654,35 @@ function renderCatResults(){
       <i class="ti ti-chevron-right" style="color:var(--ts);flex-shrink:0"></i>
     </div>`).join('')+(_catFiltered.length>CAP?`<div style="font-size:11px;color:var(--ts);text-align:center;padding:6px">Mostrando ${CAP} de ${_catFiltered.length}. Refina la búsqueda para ver más.</div>`:'');
 }
+/* Genera un PDF (vía imprimir → guardar como PDF) con etiquetas de 15×20 mm de los libros
+   actualmente FILTRADOS. El código va apilado (Género/País/Apellido/Nº) al estilo lomo. */
+function printLabels(){
+  const list=(_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog;
+  const withCode=list.filter(b=>_cg(b,'code'));
+  if(!withCode.length){showToast('No hay libros con código para etiquetar','del');return;}
+  const labels=withCode.map(b=>{
+    const parts=_cg(b,'code').split('-');
+    return '<div class="lbl">'+parts.map(p=>'<div class="l">'+_esc(p)+'</div>').join('')+'</div>';
+  }).join('');
+  const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas de lomo</title><style>'
+    +'@page{size:auto;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif}'
+    +'.wrap{display:flex;flex-wrap:wrap;gap:2mm}'
+    +'.lbl{width:15mm;height:20mm;border:0.2mm solid #000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.4mm;overflow:hidden}'
+    +'.lbl .l{font-family:"Courier New",monospace;font-weight:700;font-size:3.3mm;line-height:1.12;letter-spacing:0.2mm}'
+    +'.bar{padding:8px;font-family:sans-serif;font-size:13px}@media print{.bar{display:none}}'
+    +'</style></head><body>'
+    +'<div class="bar"><button onclick="window.print()" style="padding:6px 12px;font-size:13px;cursor:pointer">🖨️ Imprimir / Guardar PDF</button> &nbsp; '+withCode.length+' etiqueta(s) · 15×20 mm</div>'
+    +'<div class="wrap">'+labels+'</div>'
+    +'<scr'+'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},350);}</scr'+'ipt>'
+    +'</body></html>';
+  const w=window.open('','_blank');
+  if(!w){showToast('Permite ventanas emergentes para descargar el PDF de etiquetas','del');return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
+let _biBook=null;
 function openBookInfo(i){
   const b=_catFiltered[i];if(!b)return;
+  _biBook=b;
   const code=_cg(b,'code');
   $('biTitle').innerHTML=(code?`<span style="display:inline-block;font-size:12px;font-weight:700;font-family:ui-monospace,monospace;color:#fff;background:var(--bm);border-radius:6px;padding:2px 8px;margin-bottom:6px">${_esc(code)}</span><br>`:'')+_esc(_cg(b,'t'));
   $('biAuthor').innerHTML='<i class="ti ti-user" style="font-size:11px;vertical-align:-1px"></i> '+(_esc(_cg(b,'a'))||'—');
@@ -3667,14 +3708,17 @@ function _surnameFromName(a){
   return (_noAcc(fa).toUpperCase().replace(/[^A-Z]/g,'')+'XXX').slice(0,3);
 }
 function _parseCode(c){const cc=_noAcc(String(c||'')).toUpperCase().replace(/Ñ/g,'N');const m=/^([A-Z]+)-([A-Z]+)-([A-Z]+)(?:-[A-Z]+)*-(\d+)$/.exec(cc);return m?{g:m[1].slice(0,3),c:m[2],s:m[3].slice(0,3),n:parseInt(m[4])}:null;}
+/* País/nacionalidad → código canónico (prioritario; resuelve EEUU→US, GB→UK, y países nuevos) */
+const _NAT2CODE=(()=>{const M={};const a=(code,...ks)=>ks.forEach(k=>M[_nm(k)]=code);
+  a('CL','chile','chilena','chileno');a('US','estados unidos','estadounidense');a('UK','reino unido','britanica','britanico','inglesa','ingles','escocesa','escoces','gran bretana');a('ES','espana','espanola','espanol');a('FR','francia','francesa','frances');a('DE','alemania','alemana','aleman');a('IT','italia','italiana','italiano');a('AR','argentina','argentino');a('CO','colombia','colombiana','colombiano');a('PE','peru','peruana','peruano');a('MX','mexico','mexicana','mexicano');a('UY','uruguay','uruguaya','uruguayo');a('RU','rusia','rusa','ruso');a('GR','grecia','griega','griego');a('IE','irlanda','irlandesa','irlandes');a('AT','austria','austriaca','austriaco');a('CZ','chequia','checa','checo');a('JP','japon','japonesa','japones');a('NO','noruega','noruego');a('PL','polonia','polaca','polaco');a('VE','venezuela','venezolana','venezolano');a('PT','portugal','portuguesa','portugues');a('CA','canada','canadiense');a('AU','australia','australiana','australiano');a('CH','suiza','suizo');a('CHN','china','chino');a('GT','guatemala','guatemalteca','guatemalteco');a('DK','dinamarca');a('BE','belgica','belga');a('SE','suecia','sueca','sueco');
+  return M;})();
 /* Asigna/corrige el campo .code de TODOS los libros del arreglo (in place) */
 function _codifyCatalog(books){
   const top=o=>o?Object.entries(o).sort((x,y)=>y[1]-x[1])[0][0]:null;
   const gC={},pC={},nC={},aC={};
   books.forEach((b,i)=>{b._row=i;const p=_parseCode(b.code);b._p=p;if(!p)return;
     const gk=_nm(b.g);(gC[gk]=gC[gk]||{})[p.g]=(gC[gk][p.g]||0)+1;
-    const pk=_nm(b.pais);if(pk)(pC[pk]=pC[pk]||{})[p.c]=(pC[pk][p.c]||0)+1;
-    const nk=_nm(b.nc);if(nk)(nC[nk]=nC[nk]||{})[p.c]=(nC[nk][p.c]||0)+1;
+    if(p.c!=='XX'){const pk=_nm(b.pais);if(pk)(pC[pk]=pC[pk]||{})[p.c]=(pC[pk][p.c]||0)+1;const nk=_nm(b.nc);if(nk)(nC[nk]=nC[nk]||{})[p.c]=(nC[nk][p.c]||0)+1;}
     const ak=_nm(_firstAuthor(b.a));if(ak)(aC[ak]=aC[ak]||{})[p.s]=(aC[ak][p.s]||0)+1;
   });
   const gMap={},pMap={},nMap={},sMap={};
@@ -3683,7 +3727,7 @@ function _codifyCatalog(books){
   const genC=(p,n)=>(_noAcc(p||n).toUpperCase().replace(/[^A-Z]/g,'')+'XX').slice(0,2);
   books.forEach(b=>{const p=b._p;
     b._G=(p&&p.g.length===3)?p.g:(gMap[_nm(b.g)]||genG(b.g));
-    const canon=pMap[_nm(b.pais)]||nMap[_nm(b.nc)]||null;
+    const canon=_NAT2CODE[_nm(b.pais)]||_NAT2CODE[_nm(b.nc)]||pMap[_nm(b.pais)]||nMap[_nm(b.nc)]||null;
     b._C=canon||((p&&p.c.length>=2&&p.c.length<=3)?p.c:genC(b.pais,b.nc));
     b._S=(p&&p.s.length===3)?p.s:(sMap[_nm(_firstAuthor(b.a))]||_surnameFromName(b.a));
   });
@@ -3696,6 +3740,40 @@ function _codifyCatalog(books){
   }
   books.forEach(b=>{delete b._p;delete b._row;delete b._G;delete b._C;delete b._S;});
   return books;
+}
+/* Guardar el catálogo completo en el registro propio de Supabase (misma vía que el import) */
+function _saveCatalogToCloud(){
+  if(!_sb)return Promise.resolve({error:'sin conexión'});
+  const ts=new Date().toISOString();
+  return _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,count:bookCatalog.length,books:bookCatalog},updated_at:ts})
+    .then(({error})=>({error}));
+}
+/* Abrir el editor con los datos del libro de la ficha actual */
+function openCatEdit(){
+  const b=_biBook;if(!b)return;
+  $('ceT').value=_cg(b,'t');$('ceA').value=_cg(b,'a');$('ceNC').value=_cg(b,'nc');$('cePais').value=_cg(b,'pais');
+  $('ceG').value=_cg(b,'g');$('ceSG').value=_cg(b,'sg');$('ceID').value=_cg(b,'id');$('ceIB').value=_cg(b,'ib');
+  $('ceED').value=_cg(b,'ed');$('ceEC').value=_cg(b,'ec');$('ceD').value=_cg(b,'d');
+  closeMod('bookInfoModal');openMod('catEditModal');
+}
+function saveCatEdit(){
+  const b=_biBook;if(!b)return;
+  const t=_cln($('ceT').value),a=_cln($('ceA').value);
+  if(!t){showToast('El título es obligatorio','del');return;}
+  if(!a){showToast('El autor es obligatorio','del');return;}
+  b.t=t;b.a=a;b.nc=_cln($('ceNC').value);b.pais=_cln($('cePais').value);
+  b.g=_cln($('ceG').value);b.sg=_cln($('ceSG').value);b.id=_cln($('ceID').value);
+  let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';b.ib=ib;
+  b.ed=_cln($('ceED').value);b.ec=_cln($('ceEC').value);b.d=_cln($('ceD').value);
+  b.code=''; /* limpiar para que el código se RECALCULE según los datos nuevos (los demás se preservan) */
+  _codifyCatalog(bookCatalog); /* recalcula/renumera códigos (incluye el editado) */
+  /* repoblar filtros con los datos nuevos */
+  ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
+  const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">Nacionalidad (todas)</option>';
+  renderCatalogo();
+  const newCode=_cg(b,'code');
+  _saveCatalogToCloud().then(r=>{ if(r&&r.error){showToast('Guardado local, pero no se pudo sincronizar','del');}else showToast('Libro actualizado · '+newCode,'ok'); });
+  closeMod('catEditModal');
 }
 /* Genera el código de UN libro nuevo respecto al catálogo actual (siguiente correlativo del grupo) */
 function generateBookCode(book){
