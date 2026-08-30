@@ -915,7 +915,7 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="form-item"><label>Título *</label><input type="text" id="ceT"></div>
   <div class="form-item"><label>Autor *</label><input type="text" id="ceA"></div>
   <div class="form-item"><label>País</label><input type="text" id="cePais" list="cefPaisDL" placeholder="Ej: Chile, Francia, Estados Unidos…"></div><datalist id="cefPaisDL"></datalist>
-  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Género</label><input type="text" id="ceG"></div><div class="form-item" style="flex:1"><label>Subgénero</label><input type="text" id="ceSG"></div></div>
+  <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Género *</label><select id="ceG" required onchange="_ceGenreChanged()"><option value="" disabled selected>Selecciona un género</option></select></div><div class="form-item" style="flex:1"><label>Subgénero *</label><select id="ceSG" required disabled><option value="" disabled selected>Selecciona un subgénero</option></select></div></div>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Idioma</label><input type="text" id="ceID"></div><div class="form-item" style="flex:1"><label>ISBN</label><input type="text" id="ceIB"></div></div>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Editorial</label><input type="text" id="ceED"></div><div class="form-item" style="flex:1"><label>Edición</label><input type="text" id="ceEC"></div></div>
   <div class="form-item"><label>Descripción</label><textarea id="ceD" rows="3" style="resize:none"></textarea></div>
@@ -3606,6 +3606,25 @@ function _bookDateTimeFmt(b){try{if(b&&b.ts)return new Date(b.ts).toLocaleString
    ec:edición, id:idioma, g:género, sg:subgénero, d:descripción}.
    Se guarda en un registro propio de Supabase (key 'book_catalog'), NO en el estado
    global (pos_state), para no inflar la sincronización. */
+/* ── Taxonomía de géneros/subgéneros (ÚNICA fuente: la usa el formulario y el filtro) ── */
+const TAXONOMIA={
+  "Narrativa (novela)":["Novela histórica","Novela contemporánea","Novela negra / policial","Thriller / suspenso","Novela de aventuras","Ciencia ficción","Fantasía","Terror / gótica","Novela romántica","Novela social","Novela psicológica","Novela clásica","Distopía","Novela epistolar","Novela satírica / humorística"],
+  "Cuento y relato":["Cuento literario","Relato fantástico","Relato de terror","Antología de cuentos","Mito y leyenda","Fábula","Narrativa oral / folclor"],
+  "Poesía":["Poesía lírica","Poesía amorosa","Poesía social / política","Poesía épica","Poesía religiosa","Antología poética"],
+  "Teatro y guion":["Tragedia clásica","Comedia","Drama moderno","Teatro breve","Guion cinematográfico"],
+  "Cómic y novela gráfica":["Cómic infantil","Cómic de superhéroes","Novela gráfica","Historia del cómic"],
+  "Historia":["Historia de Chile","Historia universal","Historia militar","Historia política","Historia social","Historia local / regional","Historia del arte","Arqueología","Divulgación histórica"],
+  "Biografía y memorias":["Biografía","Autobiografía","Memorias","Diario","Testimonio","Epistolario","Biografía histórica"],
+  "Ensayo y pensamiento":["Ensayo político","Ensayo literario","Ensayo filosófico","Ensayo histórico","Ensayo social","Filosofía","Sociología","Psicología","Antropología","Derecho","Economía"],
+  "Crónica y periodismo":["Crónica urbana","Crónica de viaje","Crónica histórica","Reportaje / investigación","Entrevistas","Columna y opinión"],
+  "Ciencia y salud":["Medicina general","Medicina especializada","Odontología","Kinesiología y fisioterapia","Enfermería","Biología y naturaleza","Divulgación científica","Matemáticas","Química y física","Informática"],
+  "Arte y fotografía":["Fotografía documental","Fotografía artística","Fotografía técnica","Historia del arte","Catálogo / monografía","Arquitectura y diseño"],
+  "Educación y textos escolares":["Texto escolar","Manual universitario","Pedagogía","Lingüística","Enseñanza de idiomas","Material didáctico","Divulgación infantil"],
+  "Prácticos y manuales":["Gastronomía / recetario","Enología","Guía de viaje","Guía gastronómica","Manual técnico / oficio","Autoayuda / desarrollo personal","Finanzas y empresa","Salud y bienestar","Hogar y jardinería","Deporte"],
+  "Obras de referencia":["Diccionario de lengua","Diccionario bilingüe","Diccionario especializado","Enciclopedia","Atlas","Anuario / directorio"],
+  "Religión y espiritualidad":["Texto sagrado","Teología","Espiritualidad","Mitología","Esoterismo","Devocional"]
+};
+const _TAX_SUBS_ALL=[...new Set(Object.values(TAXONOMIA).flat())];
 let bookCatalog=[];let _catLoaded=false,_catLoading=false,_catFiltered=[];
 async function loadBookCatalog(force){
   if(_catLoading)return; if(_catLoaded&&!force)return;
@@ -3634,7 +3653,11 @@ function renderCatalogo(){
   const nac=$('catNac');
   if(nac&&nac.options.length<=1){_catUniq('pais').forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;nac.appendChild(o);});}
   const fillDL=(id,k)=>{const dl=$(id);if(dl&&!dl.childElementCount){dl.innerHTML=_catUniq(k).map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}};
-  fillDL('catAutoresDL','a');fillDL('catGenerosDL','g');fillDL('catSubgenerosDL','sg');
+  fillDL('catAutoresDL','a');
+  /* Filtro de género/subgénero: usa la MISMA taxonomía que el formulario */
+  const fillDLopts=(id,arr)=>{const dl=$(id);if(dl&&!dl.childElementCount){dl.innerHTML=arr.map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}};
+  fillDLopts('catGenerosDL',Object.keys(TAXONOMIA));
+  fillDLopts('catSubgenerosDL',_TAX_SUBS_ALL);
   renderCatResults();
 }
 function applyCatFilter(){renderCatResults();}
@@ -3783,6 +3806,30 @@ function _copyShareLink(){
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(done).catch(()=>{const i=$('shareLink');i.select();try{document.execCommand('copy');done();}catch(e){showToast('Copia manualmente el enlace','del');}});}
   else{const i=$('shareLink');i.select();try{document.execCommand('copy');done();}catch(e){showToast('Copia manualmente el enlace','del');}}
 }
+/* ── Género/Subgénero: selects encadenados desde la TAXONOMÍA (lista cerrada) ── */
+const _OLDTAG='  ⚠ valor antiguo – actualizar';
+function _ceFillGenres(){
+  $('ceG').innerHTML='<option value="" disabled selected>Selecciona un género</option>'+Object.keys(TAXONOMIA).map(g=>`<option value="${g.replace(/"/g,'&quot;')}">${_esc(g)}</option>`).join('');
+}
+function _ceResetSub(){ const s=$('ceSG');s.innerHTML='<option value="" disabled selected>Selecciona un subgénero</option>';s.disabled=true; }
+function _ceFillSub(genre){
+  const subs=TAXONOMIA[genre]||[];
+  $('ceSG').innerHTML='<option value="" disabled selected>Selecciona un subgénero</option>'+subs.map(s=>`<option value="${s.replace(/"/g,'&quot;')}">${_esc(s)}</option>`).join('');
+  $('ceSG').disabled=false;
+}
+function _ceGenreChanged(){ _ceFillSub($('ceG').value); $('ceSG').value=''; } /* al cambiar género se limpia subgénero */
+function _ceAddOld(sel,val){ const o=document.createElement('option');o.value=val;o.textContent=val+_OLDTAG;sel.appendChild(o);sel.value=val; }
+/* Carga los dos selects para EDITAR: selecciona el valor guardado; si un valor ya no está en la
+   taxonomía, lo muestra como opción extra "⚠ valor antiguo – actualizar" (sin agregarlo a la lista). */
+function _ceLoadGS(gVal,sgVal){
+  _ceFillGenres();
+  if(gVal){ (gVal in TAXONOMIA) ? ($('ceG').value=gVal) : _ceAddOld($('ceG'),gVal); }
+  else { $('ceG').value=''; }
+  const gSel=$('ceG').value;
+  if(gSel in TAXONOMIA){ _ceFillSub(gSel); } else { _ceResetSub();$('ceSG').disabled=false; }
+  if(sgVal){ const subs=TAXONOMIA[gSel]||[]; subs.includes(sgVal) ? ($('ceSG').value=sgVal) : _ceAddOld($('ceSG'),sgVal); }
+  else { $('ceSG').value=''; }
+}
 /* Abrir el editor con los datos del libro de la ficha actual (EDICIÓN) */
 function openCatEdit(){
   const b=_biBook;if(!b)return;
@@ -3790,7 +3837,8 @@ function openCatEdit(){
   $('catEditTitle').innerHTML='<i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro';
   _fillPaisDL();
   $('ceT').value=_cg(b,'t');$('ceA').value=_cg(b,'a');$('cePais').value=_cg(b,'pais');
-  $('ceG').value=_cg(b,'g');$('ceSG').value=_cg(b,'sg');$('ceID').value=_cg(b,'id');$('ceIB').value=_cg(b,'ib');
+  _ceLoadGS(_cg(b,'g'),_cg(b,'sg')); /* género/subgénero encadenados con el valor guardado */
+  $('ceID').value=_cg(b,'id');$('ceIB').value=_cg(b,'ib');
   $('ceED').value=_cg(b,'ed');$('ceEC').value=_cg(b,'ec');$('ceD').value=_cg(b,'d');
   {const d=$('ceDelBtn');if(d)d.style.display='';} /* eliminar disponible al editar */
   closeMod('bookInfoModal');openMod('catEditModal');
@@ -3816,7 +3864,8 @@ function openCatAdd(){
   {const d=$('ceDelBtn');if(d)d.style.display='none';} /* al agregar no hay nada que eliminar */
   $('catEditTitle').innerHTML='<i class="ti ti-book-plus" style="color:var(--ok)"></i> Agregar libro';
   _fillPaisDL();
-  ['ceT','ceA','cePais','ceG','ceSG','ceIB','ceED','ceEC','ceD'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  ['ceT','ceA','cePais','ceIB','ceED','ceEC','ceD'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  _ceFillGenres();$('ceG').value='';_ceResetSub(); /* género/subgénero vacíos y encadenados */
   const idi=$('ceID');if(idi)idi.value='Español';
   openMod('catEditModal');
 }
@@ -3825,8 +3874,11 @@ function saveCatEdit(){
   if(!t){showToast('El título es obligatorio','del');return;}
   if(!a){showToast('El autor es obligatorio','del');return;}
   const pais=_cln($('cePais').value);
+  const gv=_cln($('ceG').value), sgv=_cln($('ceSG').value);
+  if(!gv){showToast('Selecciona un género','del');return;}
+  if(!sgv){showToast('Selecciona un subgénero','del');return;}
   let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';
-  const data={t,a,pais,g:_cln($('ceG').value),sg:_cln($('ceSG').value),id:_cln($('ceID').value),ib,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
+  const data={t,a,pais,g:gv,sg:sgv,id:_cln($('ceID').value),ib,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
   let b;
   if(_catAddMode){
     b={code:'',...data};          /* código vacío → se generará automáticamente */
