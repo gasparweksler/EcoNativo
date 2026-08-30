@@ -639,6 +639,7 @@ body.dark .info-note b{color:#7fb0e0}
             <div class="ch"><h3>Pedido</h3><div class="cbdg" id="cartBadge">—</div>
               <button id="btnAddClient" onclick="addClientToOrder()" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-user-plus" style="font-size:9px"></i> Cliente</button>
               <button id="btnChangeTable" onclick="openChangeTable()" title="Trasladar el pedido (completo o parte) a otra mesa" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-arrows-exchange" style="font-size:9px"></i> Cambiar Mesa</button>
+              <button id="btnSellBook" onclick="openBookSaleForTable()" title="Registrar la venta de un libro en esta mesa" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--bm);border-radius:20px;cursor:pointer;color:var(--bm);display:none"><i class="ti ti-book" style="font-size:9px"></i> Vender Libro</button>
             </div>
             <div class="ci" id="cartItems"><div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div></div>
             <div class="cf">
@@ -787,7 +788,7 @@ body.dark .info-note b{color:#7fb0e0}
           <div class="pt" style="margin-bottom:0"><i class="ti ti-books" style="color:var(--bm)"></i> Biblioteca</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button onclick="openBookSale()" class="btn-add-sm" style="background:var(--bm)"><i class="ti ti-plus" style="font-size:11px"></i> Registrar venta de libro</button>
-            <button onclick="delAllBooks()" style="padding:5px 10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-trash" style="font-size:11px;vertical-align:-1px"></i> Eliminar historial</button>
+            <button id="btnDelAllBooks" onclick="delAllBooks()" style="padding:5px 10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-trash" style="font-size:11px;vertical-align:-1px"></i> Eliminar historial</button>
           </div>
         </div>
         <div class="info-note">Registra la venta de libros de la cafetería literaria. El precio es libre (lo define el comprador). Esta sección es independiente: no afecta ventas de cafetería, estadísticas, inventario ni pedidos.</div>
@@ -1486,7 +1487,7 @@ function setFontScale(dir){
 
 /* ── NAV ── */
 const TABS={
-  waiter:[{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'clients',label:'Clientes',icon:'ti-users'}],
+  waiter:[{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'biblioteca',label:'Biblioteca',icon:'ti-books'}],
   admin:[{id:'dashboard',label:'Inicio',icon:'ti-home'},{id:'tables',label:'Mesas',icon:'ti-layout-grid'},{id:'order',label:'Pedido',icon:'ti-shopping-cart'},{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'},{id:'clients',label:'Clientes',icon:'ti-users'},{id:'caja',label:'Caja',icon:'ti-cash'},{id:'stats',label:'Estadísticas',icon:'ti-chart-bar'},{id:'recipes',label:'Recetas',icon:'ti-tools-kitchen-2'},{id:'carta',label:'Carta',icon:'ti-book'},{id:'cartapdf',label:'Carta PDF',icon:'ti-qrcode'},{id:'inventory',label:'Inventario',icon:'ti-package'},{id:'biblioteca',label:'Biblioteca',icon:'ti-books'},{id:'staff',label:'Personal',icon:'ti-id-badge'}],
   kitchen:[{id:'kitchen',label:'Cocina',icon:'ti-chef-hat'}]
 };
@@ -1737,6 +1738,7 @@ function loadTableOrder(id,order){
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='';
   /* Mostrar botón Cambiar Mesa (solo en mesas, no mostrador) */
   const btnCT=$('btnChangeTable');if(btnCT)btnCT.style.display=(cTable&&cTable.id)?'':'none';
+  const btnSB=$('btnSellBook');if(btnSB)btnSB.style.display=(cTable&&cTable.id)?'':'none';
   /* Mostrar cobrar solo si hay ítems enviados a cocina */
   _updateCobrarBtn(order);
   /* Si el pedido ya tiene ítems enviados, mostrar resumen; si no, cargar al carrito */
@@ -1780,7 +1782,7 @@ function cancelarPedido(){
   const ma2=$('mesaActions');if(ma2)ma2.style.display='none';
   const cb2=$('cobrarBtns');if(cb2)cb2.style.display='none';
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';const _bsb=$('btnSellBook');if(_bsb)_bsb.style.display='none';}
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   broadcastState();
   showToast('Pedido cancelado. Mesa '+mesa+' disponible.','ok');
@@ -1804,7 +1806,7 @@ function cerrarSinCobrar(){
   if(currentAccountId&&kDone[currentAccountId])delete kDone[currentAccountId];
   /* Ocultar btn cliente */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';const _bsb=$('btnSellBook');if(_bsb)_bsb.style.display='none';}
   const btnCO2=$('btnCancelOrder');if(btnCO2)btnCO2.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   broadcastState();
@@ -1850,7 +1852,7 @@ function openMostrador(){
   const _ma=$('mesaActions');if(_ma)_ma.style.display='none';
   const _mcw=$('mcSendWrap');if(_mcw)_mcw.style.display='block';
   const _bac=$('btnAddClient');if(_bac)_bac.style.display='none';
-  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';const _bsb=$('btnSellBook');if(_bsb)_bsb.style.display='none';}
   $('kitchenCheckWrap').style.display='block';
   $('mcSplitBtns').style.display='flex';
   selPay='efectivo';$('menuSearch').value='';renderMenu();renderCart();renderPaySection();goPage('order');
@@ -1860,7 +1862,7 @@ function backFromOrder(){
   const cb=$('cobrarBtns');if(cb)cb.style.display='none';
   const mc=$('mcOrderBtns');if(mc)mc.style.display='none';
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';const _bsb=$('btnSellBook');if(_bsb)_bsb.style.display='none';}
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   renderTables();goPage('tables');
 }
@@ -2308,7 +2310,7 @@ function confirmarCobro(oid,sub){
   document.getElementById('cobrarModal')?.remove();
   /* Limpiar UI */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
-  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
+  {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';const _bsb=$('btnSellBook');if(_bsb)_bsb.style.display='none';}
   const ma=$('mesaActions');if(ma)ma.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
   showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(total)+(disc>0?' (desc. −'+fmt(disc)+')':''),'ok');
@@ -3442,11 +3444,17 @@ function eliminarHistorial(){
 }
 
 /* ════════ BIBLIOTECA — venta de libros (independiente de la cafetería) ════════ */
-function openBookSale(){
+let _bookTableId=null; /* mesa de origen si la venta se registra desde una mesa abierta */
+function openBookSale(tableId){
+  _bookTableId=(tableId!=null)?tableId:null;
   $('bookName').value='';$('bookBuyer').value='';$('bookPrice').value='';
   $('bookDate').value=new Date().toISOString().slice(0,10);
+  const t=$('bookModalTitle');
+  if(t)t.innerHTML='<i class="ti ti-book" style="color:var(--bm)"></i> '+(_bookTableId?('Vender libro · Mesa '+_bookTableId):'Registrar venta de libro');
   openMod('bookModal');
 }
+/* Abrir "Vender Libro" desde la mesa abierta actual */
+function openBookSaleForTable(){ openBookSale(cTable&&cTable.id?cTable.id:null); }
 function saveBookSale(){
   const book=($('bookName').value||'').trim();
   const buyer=($('bookBuyer').value||'').trim();
@@ -3455,11 +3463,14 @@ function saveBookSale(){
   if(!book){showToast('Escribe el nombre del libro','del');return;}
   if(!buyer){showToast('Escribe el nombre del comprador','del');return;}
   if(!(price>0)){showToast('Ingresa un precio válido','del');return;}
-  bookSales.push({id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now()});
+  /* Registro ÚNICO en bookSales (fuente de verdad) → historial de Biblioteca y Excel del día
+     leen de aquí. Si viene de una mesa, se guarda su tableId. */
+  bookSales.push({id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now(),tableId:(_bookTableId!=null?_bookTableId:null)});
+  const fromTable=_bookTableId;_bookTableId=null;
   broadcastState();
   closeMod('bookModal');
-  showToast('Venta de libro registrada','ok');
-  renderBiblioteca();
+  showToast(fromTable?('Libro vendido en Mesa '+fromTable):'Venta de libro registrada','ok');
+  if(typeof renderBiblioteca==='function')renderBiblioteca();
 }
 function setBookSort(s){_bookSort=s;renderBiblioteca();}
 function _bookSearch(v){_bookQ=v;renderBiblioteca();}
@@ -3477,6 +3488,8 @@ function delAllBooks(){
 }
 function renderBiblioteca(){
   const cont=$('bibliotecaContent');if(!cont)return;
+  const isAdmin=(cRole==='admin');
+  const btnDA=$('btnDelAllBooks');if(btnDA)btnDA.style.display=isAdmin?'':'none'; /* borrar historial: solo admin */
   const q=(_bookQ||'').toLowerCase().trim();
   let list=bookSales.filter(b=>!q||b.book.toLowerCase().includes(q)||b.buyer.toLowerCase().includes(q));
   list=[...list].sort((a,b)=>{
@@ -3499,17 +3512,20 @@ function renderBiblioteca(){
         <option value="comprador"${_bookSort==='comprador'?' selected':''}>Ordenar: Comprador (A-Z)</option>
       </select>
     </div>
-    ${list.length?`<div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Libro</th><th>Comprador</th><th>Fecha</th><th>Precio</th><th></th></tr></thead><tbody>
+    ${list.length?`<div class="table-scroll-wrap"><table class="p-table"><thead><tr><th>Libro</th><th>Comprador</th><th>Origen</th><th>Fecha y hora</th><th>Precio</th>${isAdmin?'<th></th>':''}</tr></thead><tbody>
       ${list.map(b=>`<tr>
         <td style="font-weight:600">${_esc(b.book)}</td>
         <td>${_esc(b.buyer)}</td>
-        <td style="white-space:nowrap">${_bookDateFmt(b.date)}</td>
+        <td style="white-space:nowrap">${b.tableId?'<span class="sale-badge sb-mesa">Mesa '+b.tableId+'</span>':'<span style="font-size:10px;color:var(--ts)">Directa</span>'}</td>
+        <td style="white-space:nowrap;font-size:11px">${_bookDateTimeFmt(b)}</td>
         <td style="color:var(--bm);font-weight:700;white-space:nowrap">${fmt(b.price)}</td>
-        <td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar este registro" onclick="delBook('${b.id}')"><i class="ti ti-trash" style="font-size:12px"></i></button></td>
+        ${isAdmin?`<td><button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar este registro" onclick="delBook('${b.id}')"><i class="ti ti-trash" style="font-size:12px"></i></button></td>`:''}
       </tr>`).join('')}
     </tbody></table></div>`:`<div class="noo"><i class="ti ti-book" aria-hidden="true"></i><p>${bookSales.length?'Sin resultados para la búsqueda':'Aún no hay ventas de libros registradas'}</p></div>`}`;
 }
 function _bookDateFmt(d){try{return new Date(d+'T00:00:00').toLocaleDateString('es-CL');}catch(e){return d;}}
+/* Fecha y hora de la venta: usa ts (momento exacto) y cae a date si falta */
+function _bookDateTimeFmt(b){try{if(b&&b.ts)return new Date(b.ts).toLocaleString('es-CL');return _bookDateFmt(b&&b.date);}catch(e){return (b&&b.date)||'';}}
 function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* ── EXCEL EXPORT ── */
@@ -3525,7 +3541,8 @@ function downloadExcel(){
   /* MISMA fuente que la pantalla: el período/fecha seleccionado */
   const sales=_statsSales();
   const rng=_statsRange();
-  if(!sales.length){showToast('Sin ventas para exportar en «'+rng.label+'»','del');return;}
+  const books=_booksInRange();
+  if(!sales.length&&!books.length){showToast('Sin ventas para exportar en «'+rng.label+'»','del');return;}
   const wb=XLSX.utils.book_new();
   /* ── Cálculos (todos sobre el conjunto filtrado) ── */
   const tv=sales.reduce((s,o)=>s+oNet(o),0); /* neto: descuentos ya aplicados */
@@ -3577,10 +3594,31 @@ function downloadExcel(){
   _xlMoneyCol(wsP,2,1,prodRows.length); /* Ingresos */
   wsP['!cols']=[{wch:30},{wch:16},{wch:14}];
   XLSX.utils.book_append_sheet(wb,wsP,'Productos');
+  /* ── Hoja Ventas de Libros (Biblioteca) — mismo período ── */
+  if(books.length){
+    const bHeader=['Fecha y hora','Mesa','Tipo','Libro','Comprador','Precio'];
+    const bRows=[...books].sort((a,b)=>(b.ts||0)-(a.ts||0)).map(b=>[
+      b.ts?new Date(b.ts).toLocaleString('es-CL'):_bookDateFmt(b.date),
+      b.tableId?('Mesa '+b.tableId):'Directa',
+      'Venta de Libro',
+      b.book,b.buyer,b.price||0
+    ]);
+    const bTotal=books.reduce((s,b)=>s+(b.price||0),0);
+    const wsB=XLSX.utils.aoa_to_sheet([bHeader,...bRows,[],['TOTAL LIBROS','','','','',bTotal]]);
+    _xlMoneyCol(wsB,5,1,bRows.length);                 /* Precio */
+    _xlSetMoney(wsB,[[bRows.length+2,5]]);              /* TOTAL LIBROS */
+    wsB['!cols']=[{wch:20},{wch:12},{wch:14},{wch:34},{wch:22},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,wsB,'Ventas de Libros');
+  }
   /* Nombre de archivo según el período/fecha */
   const tag=(_statsPeriod==='fecha'&&_statsDate)?_statsDate:_statsPeriod+'_'+new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb,'EcoNativo_'+tag+'.xlsx');
   showToast('Excel descargado ✓','ok');
+}
+/* Ventas de libros dentro del período/fecha seleccionado en Estadísticas */
+function _booksInRange(){
+  const {from,to}=_statsRange();
+  return bookSales.filter(b=>{const t=(b&&(b.ts||(b.date?new Date(b.date+'T12:00:00').getTime():0)))||0;return t>=from&&t<=to;});
 }
 
 /* ── EXCEL: CARTA e INVENTARIO (exportar / importar) ── */
