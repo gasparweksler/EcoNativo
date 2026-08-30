@@ -919,7 +919,7 @@ body.dark .info-note b{color:#7fb0e0}
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Editorial</label><input type="text" id="ceED"></div><div class="form-item" style="flex:1"><label>Edición</label><input type="text" id="ceEC"></div></div>
   <div class="form-item"><label>Descripción</label><textarea id="ceD" rows="3" style="resize:none"></textarea></div>
   <div style="font-size:11px;color:var(--ts);background:var(--cr);border-radius:6px;padding:6px 9px;margin-bottom:8px"><i class="ti ti-info-circle" style="font-size:12px;vertical-align:-1px"></i> El <b>código de lomo</b> se recalcula automáticamente según Género + País + Apellido.</div>
-  <div class="ma"><button class="bs2" onclick="closeMod(&#39;catEditModal&#39;)">Cancelar</button><button class="bc2" onclick="saveCatEdit()">Guardar</button></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;catEditModal&#39;)">Cancelar</button><button id="ceDelBtn" class="bs2" style="display:none;border-color:var(--er);color:var(--er)" onclick="deleteCatBook()"><i class="ti ti-trash" style="font-size:13px"></i> Eliminar</button><button class="bc2" onclick="saveCatEdit()">Guardar</button></div>
 </div></div>
 
 <div class="ov" id="shareCatModal"><div class="mb" style="max-width:360px;width:100%;text-align:center">
@@ -3790,11 +3790,26 @@ function openCatEdit(){
   $('ceT').value=_cg(b,'t');$('ceA').value=_cg(b,'a');$('ceNC').value=_cg(b,'nc');$('cePais').value=_cg(b,'pais');
   $('ceG').value=_cg(b,'g');$('ceSG').value=_cg(b,'sg');$('ceID').value=_cg(b,'id');$('ceIB').value=_cg(b,'ib');
   $('ceED').value=_cg(b,'ed');$('ceEC').value=_cg(b,'ec');$('ceD').value=_cg(b,'d');
+  {const d=$('ceDelBtn');if(d)d.style.display='';} /* eliminar disponible al editar */
   closeMod('bookInfoModal');openMod('catEditModal');
+}
+/* Eliminar el libro que se está editando */
+function deleteCatBook(){
+  const b=_biBook;if(!b)return;
+  if(!confirm('¿Eliminar este libro del catálogo?\n\n«'+_cg(b,'t')+'» — '+_cg(b,'a')+'\nCódigo: '+_cg(b,'code')+'\n\nEsta acción no se puede deshacer.'))return;
+  const i=bookCatalog.indexOf(b);
+  if(i>=0)bookCatalog.splice(i,1);
+  _codifyCatalog(bookCatalog); /* renumera el grupo afectado para mantener la correlatividad */
+  ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
+  const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">Nacionalidad (todas)</option>';
+  renderCatalogo();
+  _saveCatalogToCloud().then(r=>{ if(r&&r.error){showToast('Eliminado localmente, pero no se pudo sincronizar','del');}else showToast('Libro eliminado','del'); });
+  closeMod('catEditModal');
 }
 /* Abrir el editor VACÍO para AGREGAR un libro nuevo */
 function openCatAdd(){
   _catAddMode=true;
+  {const d=$('ceDelBtn');if(d)d.style.display='none';} /* al agregar no hay nada que eliminar */
   $('catEditTitle').innerHTML='<i class="ti ti-book-plus" style="color:var(--ok)"></i> Agregar libro';
   ['ceT','ceA','ceNC','cePais','ceG','ceSG','ceIB','ceED','ceEC','ceD'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const idi=$('ceID');if(idi)idi.value='Español';
