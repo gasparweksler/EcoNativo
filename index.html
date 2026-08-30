@@ -798,6 +798,7 @@ body.dark .info-note b{color:#7fb0e0}
       <div class="page" id="page-catalogo">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0"><i class="ti ti-library" style="color:var(--bm)"></i> Biblioteca <span id="catCount" style="font-size:11px;color:var(--ts);font-weight:600"></span></div>
+          <button onclick="openCatAdd()" title="Agregar un libro nuevo al catálogo (el código se genera solo)" style="padding:5px 10px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px;vertical-align:-1px"></i> Agregar libro</button>
           <button onclick="printLabels()" title="Descargar PDF de etiquetas (15×20 mm) de los libros filtrados" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tag" style="font-size:11px;vertical-align:-1px"></i> Etiquetas PDF</button>
           <button id="btnCatImport" onclick="_triggerImport('catImportFile')" title="Actualizar el catálogo desde el Excel" style="padding:5px 10px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-upload" style="font-size:11px;vertical-align:-1px"></i> Importar Excel</button>
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
@@ -908,7 +909,7 @@ body.dark .info-note b{color:#7fb0e0}
 </div></div>
 
 <div class="ov" id="catEditModal"><div class="mb" style="max-width:470px;width:100%">
-  <h3 style="margin-bottom:.6rem"><i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro</h3>
+  <h3 id="catEditTitle" style="margin-bottom:.6rem"><i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro</h3>
   <div class="form-item"><label>Título *</label><input type="text" id="ceT"></div>
   <div class="form-item"><label>Autor *</label><input type="text" id="ceA"></div>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Nacionalidad</label><input type="text" id="ceNC"></div><div class="form-item" style="flex:1"><label>País</label><input type="text" id="cePais"></div></div>
@@ -3748,31 +3749,56 @@ function _saveCatalogToCloud(){
   return _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,count:bookCatalog.length,books:bookCatalog},updated_at:ts})
     .then(({error})=>({error}));
 }
-/* Abrir el editor con los datos del libro de la ficha actual */
+/* Nacionalidad → país (para autocompletar el país al agregar/editar si se deja vacío) */
+const _NAT2PAIS=(()=>{const M={};const a=(pais,...ks)=>ks.forEach(k=>M[_nm(k)]=pais);
+  a('Chile','chilena','chileno');a('Estados Unidos','estadounidense');a('Reino Unido','britanica','britanico','inglesa','ingles','escocesa','escoces');a('España','espanola','espanol','catalana');a('Francia','francesa','frances');a('Alemania','alemana','aleman');a('Italia','italiana','italiano');a('Argentina','argentina','argentino');a('Colombia','colombiana','colombiano');a('Perú','peruana','peruano');a('México','mexicana','mexicano');a('Uruguay','uruguaya','uruguayo');a('Rusia','rusa','ruso');a('Grecia','griega','griego');a('Irlanda','irlandesa','irlandes');a('Austria','austriaca','austriaco');a('Chequia','checa','checo');a('Japón','japonesa','japones');a('Noruega','noruega','noruego');a('Polonia','polaca','polaco');a('Venezuela','venezolana','venezolano');a('Portugal','portuguesa','portugues');a('Canadá','canadiense');a('Australia','australiana','australiano');a('Suiza','suiza','suizo');a('China','china','chino');a('Guatemala','guatemalteca','guatemalteco');a('Dinamarca','danesa','danes');a('Bélgica','belga');a('Suecia','sueca','sueco');a('India','india','indio');a('Cuba','cubana','cubano');
+  return M;})();
+let _catAddMode=false;
+/* Abrir el editor con los datos del libro de la ficha actual (EDICIÓN) */
 function openCatEdit(){
   const b=_biBook;if(!b)return;
+  _catAddMode=false;
+  $('catEditTitle').innerHTML='<i class="ti ti-edit" style="color:var(--bm)"></i> Editar libro';
   $('ceT').value=_cg(b,'t');$('ceA').value=_cg(b,'a');$('ceNC').value=_cg(b,'nc');$('cePais').value=_cg(b,'pais');
   $('ceG').value=_cg(b,'g');$('ceSG').value=_cg(b,'sg');$('ceID').value=_cg(b,'id');$('ceIB').value=_cg(b,'ib');
   $('ceED').value=_cg(b,'ed');$('ceEC').value=_cg(b,'ec');$('ceD').value=_cg(b,'d');
   closeMod('bookInfoModal');openMod('catEditModal');
 }
+/* Abrir el editor VACÍO para AGREGAR un libro nuevo */
+function openCatAdd(){
+  _catAddMode=true;
+  $('catEditTitle').innerHTML='<i class="ti ti-book-plus" style="color:var(--ok)"></i> Agregar libro';
+  ['ceT','ceA','ceNC','cePais','ceG','ceSG','ceIB','ceED','ceEC','ceD'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  const idi=$('ceID');if(idi)idi.value='Español';
+  openMod('catEditModal');
+}
 function saveCatEdit(){
-  const b=_biBook;if(!b)return;
   const t=_cln($('ceT').value),a=_cln($('ceA').value);
   if(!t){showToast('El título es obligatorio','del');return;}
   if(!a){showToast('El autor es obligatorio','del');return;}
-  b.t=t;b.a=a;b.nc=_cln($('ceNC').value);b.pais=_cln($('cePais').value);
-  b.g=_cln($('ceG').value);b.sg=_cln($('ceSG').value);b.id=_cln($('ceID').value);
-  let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';b.ib=ib;
-  b.ed=_cln($('ceED').value);b.ec=_cln($('ceEC').value);b.d=_cln($('ceD').value);
-  b.code=''; /* limpiar para que el código se RECALCULE según los datos nuevos (los demás se preservan) */
-  _codifyCatalog(bookCatalog); /* recalcula/renumera códigos (incluye el editado) */
+  let nc=_cln($('ceNC').value), pais=_cln($('cePais').value);
+  if(!pais&&nc&&_NAT2PAIS[_nm(nc)])pais=_NAT2PAIS[_nm(nc)]; /* autocompletar país desde nacionalidad */
+  let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';
+  const data={t,a,nc,pais,g:_cln($('ceG').value),sg:_cln($('ceSG').value),id:_cln($('ceID').value),ib,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
+  let b;
+  if(_catAddMode){
+    b={code:'',...data};          /* código vacío → se generará automáticamente */
+    bookCatalog.push(b);
+  } else {
+    b=_biBook;if(!b)return;
+    Object.assign(b,data);
+    b.code='';                    /* recalcular con los datos nuevos */
+  }
+  _codifyCatalog(bookCatalog);     /* genera/renumera códigos (incluye el nuevo/editado) */
   /* repoblar filtros con los datos nuevos */
   ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
   const nsel=$('catNac');if(nsel)nsel.innerHTML='<option value="">Nacionalidad (todas)</option>';
+  const wasAdd=_catAddMode;_catAddMode=false;
+  /* si agregó, mostrarlo (limpiar filtros y buscar por su título) */
+  if(wasAdd){['catQ','catAutor','catGen','catSub'].forEach(id=>{const e=$(id);if(e)e.value='';});$('catNac').value='';$('catQ').value=b.t;}
   renderCatalogo();
   const newCode=_cg(b,'code');
-  _saveCatalogToCloud().then(r=>{ if(r&&r.error){showToast('Guardado local, pero no se pudo sincronizar','del');}else showToast('Libro actualizado · '+newCode,'ok'); });
+  _saveCatalogToCloud().then(r=>{ if(r&&r.error){showToast((wasAdd?'Libro agregado':'Libro actualizado')+' localmente, pero no se pudo sincronizar','del');}else showToast((wasAdd?'Libro agregado · ':'Libro actualizado · ')+newCode,'ok'); });
   closeMod('catEditModal');
 }
 /* Genera el código de UN libro nuevo respecto al catálogo actual (siguiente correlativo del grupo) */
