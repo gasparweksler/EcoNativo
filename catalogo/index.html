@@ -54,10 +54,9 @@
       <input id="q" class="full" type="text" placeholder="🔎 Buscar por título…" oninput="render()">
       <input id="fa" list="dlA" placeholder="Autor…" oninput="render()">
       <select id="fn" onchange="render()"><option value="">País (todos)</option></select>
-      <input id="fg" list="dlG" placeholder="Género…" oninput="render()">
-      <input id="fs" list="dlS" placeholder="Subgénero…" oninput="render()">
+      <input id="fg" list="dlG" placeholder="Categoría…" oninput="render()">
     </div>
-    <datalist id="dlA"></datalist><datalist id="dlG"></datalist><datalist id="dlS"></datalist>
+    <datalist id="dlA"></datalist><datalist id="dlG"></datalist>
     <div class="count" id="count"></div>
     <div id="list"></div>
   </div>
@@ -81,15 +80,17 @@ const uniq=k=>[...new Set(BOOKS.map(b=>g(b,k)).filter(Boolean))].sort((a,b)=>a.l
 function fillDatalists(){
   const nsel=$('fn');uniq('pais').forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;nsel.appendChild(o);});
   const dl=(id,k)=>{$(id).innerHTML=uniq(k).map(v=>'<option value="'+v.replace(/"/g,'&quot;')+'"></option>').join('');};
-  dl('dlA','a');dl('dlG','g');dl('dlS','sg');
+  dl('dlA','a');
+  /* Categoría: sugerencias con géneros Y subgéneros combinados */
+  const cats=[...new Set([...BOOKS.map(b=>g(b,'g')),...BOOKS.map(b=>g(b,'sg'))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  $('dlG').innerHTML=cats.map(v=>'<option value="'+v.replace(/"/g,'&quot;')+'"></option>').join('');
 }
 function render(){
   const q=($('q').value||'').toLowerCase().trim();
   const au=($('fa').value||'').toLowerCase().trim();
   const pa=($('fn').value||'').trim();
   const ge=($('fg').value||'').toLowerCase().trim();
-  const sg=($('fs').value||'').toLowerCase().trim();
-  FILT=BOOKS.filter(b=>(!q||g(b,'t').toLowerCase().includes(q))&&(!au||g(b,'a').toLowerCase().includes(au))&&(!pa||g(b,'pais')===pa)&&(!ge||g(b,'g').toLowerCase().includes(ge))&&(!sg||g(b,'sg').toLowerCase().includes(sg)));
+  FILT=BOOKS.filter(b=>(!q||g(b,'t').toLowerCase().includes(q))&&(!au||g(b,'a').toLowerCase().includes(au))&&(!pa||g(b,'pais')===pa)&&(!ge||g(b,'g').toLowerCase().includes(ge)||g(b,'sg').toLowerCase().includes(ge)));
   $('count').textContent=FILT.length+' de '+BOOKS.length+' libros';
   const CAP=400,show=FILT.slice(0,CAP);
   $('list').innerHTML=show.length?show.map((b,i)=>'<div class="item" onclick="openM('+i+')"><div style="flex:1;min-width:0"><div class="t" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(g(b,'t'))+'</div><div class="a">'+esc(g(b,'a'))+(g(b,'pais')?' · '+esc(g(b,'pais')):'')+'</div><div class="g">'+[g(b,'g'),g(b,'sg')].filter(Boolean).map(esc).join(' · ')+'</div>'+(g(b,'code')?'<div class="code">'+esc(g(b,'code'))+'</div>':'')+'</div><span class="chev">›</span></div>').join('')+(FILT.length>CAP?'<div class="empty">Mostrando '+CAP+' de '+FILT.length+'. Afina la búsqueda para ver más.</div>':''):'<div class="empty">Sin resultados para tu búsqueda.</div>';
