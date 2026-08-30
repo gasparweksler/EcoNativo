@@ -1993,8 +1993,10 @@ function removeSentItem(oid,idx){
   const o=getOrder(oid);if(!o||!o.items||!o.items[idx])return;
   const it=o.items[idx];
   if(!confirm('¿Eliminar "'+it.name+'" del pedido? Se ingresó por error.'))return;
-  /* Reponer el stock si el pedido ya lo había descontado al enviarse a cocina */
-  if(o.stockDescontado&&typeof reponerInventario==='function')reponerInventario([it]);
+  /* Si es un libro, quitar también su registro de Biblioteca (evita descuadre con el historial) */
+  if(it.isBook&&it.bookId)bookSales=bookSales.filter(b=>b.id!==it.bookId);
+  /* Reponer el stock si el pedido ya lo había descontado al enviarse a cocina (los libros no tienen stock) */
+  if(!it.isBook&&o.stockDescontado&&typeof reponerInventario==='function')reponerInventario([it]);
   o.items.splice(idx,1);
   broadcastState();
   renderCart();
@@ -3465,12 +3467,25 @@ function saveBookSale(){
   if(!(price>0)){showToast('Ingresa un precio válido','del');return;}
   /* Registro ÚNICO en bookSales (fuente de verdad) → historial de Biblioteca y Excel del día
      leen de aquí. Si viene de una mesa, se guarda su tableId. */
-  bookSales.push({id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now(),tableId:(_bookTableId!=null?_bookTableId:null)});
+  const rec={id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now(),tableId:(_bookTableId!=null?_bookTableId:null)};
+  bookSales.push(rec);
   const fromTable=_bookTableId;_bookTableId=null;
+  /* Si viene de una mesa abierta: agregar el libro como LÍNEA del pedido para que su monto
+     se sume al total y se cobre junto con la mesa. No pasa por cocina (isBook). */
+  if(fromTable!=null){
+    let ord=(currentAccountId?getOrder(currentAccountId):null);
+    if(!ord||ord.tableId!==fromTable)ord=orders.find(o=>o.tableId===fromTable&&o.status!=='closed'&&o.status!=='canceled');
+    if(ord){
+      ord.items.push({name:'Libro: '+book,price,qty:1,isBook:true,bookId:rec.id,note:'Comprador: '+buyer});
+      if(typeof renderCart==='function')renderCart();
+      if(typeof _updateCobrarBtn==='function')_updateCobrarBtn(ord);
+    }
+  }
   broadcastState();
   closeMod('bookModal');
-  showToast(fromTable?('Libro vendido en Mesa '+fromTable):'Venta de libro registrada','ok');
+  showToast(fromTable?('Libro agregado a Mesa '+fromTable+' · '+fmt(price)):'Venta de libro registrada','ok');
   if(typeof renderBiblioteca==='function')renderBiblioteca();
+  if(typeof renderTables==='function')renderTables();
 }
 function setBookSort(s){_bookSort=s;renderBiblioteca();}
 function _bookSearch(v){_bookQ=v;renderBiblioteca();}
@@ -5093,7 +5108,7 @@ function renderKitchen(){
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
-      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx&&!x.item.isBook).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
         ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
         <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${(item.note&&item.noteKitchen!==false)?`<div class="ki-note" style="background:var(--wn);color:#fff;border-radius:6px;padding:3px 8px;margin-top:4px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><i class="ti ti-alert-triangle" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
         <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:${item.kstate==='listo'?'var(--ok)':item.kStart?'var(--wn)':'var(--ts)'}"><i class="ti ti-stopwatch" style="font-size:13px"></i> <span id="kitim-${o.id}-${i}">${_itemTimerText(item)}</span>${item.kstate==='listo'&&item.kStart&&item.kEnd?' <span style="font-size:10px;font-weight:600;color:var(--ts)">(preparación)</span>':''}</div>
