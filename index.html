@@ -802,7 +802,7 @@ body.dark .info-note b{color:#7fb0e0}
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-bottom:.7rem">
-          <div style="position:relative;grid-column:1/-1"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="catQ" type="text" oninput="applyCatFilter()" placeholder="Buscar por título…" style="width:100%;padding:7px 8px 7px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);box-sizing:border-box"></div>
+          <div style="position:relative;grid-column:1/-1"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="catQ" type="text" oninput="applyCatFilter()" placeholder="Buscar por título o código…" style="width:100%;padding:7px 8px 7px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);box-sizing:border-box"></div>
           <input id="catAutor" list="catAutoresDL" oninput="applyCatFilter()" placeholder="Autor…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
           <select id="catNac" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Nacionalidad (todas)</option></select>
           <input id="catGen" list="catGenerosDL" oninput="applyCatFilter()" placeholder="Género…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
@@ -3619,7 +3619,7 @@ function renderCatResults(){
   const ge=($('catGen')?.value||'').toLowerCase().trim();
   const sg=($('catSub')?.value||'').toLowerCase().trim();
   _catFiltered=bookCatalog.filter(b=>
-    (!q||_cg(b,'t').toLowerCase().includes(q))&&
+    (!q||_cg(b,'t').toLowerCase().includes(q)||_cg(b,'code').toLowerCase().includes(q))&&
     (!au||_cg(b,'a').toLowerCase().includes(au))&&
     (!nc||_cg(b,'nc')===nc)&&
     (!ge||_cg(b,'g').toLowerCase().includes(ge))&&
@@ -3630,52 +3630,114 @@ function renderCatResults(){
   const CAP=300;const shown=_catFiltered.slice(0,CAP);
   cont.innerHTML=shown.map((b,i)=>`<div onclick="openBookInfo(${i})" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--br);border-radius:var(--r);margin-bottom:6px;cursor:pointer;background:var(--wh)">
       <div style="min-width:0;flex:1">
-        <div style="font-size:14px;font-weight:600;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))}</div>
-        <div style="font-size:11px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'a'))}${_cg(b,'nc')?' · '+_esc(_cg(b,'nc')):''}</div>
-        <div style="font-size:10px;color:var(--tl);margin-top:2px">${[_cg(b,'g'),_cg(b,'sg')].filter(Boolean).map(_esc).join(' · ')}</div>
+        <div style="display:flex;align-items:center;gap:6px;min-width:0">
+          ${_cg(b,'code')?`<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;color:var(--bm);background:var(--cr);border:1px solid var(--br);border-radius:5px;padding:1px 5px;flex-shrink:0;white-space:nowrap">${_esc(_cg(b,'code'))}</span>`:''}
+          <span style="font-size:14px;font-weight:600;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))}</span>
+        </div>
+        <div style="font-size:11px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${_esc(_cg(b,'a'))}${_cg(b,'nc')?' · '+_esc(_cg(b,'nc')):''}</div>
+        <div style="font-size:10px;color:var(--tl);margin-top:1px">${[_cg(b,'g'),_cg(b,'sg')].filter(Boolean).map(_esc).join(' · ')}</div>
       </div>
       <i class="ti ti-chevron-right" style="color:var(--ts);flex-shrink:0"></i>
     </div>`).join('')+(_catFiltered.length>CAP?`<div style="font-size:11px;color:var(--ts);text-align:center;padding:6px">Mostrando ${CAP} de ${_catFiltered.length}. Refina la búsqueda para ver más.</div>`:'');
 }
 function openBookInfo(i){
   const b=_catFiltered[i];if(!b)return;
-  $('biTitle').textContent=_cg(b,'t');
+  const code=_cg(b,'code');
+  $('biTitle').innerHTML=(code?`<span style="display:inline-block;font-size:12px;font-weight:700;font-family:ui-monospace,monospace;color:#fff;background:var(--bm);border-radius:6px;padding:2px 8px;margin-bottom:6px">${_esc(code)}</span><br>`:'')+_esc(_cg(b,'t'));
   $('biAuthor').innerHTML='<i class="ti ti-user" style="font-size:11px;vertical-align:-1px"></i> '+(_esc(_cg(b,'a'))||'—');
-  const rows=[['Nacionalidad','nc'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib']];
+  const rows=[['Nacionalidad','nc'],['País','pais'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib']];
   $('biMeta').innerHTML=rows.filter(([,k])=>_cg(b,k)).map(([lbl,k])=>`<div style="color:var(--ts);font-weight:600">${lbl}</div><div style="color:var(--tm)">${_esc(_cg(b,k))}</div>`).join('');
   const desc=_cg(b,'d');
   $('biDescWrap').style.display=desc?'block':'none';
   if(desc)$('biDesc').textContent=desc;
   openMod('bookInfoModal');
 }
-/* Importar/actualizar el catálogo desde el Excel (mismas columnas que el archivo original) */
+/* ── Motor de códigos de lomo: GEN-PAIS-APE-NNN ──
+   Aprende abreviaturas de tus datos, corrige/completa y numera correlativamente por
+   (Género+País+Apellido). Se reutiliza al importar y al agregar libros. */
+const _cln=v=>String(v==null?'':v).replace(/\s+/g,' ').trim();
+const _noAcc=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'');
+const _nm=s=>_noAcc(_cln(s)).toLowerCase();
+const _firstAuthor=a=>_cln(String(a).split(/[\/&;]| y | e /i)[0]);
+const _PARTIC=new Set(['de','del','la','las','los','van','von','da','di','du','le','san','santa']);
+function _surnameFromName(a){
+  const fa=_firstAuthor(a);let toks=_noAcc(fa).replace(/[^A-Za-z\s.]/g,'').split(/\s+/).filter(Boolean).filter(x=>!/^[A-Z]\.$/.test(x)&&x.length>1);
+  if(!toks.length)toks=_noAcc(fa).split(/\s+/).filter(Boolean);
+  for(let i=toks.length-1;i>=0;i--){if(!_PARTIC.has(toks[i].toLowerCase())){let s=toks[i].toUpperCase().replace(/[^A-Z]/g,'');if(s.length>=3)return s.slice(0,3);if(s.length)return (s+'XX').slice(0,3);}}
+  return (_noAcc(fa).toUpperCase().replace(/[^A-Z]/g,'')+'XXX').slice(0,3);
+}
+function _parseCode(c){const cc=_noAcc(String(c||'')).toUpperCase().replace(/Ñ/g,'N');const m=/^([A-Z]+)-([A-Z]+)-([A-Z]+)(?:-[A-Z]+)*-(\d+)$/.exec(cc);return m?{g:m[1].slice(0,3),c:m[2],s:m[3].slice(0,3),n:parseInt(m[4])}:null;}
+/* Asigna/corrige el campo .code de TODOS los libros del arreglo (in place) */
+function _codifyCatalog(books){
+  const top=o=>o?Object.entries(o).sort((x,y)=>y[1]-x[1])[0][0]:null;
+  const gC={},pC={},nC={},aC={};
+  books.forEach((b,i)=>{b._row=i;const p=_parseCode(b.code);b._p=p;if(!p)return;
+    const gk=_nm(b.g);(gC[gk]=gC[gk]||{})[p.g]=(gC[gk][p.g]||0)+1;
+    const pk=_nm(b.pais);if(pk)(pC[pk]=pC[pk]||{})[p.c]=(pC[pk][p.c]||0)+1;
+    const nk=_nm(b.nc);if(nk)(nC[nk]=nC[nk]||{})[p.c]=(nC[nk][p.c]||0)+1;
+    const ak=_nm(_firstAuthor(b.a));if(ak)(aC[ak]=aC[ak]||{})[p.s]=(aC[ak][p.s]||0)+1;
+  });
+  const gMap={},pMap={},nMap={},sMap={};
+  for(const k in gC)gMap[k]=top(gC[k]);for(const k in pC)pMap[k]=top(pC[k]);for(const k in nC)nMap[k]=top(nC[k]);for(const k in aC)sMap[k]=top(aC[k]);
+  const genG=g=>(_noAcc(g).toUpperCase().replace(/[^A-Z]/g,'')+'XXX').slice(0,3);
+  const genC=(p,n)=>(_noAcc(p||n).toUpperCase().replace(/[^A-Z]/g,'')+'XX').slice(0,2);
+  books.forEach(b=>{const p=b._p;
+    b._G=(p&&p.g.length===3)?p.g:(gMap[_nm(b.g)]||genG(b.g));
+    const canon=pMap[_nm(b.pais)]||nMap[_nm(b.nc)]||null;
+    b._C=canon||((p&&p.c.length>=2&&p.c.length<=3)?p.c:genC(b.pais,b.nc));
+    b._S=(p&&p.s.length===3)?p.s:(sMap[_nm(_firstAuthor(b.a))]||_surnameFromName(b.a));
+  });
+  const groups={};
+  books.forEach(b=>{const key=b._G+'-'+b._C+'-'+b._S;(groups[key]=groups[key]||[]).push(b);});
+  for(const key in groups){
+    const arr=groups[key];
+    arr.sort((x,y)=>{const nx=(x._p&&x._p.n)||99999,ny=(y._p&&y._p.n)||99999;return nx!==ny?nx-ny:x._row-y._row;});
+    arr.forEach((b,i)=>{b.code=key+'-'+String(i+1).padStart(3,'0');});
+  }
+  books.forEach(b=>{delete b._p;delete b._row;delete b._G;delete b._C;delete b._S;});
+  return books;
+}
+/* Genera el código de UN libro nuevo respecto al catálogo actual (siguiente correlativo del grupo) */
+function generateBookCode(book){
+  const tmp=bookCatalog.concat([book]).map(b=>({code:b.code,g:b.g,sg:b.sg,nc:b.nc,pais:b.pais,a:b.a}));
+  _codifyCatalog(tmp);
+  return tmp[tmp.length-1].code;
+}
+/* Importar/actualizar el catálogo desde el Excel. Detecta la fila de encabezado (por "Título"),
+   lee CODIGO/País si existen y codifica todo automáticamente. */
 function importCatalogXlsx(file){
-  _readXlsxFile(file,rows=>{
-    if(!rows.length){showToast('El archivo está vacío','del');return;}
-    const cln=v=>String(v==null?'':v).replace(/\s+/g,' ').trim();
-    const pick=(row,...names)=>{const keys=Object.keys(row);for(const n of names){const k=keys.find(k=>k.toLowerCase().trim()===n.toLowerCase());if(k!==undefined)return row[k];}return '';};
+  const rd=new FileReader();
+  rd.onload=e=>{try{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    /* localizar fila de encabezado (la que contiene "Título") */
+    let hr=-1;for(let i=0;i<Math.min(aoa.length,15);i++){if(aoa[i].some(c=>_nm(c)==='titulo'||_nm(c)==='titulo ')){hr=i;break;}}
+    if(hr<0)hr=0;
+    const header=aoa[hr].map(c=>_nm(c));
+    const col=(...names)=>{for(const n of names){const i=header.indexOf(_nm(n));if(i>=0)return i;}return -1;};
+    const ci={code:col('codigo','código'),t:col('titulo','título'),a:col('autor'),nc:col('nacionalidad'),pais:col('pais','país'),ib:col('isbn'),ed:col('editorial'),ec:col('edicion','edición'),id:col('idioma'),g:col('columna 1','genero','género','clasificacion'),d:col('breve descripcion','breve descripción','descripcion','descripción')};
+    const at=(row,i)=>i>=0?_cln(row[i]):'';
     const books=[];
-    rows.forEach(row=>{
-      const t=cln(pick(row,'Título','Titulo','title'));if(!t)return;
-      const gRaw=cln(pick(row,'Columna 1','Género','Genero','Clasificación','género'));
-      let g=gRaw,sg='';const ix=gRaw.indexOf('/');if(ix>=0){g=cln(gRaw.slice(0,ix));sg=cln(gRaw.slice(ix+1));}
-      let ib=cln(pick(row,'ISBN','isbn'));if(ib==='-'||ib==='?')ib='';
-      books.push({t,a:cln(pick(row,'Autor','author')),nc:cln(pick(row,'Nacionalidad')),ib,ed:cln(pick(row,'Editorial')),ec:cln(pick(row,'Edición','Edicion')),id:cln(pick(row,'Idioma')),g,sg,d:cln(pick(row,'Breve Descripción','Descripción','Descripcion'))});
-    });
+    for(let r=hr+1;r<aoa.length;r++){
+      const row=aoa[r];if(!row)continue;const t=at(row,ci.t);if(!t)continue;
+      const gRaw=at(row,ci.g);let g=gRaw,sg='';const ix=gRaw.indexOf('/');if(ix>=0){g=_cln(gRaw.slice(0,ix));sg=_cln(gRaw.slice(ix+1));}
+      let ib=at(row,ci.ib);if(ib==='-'||ib==='?')ib='';
+      books.push({code:at(row,ci.code),t,a:at(row,ci.a),nc:at(row,ci.nc),pais:at(row,ci.pais),ib,ed:at(row,ci.ed),ec:at(row,ci.ec),id:at(row,ci.id),g,sg,d:at(row,ci.d)});
+    }
     if(!books.length){showToast('No se encontraron libros (revisa la columna «Título»)','del');return;}
-    if(!confirm('Se cargará el catálogo con '+books.length+' libro(s), reemplazando el actual.\n\n¿Confirmar?'))return;
+    _codifyCatalog(books); /* corrige/completa códigos y numera correlativo */
+    if(!confirm('Se cargará el catálogo con '+books.length+' libro(s), con códigos generados/corregidos, reemplazando el actual.\n\n¿Confirmar?'))return;
     bookCatalog=books;_catLoaded=true;
-    /* Reset de datalists para repoblar con los nuevos datos */
-    ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const e=$(id);if(e)e.innerHTML='';});
+    ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
     const n=$('catNac');if(n)n.innerHTML='<option value="">Nacionalidad (todas)</option>';
-    /* Guardar en el registro propio de Supabase (no en pos_state) */
-    if(_sb){
-      const ts=new Date().toISOString();
-      _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:1,updated:ts,count:books.length,books},updated_at:ts})
-        .then(({error})=>{if(error){console.warn('[Biblioteca] guardar catálogo',error.message);showToast('Cargado local, pero no se pudo guardar en la nube','del');}else showToast('Catálogo actualizado ('+books.length+' libros)','ok');});
+    if(_sb){const ts=new Date().toISOString();
+      _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,count:books.length,books},updated_at:ts})
+        .then(({error})=>{if(error){console.warn('[Biblioteca] guardar catálogo',error.message);showToast('Cargado local, pero no se pudo guardar en la nube','del');}else showToast('Catálogo actualizado y codificado ('+books.length+' libros)','ok');});
     } else showToast('Catálogo cargado ('+books.length+' libros)','ok');
     renderCatalogo();
-  });
+  }catch(err){showToast('No se pudo leer el archivo','del');console.warn('[Biblioteca import]',err);}};
+  rd.readAsArrayBuffer(file);
 }
 function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
