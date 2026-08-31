@@ -3664,17 +3664,22 @@ function mapGenSub(raw){raw=_cln(raw);if(!raw)return {g:'',sg:''};const parts=ra
    Si nada clasifica, se conservan los valores originales (se verán como "valor antiguo"). */
 function _snapGS(gStr,sgStr){
   gStr=_cln(gStr);sgStr=_cln(sgStr);
-  let genero='';for(const k in TAXONOMIA){if(_nm(k)===_nm(gStr)){genero=k;break;}}
-  if(genero){
-    let sub='';for(const s of TAXONOMIA[genero]){if(_nm(s)===_nm(sgStr)){sub=s;break;}}
-    if(!sub&&sgStr)sub=_taxSubWithin(genero,sgStr)||sgStr;
-    if(!sub)sub=_taxSubWithin(genero,gStr)||_TAX_FB[genero];
-    return {g:genero,sg:sub};
+  if(!gStr&&!sgStr)return {g:'',sg:''};
+  /* Género: si coincide con la taxonomía, usar la forma canónica; si no, dejarlo tal cual. */
+  let genero=gStr;for(const k in TAXONOMIA){if(_nm(k)===_nm(gStr)){genero=k;break;}}
+  /* Subgénero: canonizar mayúsculas/acentos si coincide con algún subgénero (preferente dentro
+     del género); si no coincide, RESPETAR el valor del Excel tal cual (auditado). */
+  let sub=sgStr;
+  if(sgStr){
+    const within=(TAXONOMIA[genero]||[]).find(s=>_nm(s)===_nm(sgStr));
+    if(within)sub=within;else{const any=_TAX_SUBS_ALL.find(s=>_nm(s)===_nm(sgStr));if(any)sub=any;}
   }
-  const combined=gStr+(sgStr?' / '+sgStr:'');
-  const m=mapGenSub(combined);
-  if(m.g)return m;
-  return {g:gStr,sg:sgStr};
+  /* Solo si el género NO existe en la taxonomía intentamos deducirlo (texto libre antiguo). */
+  if(!TAXONOMIA[genero]){
+    const m=mapGenSub(gStr+(sgStr?' / '+sgStr:''));
+    if(m.g)return {g:m.g,sg:sub||m.sg};
+  }
+  return {g:genero,sg:sub};
 }
 let bookCatalog=[];let _catLoaded=false,_catLoading=false,_catFiltered=[];
 async function loadBookCatalog(force){
@@ -3970,7 +3975,13 @@ function importCatalogXlsx(file){
     if(hr<0)hr=0;
     const header=aoa[hr].map(c=>_nm(c));
     const col=(...names)=>{for(const n of names){const i=header.indexOf(_nm(n));if(i>=0)return i;}return -1;};
+    const colBy=re=>{for(let i=0;i<header.length;i++)if(re.test(header[i]))return i;return -1;};
     const ci={code:col('codigo','código'),t:col('titulo','título'),a:col('autor'),nc:col('nacionalidad'),pais:col('pais','país'),ib:col('isbn'),ed:col('editorial'),ec:col('edicion','edición'),id:col('idioma'),g:col('columna 1','genero','género','clasificacion'),sg:col('subgenero','subgénero','sub genero','sub género','subcategoria','subcategoría'),d:col('breve descripcion','breve descripción','descripcion','descripción')};
+    /* Encabezados con sufijos, p.ej. «Género (nuevo)» / «Subgénero (normalizado)»: detectar por contenido.
+       El subgénero se busca primero para no confundirlo con «género» (que es su subcadena). */
+    if(ci.sg<0)ci.sg=colBy(/sub[ -]?genero|subcategor/);
+    if(ci.g<0)ci.g=colBy(/(^|[^b])genero|clasificac/);
+    if(ci.d<0)ci.d=colBy(/descripc|sinopsis|resena|reseña/);
     const at=(row,i)=>i>=0?_cln(row[i]):'';
     const books=[];
     for(let r=hr+1;r<aoa.length;r++){
