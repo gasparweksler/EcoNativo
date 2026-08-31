@@ -800,7 +800,7 @@ body.dark .info-note b{color:#7fb0e0}
           <div class="pt" style="margin-bottom:0"><i class="ti ti-library" style="color:var(--bm)"></i> Biblioteca <span id="catCount" style="font-size:11px;color:var(--ts);font-weight:600"></span></div>
           <button onclick="openCatAdd()" title="Agregar un libro nuevo al catálogo (el código se genera solo)" style="padding:5px 10px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px;vertical-align:-1px"></i> Agregar libro</button>
           <button onclick="shareCatalog()" title="Compartir el catálogo con los clientes (link + código QR, solo lectura)" style="padding:5px 10px;border:none;color:#fff;background:var(--inf);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-share" style="font-size:11px;vertical-align:-1px"></i> Compartir Catálogo</button>
-          <button onclick="printLabels()" title="Descargar PDF de etiquetas (15×20 mm) de los libros filtrados" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tag" style="font-size:11px;vertical-align:-1px"></i> Etiquetas PDF</button>
+          <button onclick="openLabelModal()" title="Seleccionar libros y descargar el PDF de etiquetas (15×20 mm)" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tags" style="font-size:11px;vertical-align:-1px"></i> Generar Etiquetas</button>
           <button onclick="exportCatalogXlsx()" title="Descargar el catálogo completo en Excel" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px"></i> Exportar Excel</button>
           <button id="btnCatImport" onclick="_triggerImport('catImportFile')" title="Actualizar el catálogo desde el Excel" style="padding:5px 10px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-upload" style="font-size:11px;vertical-align:-1px"></i> Importar Excel</button>
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
@@ -908,6 +908,21 @@ body.dark .info-note b{color:#7fb0e0}
     <div id="biDesc" style="font-size:13px;line-height:1.55;color:var(--tm);background:var(--cr);border-radius:var(--r);padding:9px 11px"></div>
   </div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;bookInfoModal&#39;)">Cerrar</button><button class="bc2" onclick="openCatEdit()"><i class="ti ti-edit" style="font-size:13px"></i> Editar</button></div>
+</div></div>
+
+<!-- GENERAR ETIQUETAS: selección manual de libros (por nombre) + filtros actuales -->
+<div class="ov" id="labelModal"><div class="mb" style="max-width:560px;width:100%">
+  <h3 style="margin-bottom:.35rem"><i class="ti ti-tags" style="color:var(--bm)"></i> Generar Etiquetas de lomo</h3>
+  <div style="font-size:12px;color:var(--ts);margin-bottom:.7rem">Elige los libros a etiquetar: agrega los que están filtrados y/o busca cualquier libro por nombre (aunque quede fuera de los filtros). El PDF usa el formato de lomo 15×20 mm.</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6rem">
+    <button onclick="lblAddFiltered()" style="padding:6px 11px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:18px;cursor:pointer;font-size:12px;font-weight:600"><i class="ti ti-filter" style="font-size:12px;vertical-align:-1px"></i> Agregar filtrados (<span id="lblFiltCount">0</span>)</button>
+    <button onclick="lblClearSel()" style="padding:6px 11px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:18px;cursor:pointer;font-size:12px"><i class="ti ti-eraser" style="font-size:12px;vertical-align:-1px"></i> Vaciar selección</button>
+  </div>
+  <div style="position:relative;margin-bottom:.5rem"><i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="lblSearch" type="text" oninput="lblRenderSearch()" placeholder="Buscar por título, autor o código…" style="width:100%;padding:8px 8px 8px 29px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);box-sizing:border-box"></div>
+  <div id="lblSearchResults" style="max-height:170px;overflow:auto;border:1px solid var(--br);border-radius:var(--r);margin-bottom:.8rem;background:var(--wh)"></div>
+  <div style="font-size:11px;font-weight:700;color:var(--bd);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Seleccionados (<span id="lblSelCount">0</span>)</div>
+  <div id="lblSelList" style="max-height:190px;overflow:auto;margin-bottom:.8rem"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;labelModal&#39;)">Cerrar</button><button class="bc2" onclick="lblPrint()"><i class="ti ti-tag" style="font-size:13px"></i> Etiquetas PDF (<span id="lblPdfCount">0</span>)</button></div>
 </div></div>
 
 <div class="ov" id="catEditModal"><div class="mb" style="max-width:470px;width:100%">
@@ -3759,8 +3774,8 @@ function renderCatResults(){
 }
 /* Genera un PDF (vía imprimir → guardar como PDF) con etiquetas de 15×20 mm de los libros
    actualmente FILTRADOS. El código va apilado (Género/País/Apellido/Nº) al estilo lomo. */
-function printLabels(){
-  const list=(_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog;
+function printLabels(list){
+  list=(list&&list.length)?list:((_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog);
   const withCode=list.filter(b=>_cg(b,'code'));
   if(!withCode.length){showToast('No hay libros con código para etiquetar','del');return;}
   const labels=withCode.map(b=>{
@@ -3781,6 +3796,50 @@ function printLabels(){
   const w=window.open('','_blank');
   if(!w){showToast('Permite ventanas emergentes para descargar el PDF de etiquetas','del');return;}
   w.document.open();w.document.write(html);w.document.close();
+}
+/* ── Generar Etiquetas: selección manual de libros (además de los filtros) ── */
+let _lblSel=[],_lblSearchList=[];
+function _lblKey(b){return _cg(b,'code')||('§'+_cg(b,'t')+'|'+_cg(b,'a'));}
+function _lblHas(b){const k=_lblKey(b);return _lblSel.some(x=>_lblKey(x)===k);}
+function openLabelModal(){
+  if(!bookCatalog.length){showToast('El catálogo está vacío','del');return;}
+  $('lblSearch').value='';lblRenderSearch();lblRenderSel();openMod('labelModal');
+}
+function lblRenderSearch(){
+  const q=_nm($('lblSearch')?.value||'');const box=$('lblSearchResults');if(!box)return;
+  if(!q){_lblSearchList=[];box.innerHTML='<div style="padding:11px;font-size:12px;color:var(--ts)">Escribe para buscar libros por nombre…</div>';return;}
+  _lblSearchList=bookCatalog.filter(b=>_nm(_cg(b,'t')).includes(q)||_nm(_cg(b,'a')).includes(q)||_nm(_cg(b,'code')).includes(q)).slice(0,60);
+  if(!_lblSearchList.length){box.innerHTML='<div style="padding:11px;font-size:12px;color:var(--ts)">Sin resultados</div>';return;}
+  box.innerHTML=_lblSearchList.map((b,i)=>{const sel=_lblHas(b);return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 9px;border-bottom:1px solid var(--br)">
+    <div style="min-width:0"><div style="font-size:13px;font-weight:600;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))}</div><div style="font-size:11px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'a'))}${_cg(b,'code')?' · '+_esc(_cg(b,'code')):' · (sin código)'}</div></div>
+    <button onclick="lblToggleIdx(${i})" style="flex-shrink:0;padding:4px 10px;border-radius:14px;border:1px solid ${sel?'var(--er)':'var(--ok)'};background:${sel?'transparent':'var(--ok)'};color:${sel?'var(--er)':'#fff'};font-size:11px;font-weight:600;cursor:pointer">${sel?'Quitar':'Agregar'}</button>
+  </div>`;}).join('');
+}
+function lblToggleIdx(i){const b=_lblSearchList[i];if(!b)return;const k=_lblKey(b);const j=_lblSel.findIndex(x=>_lblKey(x)===k);if(j>=0)_lblSel.splice(j,1);else _lblSel.push(b);lblRenderSel();lblRenderSearch();}
+function lblAddFiltered(){
+  const src=(_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog;let added=0;
+  src.forEach(b=>{if(!_lblHas(b)){_lblSel.push(b);added++;}});
+  lblRenderSel();lblRenderSearch();
+  showToast(added?('Agregados '+added+' libro(s) a la selección'):'Ya estaban todos seleccionados','ok');
+}
+function lblRemoveIdx(i){_lblSel.splice(i,1);lblRenderSel();lblRenderSearch();}
+function lblClearSel(){_lblSel=[];lblRenderSel();lblRenderSearch();}
+function lblRenderSel(){
+  const box=$('lblSelList');if(!box)return;
+  const conCod=_lblSel.filter(b=>_cg(b,'code')).length;
+  ['lblSelCount'].forEach(id=>{const e=$(id);if(e)e.textContent=_lblSel.length;});
+  const pc=$('lblPdfCount');if(pc)pc.textContent=conCod;
+  const src=(_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog;const fc=$('lblFiltCount');if(fc)fc.textContent=src.length;
+  if(!_lblSel.length){box.innerHTML='<div style="padding:11px;font-size:12px;color:var(--ts);border:1px dashed var(--br);border-radius:var(--r)">Aún no hay libros seleccionados.</div>';return;}
+  box.innerHTML=_lblSel.map((b,i)=>{const noCode=!_cg(b,'code');return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--br);border-radius:var(--r);margin-bottom:4px;background:var(--wh)">
+    <div style="min-width:0"><div style="font-size:13px;font-weight:600;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))}</div><div style="font-size:11px;color:${noCode?'var(--er)':'var(--ts)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${noCode?'⚠ sin código (no se etiquetará)':_esc(_cg(b,'code'))}</div></div>
+    <button onclick="lblRemoveIdx(${i})" title="Quitar" style="flex-shrink:0;padding:3px 8px;border-radius:12px;border:1px solid var(--br);background:transparent;color:var(--ts);font-size:11px;cursor:pointer"><i class="ti ti-x" style="font-size:11px"></i></button>
+  </div>`;}).join('');
+}
+function lblPrint(){
+  const withCode=_lblSel.filter(b=>_cg(b,'code'));
+  if(!withCode.length){showToast('Selecciona al menos un libro con código','del');return;}
+  printLabels(withCode);
 }
 let _biBook=null;
 function openBookInfo(i){
