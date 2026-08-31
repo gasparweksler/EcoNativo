@@ -1309,6 +1309,7 @@ const tables=[
 
 let orders=[];
 let ordCnt=1;
+let kitchenBellSeq=0; /* se incrementa en CADA envío a cocina; dispara la campana en el dispositivo de cocina */
 
 let closedSales=[];
 
@@ -2172,13 +2173,14 @@ function cobrarTotal(){
 function cobrarYCerrar(){
   const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
+  window._cobrarTempOid=(o&&o._mcTemp)?o.id:null;
   const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
   const defaultTip=Math.round(sub*0.1);
   /* Mostrar modal de cobro con propina */
   const modal=document.createElement('div');
   modal.className='ov';modal.id='cobrarModal';modal.style.cssText='display:flex;z-index:9999';
   modal.innerHTML=`<div class="mb" style="max-width:360px;width:100%">
-    <h3 style="margin-bottom:.8rem"><i class="ti ti-receipt" style="color:var(--bm)"></i> Cobrar ${o.tableId?'Mesa '+o.tableId:''}</h3>
+    <h3 style="margin-bottom:.8rem"><i class="ti ti-receipt" style="color:var(--bm)"></i> Cobrar ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
     <div style="margin-bottom:.6rem">
       ${o.items.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
     </div>
@@ -2224,7 +2226,7 @@ function cobrarYCerrar(){
     </div>
     <div id="cobrarPayDetail" style="margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:1rem">
-      <button class="bs2" style="flex:1" onclick="document.getElementById('cobrarModal').remove()">Cancelar</button>
+      <button class="bs2" style="flex:1" onclick="_closeCobrar()">Cancelar</button>
       <button class="bc2" style="flex:2;background:var(--bm);color:#fff;border:none" onclick="confirmarCobro('${o.id}',${sub})">
         <i class="ti ti-check"></i> Confirmar cobro
       </button>
@@ -2232,7 +2234,7 @@ function cobrarYCerrar(){
     <button class="bs2" style="width:100%;margin-top:8px;background:#25D366;color:#fff;border-color:#25D366" onclick="sendOrderReceipt('${o.id}',window._cobrarTip||0)"><i class="ti ti-brand-whatsapp" style="font-size:13px"></i> Enviar detalle</button>
   </div>`;
   document.body.appendChild(modal);
-  modal.onclick=e=>{if(e.target===modal)modal.remove();};
+  modal.onclick=e=>{if(e.target===modal)_closeCobrar();};
   window._cobrarPago='efectivo';
   window._cobrarSub=sub;
   window._cobrarTipMode='pct';
@@ -2380,8 +2382,16 @@ function _cobrarCalcMix(edited){
   else{el.style.color='var(--ok)';el.textContent='✓ Cubre el total ('+fmt(total)+')';}
 }
 
+/* Cierra el modal de cobro; si era un cobro de mostrador temporal (cancelado), descarta el pedido */
+function _closeCobrar(){
+  document.getElementById('cobrarModal')?.remove();
+  const tid=window._cobrarTempOid;
+  if(tid){const idx=orders.findIndex(o=>o.id===tid&&o._mcTemp&&o.status!=='closed');if(idx>=0)orders.splice(idx,1);window._cobrarTempOid=null;}
+}
 function confirmarCobro(oid,sub){
   const o=getOrder(oid);if(!o)return;
+  /* Mostrador directo (no pasó por cocina): descontar stock ahora. Las mesas ya lo hicieron al enviar. */
+  if(!o.stockDescontado){descontarInventario(o.items);o.stockDescontado=true;}
   const tip=window._cobrarTip||0;
   const disc=Math.max(0,Math.min(window._cobrarDiscount||0,sub)); /* nunca mayor al subtotal */
   const netSub=sub-disc;
@@ -2410,6 +2420,7 @@ function confirmarCobro(oid,sub){
     const rem=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
     if(!rem.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
   }
+  if(o._mcTemp){totalOrdsIn++;delete o._mcTemp;}window._cobrarTempOid=null;
   document.getElementById('cobrarModal')?.remove();
   /* Limpiar UI */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
@@ -2517,6 +2528,7 @@ function mcSendKitchen(){
   totalOrdsIn++;
   /* Descuento de inventario al enviar a cocina (mostrador) */
   descontarInventario(mcItems);
+  kitchenBellSeq++;
   bellKitchen('🔔 Mostrador → Cocina');
   showToast('Pedido enviado a cocina ✓','ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();renderStockAlerts();
@@ -2524,16 +2536,13 @@ function mcSendKitchen(){
 }
 function mcCobrar(){
   if(!cart.length){showToast('El carrito está vacío');return;}
-  const {id,sub}=_mcBuildOrder();
-  const mcItems=cart.map(i=>({...i}));
-  closedSales.push({id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),closedAt:Date.now(),status:'closed',pago:selPay,tip:0,items:mcItems});
-  /* Venta directa de mostrador (no pasa por cocina): se descuenta aquí. Nunca es doble porque
-     este pedido jamás se envió a cocina (no tiene stockDescontado). */
-  descontarInventario(mcItems);
-  totalOrdsIn++;addCajaMov(sub,selPay,'Mostrador directo');
-  showToast('Venta registrada · '+fmt(sub),'ok');
-  cart=[];isMC=false;updateOCBadge();broadcastState();renderStockAlerts();
-  navTo('tables');
+  /* Cobro de mostrador con el MISMO modal que las mesas (propina, descuento, método de pago).
+     Se crea un pedido temporal oculto de cocina; si se cancela, se descarta (ver _closeCobrar).
+     El stock se descuenta al confirmar (confirmarCobro), no antes. */
+  const id='MC'+String(ordCnt++).padStart(3,'0');
+  const o={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',pago:selPay,tip:0,items:cart.map(i=>({...i})),clientName:'',stockDescontado:false,kitchenHidden:true,_mcTemp:true};
+  orders.push(o);currentAccountId=id;
+  cobrarYCerrar();
 }
 
 /* SEND ORDER — mesa only (mostrador handled by mcSendKitchen/mcCobrar above) */
@@ -2573,7 +2582,9 @@ function gestionarPedidoCocina(items, tableId){
      Se marca el pedido como stock ya descontado para impedir dobles descuentos al cobrar. */
   descontarInventario(itemsToSend);
   order.stockDescontado=true;
-  /* 🔔 Campana CON sonido — exclusiva del envío a cocina */
+  /* 🔔 Campana CON sonido — exclusiva del envío a cocina. Suena SIEMPRE que se envía,
+     sea pedido nuevo o adición a una mesa ya abierta en cocina. */
+  kitchenBellSeq++;
   bellKitchen('🔔 Pedido enviado a cocina'+(order.tableId?' · Mesa '+order.tableId:''));
   currentAccountId=order.id;
   cart=[];
@@ -6305,6 +6316,7 @@ function getSerializableState(){
     ingredientes:JSON.parse(JSON.stringify(ingredientes)),
     subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
     bookSales:bookSales.map(b=>({...b})),bookCnt,
+    kitchenBellSeq,
     ts:Date.now()
   });
 }
@@ -6327,13 +6339,14 @@ function applyRemoteState(data){
     /* Si el timestamp entrante es más antiguo que el nuestro, ignorar */
     if(s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
 
-    /* Campana: detectar pedidos NUEVOS en cocina (estado 'pending') que no existían antes */
-    const _prevPend=new Set(orders.filter(o=>o.status==='pending'&&!o.kitchenHidden).map(o=>o.id));
+    /* Campana: sonar en CADA envío a cocina (contador kitchenBellSeq), sea pedido nuevo
+       o adición a una mesa ya abierta en cocina. */
+    const _prevSeq=kitchenBellSeq;
 
     orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
-    /* Sonar SOLO si llegó un pedido nuevo a cocina (no por resync ni cambios de estado) */
-    if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&orders.some(o=>o.status==='pending'&&!o.kitchenHidden&&!_prevPend.has(o.id))){
-      bellKitchen('🔔 Nuevo pedido en cocina');
+    if(s.kitchenBellSeq!==undefined)kitchenBellSeq=s.kitchenBellSeq;
+    if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
+      bellKitchen('🔔 Pedido enviado a cocina');
     }
     tables.forEach(t=>{
       const rt=(s.tables||[]).find(x=>x.id===t.id);
