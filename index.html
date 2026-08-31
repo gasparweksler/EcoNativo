@@ -1243,7 +1243,7 @@ function callKitchen(){
 /* ── STATE ── */
 let cRole='admin',cUser='',cTable=null,cart=[],isMC=false;
 let pType='',pIngs=[],pSauce=null;
-let sItem=null,sIngs=[],sMax=2;
+let sItem=null,sIngs=[],sMax=2,sExtra=900;
 let aCartaCat='Todos';
 let cartaButtons=null; /* categorías elegidas como botones en la Carta (null = todas) */
 let invButtons=null;   /* categorías elegidas como botones en Inventario (null = ninguna → empieza con pocas) */
@@ -2027,7 +2027,7 @@ function addItemByName(name){let found=null;Object.values(menuData).forEach(subs
 function addItem(item){
   if(item.isPizza){openPM(item);return;}
   if(item.isToast){openToastModal(item);return;}
-  if(item.isSandwich){openSM(item);return;}
+  if(item.isSandwich||item.pickIng){openSM(item);return;}
   if(item.isVariant){openVariantModal(item);return;}
   const ex=cart.find(c=>c.name===item.name&&!c.isPizza&&!c.isToast&&!c.isSandwich&&!c.note);
   if(ex)ex.qty++;else cart.push({name:item.name,price:item.price,qty:1,detail:item.detail||'',note:''});
@@ -2649,6 +2649,27 @@ function disableVariants(cat,sub,i){
   _cartaUpsertItem(cat,sub,item);broadcastState();
   showToast('Variedades quitadas','del');renderCarta();
 }
+/* ── Elección de ingredientes por producto (usa la misma lista de sándwich/pizza) ── */
+function enableIngredients(cat,sub,i){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  item.pickIng=true;
+  if(item.ingMax==null)item.ingMax=(item.sandwichMax||3);
+  if(item.ingExtra==null)item.ingExtra=900;
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+  showToast('Elección de ingredientes activada','ok');renderCarta();
+}
+function disableIngredients(cat,sub,i){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  if(!confirm('¿Quitar la elección de ingredientes de "'+item.name+'"?'))return;
+  item.pickIng=false;delete item.ingMax;delete item.ingExtra;
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+  showToast('Elección de ingredientes quitada','del');renderCarta();
+}
+function editCartaIng(cat,sub,i,field,value){
+  const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
+  item[field]=Math.max(0,parseInt(value)||0);
+  _cartaUpsertItem(cat,sub,item);broadcastState();
+}
 function addVariant(cat,sub,i){
   const item=menuData[cat]&&menuData[cat][sub]&&menuData[cat][sub][i];if(!item)return;
   if(!item.variants)item.variants=[];
@@ -2684,8 +2705,10 @@ let ingredientes={
 };
 function _ingList(cat){return Array.isArray(ingredientes[cat])?ingredientes[cat]:[];}
 function openSM(item){
-  sItem=item;sIngs=[];sMax=item.sandwichMax||2;
-  $('sandwichSub').textContent=`${item.name} · ${fmt(item.price)} · Incluye ${sMax}, extra +$900 c/u`;
+  sItem=item;sIngs=[];
+  sMax=(item.ingMax!=null?item.ingMax:(item.sandwichMax||2));
+  sExtra=(item.ingExtra!=null?item.ingExtra:900);
+  $('sandwichSub').textContent=`${item.name} · ${fmt(item.price)} · Incluye ${sMax}, extra +${fmt(sExtra)} c/u`;
   $('sandwichMaxMsg').textContent=`Incluye ${sMax} · sin extras`;
   /* Todas las categorías de ingredientes son seleccionables en el sándwich */
   $('sandwichChips').innerHTML=ING_CATS.filter(c=>_ingList(c).length).map(cat=>`<div style="margin-bottom:5px"><h4>${cat}</h4><div class="chips">${_ingList(cat).map(n=>{const e=n.replace(/'/g,String.fromCharCode(39));return _ingAvailable(n)?`<div class="chip" onclick="toggleSI(this,'${e}')">${n}</div>`:`<div class="chip" style="opacity:.4;cursor:not-allowed" onclick="showToast('${e} sin stock')">${n} <span style="font-size:9px">(agotado)</span></div>`;}).join('')}</div></div>`).join('');
@@ -2698,7 +2721,7 @@ function toggleSI(el,n){
   updSandwichTotal();
 }
 function updSandwichTotal(){
-  const extra=Math.max(0,sIngs.length-sMax)*900;
+  const extra=Math.max(0,sIngs.length-sMax)*sExtra;
   $('sandwichCount').textContent=sIngs.length;
   $('sandwichTotal').textContent=sItem?fmt(sItem.price+extra):'$0';
   const msg=$('sandwichMaxMsg');
@@ -2706,7 +2729,7 @@ function updSandwichTotal(){
 }
 function confirmSandwich(){
   if(!sItem)return;
-  const extra=Math.max(0,sIngs.length-sMax)*900;
+  const extra=Math.max(0,sIngs.length-sMax)*sExtra;
   const detail=(sIngs.join(', ')||'Sin ingredientes')+(extra>0?` (+${sIngs.length-sMax} extra)`:'');
   cart.push({name:sItem.name,price:sItem.price+extra,qty:1,detail,isSandwich:true,note:''});
   closeMod('sandwichModal');renderCart();showToast(sItem.name+' agregado','ok');
@@ -4754,7 +4777,7 @@ function renderCarta(){
       <td>
         <div style="display:flex;align-items:center;gap:3px">
           <input type="text" value="${(item.name||'').replace(/"/g,'&quot;')}" onchange="editCartaName('${cat}','${sub}',${i},this.value)" style="font-weight:600;font-size:14px;border:none;background:none;width:100%;font-family:inherit;padding:1px 0" title="Editar nombre">
-          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.isSandwich?'<span style="font-size:9px;color:var(--wn);background:#FDF5E0;padding:1px 4px;border-radius:5px;flex-shrink:0">sándwich</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
+          ${item.isPizza?'<span style="font-size:9px;color:var(--inf);background:#E8F0F8;padding:1px 4px;border-radius:5px;flex-shrink:0">pizza</span>':''}${item.isVariant?'<span style="font-size:9px;color:var(--bm);background:#F3ECE0;padding:1px 4px;border-radius:5px;flex-shrink:0">variantes</span>':''}${item.isSandwich?'<span style="font-size:9px;color:var(--wn);background:#FDF5E0;padding:1px 4px;border-radius:5px;flex-shrink:0">sándwich</span>':''}${item.pickIng?'<span style="font-size:9px;color:var(--ok);background:#E8F2EA;padding:1px 4px;border-radius:5px;flex-shrink:0">ingredientes</span>':''}${item.area?`<span style="font-size:9px;color:var(--ts);background:var(--cr2);padding:1px 5px;border-radius:5px;flex-shrink:0">${item.area}</span>`:''}
         </div>
         <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="+ descripción" onchange="editCartaField('${cat}','${sub}',${i},'desc',this.value)" style="font-size:12px;color:var(--ts);border:none;background:none;width:100%;font-family:inherit;margin-top:1px" title="Editar descripción">
         <div style="display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center;margin-top:3px">
@@ -4764,6 +4787,14 @@ function renderCarta(){
           <select onchange="moveCartaSub('${cat}','${sub}',${i},this.value)" title="Reasignar subcategoría" style="font-size:13px;color:var(--ts);border:1px solid var(--br);border-radius:6px;background:var(--cr);font-family:inherit;padding:4px 6px;max-width:200px">${_subSelHtml(sub)}<option value="__new__">➕ Nueva subcategoría…</option></select>
         </div>
         ${(!item.isVariant&&!item.isPizza&&!item.isSandwich)?`<button onclick="enableVariants('${cat}','${sub}',${i})" title="Convertir este producto en uno con variedades" style="display:block;margin-top:3px;font-size:11px;color:var(--bm);background:transparent;border:1px dashed var(--bm);border-radius:6px;padding:3px 8px;cursor:pointer"><i class="ti ti-list-details" style="font-size:11px;vertical-align:-1px"></i> Activar variedades</button>`:''}
+        ${(!item.isVariant&&!item.isPizza&&!item.isSandwich&&!item.pickIng)?`<button onclick="enableIngredients('${cat}','${sub}',${i})" title="Permitir que el cliente elija ingredientes (misma lista de sándwich/pizza)" style="display:block;margin-top:3px;font-size:11px;color:var(--ok);background:transparent;border:1px dashed var(--ok);border-radius:6px;padding:3px 8px;cursor:pointer"><i class="ti ti-salad" style="font-size:11px;vertical-align:-1px"></i> Activar elección de ingredientes</button>`:''}
+        ${item.pickIng?`<div style="margin-top:4px;padding:6px 8px;background:var(--cr);border:1px solid var(--ok);border-radius:6px">
+          <div style="font-size:11px;font-weight:700;color:var(--ok);margin-bottom:5px"><i class="ti ti-salad" style="font-size:12px;vertical-align:-1px"></i> Elección de ingredientes activada<button onclick="disableIngredients('${cat}','${sub}',${i})" style="float:right;font-size:10px;color:var(--er);background:none;border:none;cursor:pointer"><i class="ti ti-x" style="font-size:11px"></i> Quitar</button></div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px 12px;align-items:center">
+            <label style="font-size:11px;color:var(--ts);display:flex;align-items:center;gap:4px">Máximo de ingredientes: <input type="number" min="0" value="${item.ingMax!=null?item.ingMax:3}" onchange="editCartaIng('${cat}','${sub}',${i},'ingMax',this.value)" style="width:56px;font-size:12px;border:1px solid var(--br);border-radius:5px;padding:2px 5px;font-family:inherit"></label>
+            <label style="font-size:11px;color:var(--ts);display:flex;align-items:center;gap:4px">Valor por ingrediente extra: $<input type="number" min="0" step="100" value="${item.ingExtra!=null?item.ingExtra:900}" onchange="editCartaIng('${cat}','${sub}',${i},'ingExtra',this.value)" style="width:74px;font-size:12px;border:1px solid var(--br);border-radius:5px;padding:2px 5px;font-family:inherit"></label>
+          </div>
+        </div>`:''}
       </td>
       <td><input class="pi" type="number" value="${item.price}" step="100" onchange="saveP('${cat}','${sub}',${i},this)" onblur="this.classList.add('saved');setTimeout(()=>this.classList.remove('saved'),1200)"></td>
       <td><label class="ts3"><input type="checkbox" ${item.active?'checked':''} onchange="editCartaField('${cat}','${sub}',${i},'active',this.checked)"><span class="tsl"></span></label></td>
