@@ -799,6 +799,7 @@ body.dark .info-note b{color:#7fb0e0}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0"><i class="ti ti-library" style="color:var(--bm)"></i> Biblioteca <span id="catCount" style="font-size:11px;color:var(--ts);font-weight:600"></span></div>
           <button onclick="openCatAdd()" title="Agregar un libro nuevo al catálogo (el código se genera solo)" style="padding:5px 10px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-plus" style="font-size:11px;vertical-align:-1px"></i> Agregar libro</button>
+          <button onclick="openGenreManager()" title="Añadir o modificar géneros y subgéneros disponibles" style="padding:5px 10px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-category" style="font-size:11px;vertical-align:-1px"></i> Gestionar Géneros</button>
           <button onclick="shareCatalog()" title="Compartir el catálogo con los clientes (link + código QR, solo lectura)" style="padding:5px 10px;border:none;color:#fff;background:var(--inf);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-share" style="font-size:11px;vertical-align:-1px"></i> Compartir Catálogo</button>
           <button onclick="openLabelModal()" title="Seleccionar libros y descargar el PDF de etiquetas (15×20 mm)" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tags" style="font-size:11px;vertical-align:-1px"></i> Generar Etiquetas</button>
           <button onclick="exportCatalogXlsx()" title="Descargar el catálogo completo en Excel" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px"></i> Exportar Excel</button>
@@ -926,6 +927,18 @@ body.dark .info-note b{color:#7fb0e0}
   <div id="lblSelList" style="max-height:190px;overflow:auto;margin-bottom:.6rem"></div>
   <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin-bottom:.7rem;user-select:none"><input type="checkbox" id="lblTitles" style="width:16px;height:16px;cursor:pointer"> <span><b>Agregar Títulos</b> — imprime el título de cada libro arriba de su etiqueta</span></label>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;labelModal&#39;)">Cerrar</button><button class="bc2" onclick="lblPrint()"><i class="ti ti-tag" style="font-size:13px"></i> Etiquetas PDF (<span id="lblPdfCount">0</span>)</button></div>
+</div></div>
+
+<!-- GESTIONAR GÉNEROS: añadir/editar géneros y sus subgéneros (taxonomía del formulario) -->
+<div class="ov" id="genreModal"><div class="mb" style="max-width:600px;width:100%">
+  <h3 style="margin-bottom:.35rem"><i class="ti ti-category" style="color:var(--inf)"></i> Gestionar Géneros</h3>
+  <div style="font-size:12px;color:var(--ts);margin-bottom:.7rem">Añade o edita géneros y sus subgéneros. Quedan disponibles al agregar o editar un libro y en los filtros del catálogo.</div>
+  <div style="display:flex;gap:6px;margin-bottom:.8rem">
+    <input id="newGenreName" type="text" placeholder="Añadir nuevo Género…" onkeydown="if(event.key==='Enter')genAddGenre()" style="flex:1;padding:8px 10px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
+    <button onclick="genAddGenre()" style="padding:8px 14px;border:none;color:#fff;background:var(--ok);border-radius:var(--r);cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap"><i class="ti ti-plus" style="font-size:13px"></i> Género</button>
+  </div>
+  <div id="genreMgrBody" style="max-height:52vh;overflow:auto"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;genreModal&#39;)">Cerrar</button></div>
 </div></div>
 
 <div class="ov" id="catEditModal"><div class="mb" style="max-width:470px;width:100%">
@@ -3658,7 +3671,7 @@ function _bookDateTimeFmt(b){try{if(b&&b.ts)return new Date(b.ts).toLocaleString
    Se guarda en un registro propio de Supabase (key 'book_catalog'), NO en el estado
    global (pos_state), para no inflar la sincronización. */
 /* ── Taxonomía de géneros/subgéneros (ÚNICA fuente: la usa el formulario y el filtro) ── */
-const TAXONOMIA={
+let TAXONOMIA={
   "Narrativa (novela)":["Novela histórica","Novela contemporánea","Novela negra / policial","Thriller / suspenso","Novela de aventuras","Ciencia ficción","Fantasía","Terror / gótica","Novela romántica","Novela social","Novela psicológica","Novela clásica","Distopía","Novela epistolar","Novela satírica / humorística"],
   "Cuento y relato":["Cuento literario","Relato fantástico","Relato de terror","Antología de cuentos","Mito y leyenda","Fábula","Narrativa oral / folclor"],
   "Poesía":["Poesía lírica","Poesía amorosa","Poesía social / política","Poesía épica","Poesía religiosa","Antología poética"],
@@ -3675,7 +3688,9 @@ const TAXONOMIA={
   "Obras de referencia":["Diccionario de lengua","Diccionario bilingüe","Diccionario especializado","Enciclopedia","Atlas","Anuario / directorio"],
   "Religión y espiritualidad":["Texto sagrado","Teología","Espiritualidad","Mitología","Esoterismo","Devocional"]
 };
-const _TAX_SUBS_ALL=[...new Set(Object.values(TAXONOMIA).flat())];
+let _TAX_SUBS_ALL=[...new Set(Object.values(TAXONOMIA).flat())];
+/* Recalcular índices derivados cuando la taxonomía cambia (Gestionar Géneros) */
+function _recomputeTax(){_TAX_SUBS_ALL=[...new Set(Object.values(TAXONOMIA).flat())];_TAX_SUBIDX_C=null;}
 /* Género de la taxonomía → abreviatura de 3 letras del código de lomo (mantiene tus convenciones) */
 const _GEN2CODE={"Narrativa (novela)":"NOV","Cuento y relato":"CUE","Poesía":"POE","Teatro y guion":"TEA","Cómic y novela gráfica":"COM","Historia":"HIS","Biografía y memorias":"BIO","Ensayo y pensamiento":"ENS","Crónica y periodismo":"CRO","Ciencia y salud":"CIE","Arte y fotografía":"ART","Educación y textos escolares":"EDU","Prácticos y manuales":"MAN","Obras de referencia":"REF","Religión y espiritualidad":"REL"};
 /* ── Mapeo de género/subgénero LIBRES → taxonomía (para importar y clasificar) ── */
@@ -3738,6 +3753,7 @@ async function loadBookCatalog(force){
   _catLoading=true;
   try{
     if(!_sb&&window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    await loadTaxonomy();
     if(_sb){
       const {data}=await _sb.from('econativo_state').select('payload').eq('key','book_catalog').maybeSingle();
       if(data&&data.payload&&Array.isArray(data.payload.books)){bookCatalog=data.payload.books;_catLoaded=true;}
@@ -3746,6 +3762,110 @@ async function loadBookCatalog(force){
   _catLoading=false;
   const ap=document.querySelector('.page.active');
   if(ap&&ap.id==='page-catalogo')renderCatalogo();
+}
+/* ── Taxonomía editable (Gestionar Géneros): se guarda en econativo_state key='book_taxonomy' ── */
+let _taxLoaded=false;
+async function loadTaxonomy(force){
+  if(_taxLoaded&&!force)return;
+  try{
+    if(!_sb&&window.supabase)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    if(_sb){
+      const {data}=await _sb.from('econativo_state').select('payload').eq('key','book_taxonomy').maybeSingle();
+      if(data&&data.payload&&data.payload.genres&&typeof data.payload.genres==='object'&&Object.keys(data.payload.genres).length){
+        TAXONOMIA=data.payload.genres;_recomputeTax();
+      }
+    }
+  }catch(e){console.warn('[Taxonomía] no se pudo cargar:',e&&e.message);}
+  _taxLoaded=true;
+}
+function _saveTaxonomy(){
+  _recomputeTax();
+  if(!_sb)return Promise.resolve();
+  const ts=new Date().toISOString();
+  return _sb.from('econativo_state').upsert({key:'book_taxonomy',payload:{v:1,updated:ts,genres:TAXONOMIA},updated_at:ts})
+    .then(({error})=>{if(error)console.warn('[Taxonomía] guardar',error.message);});
+}
+/* Reconstruye el select de género del filtro de la Biblioteca conservando la selección actual */
+function _fillCatGenFilter(){
+  const gsel=$('catGen');if(!gsel)return;
+  const cur=gsel.value;
+  gsel.innerHTML='<option value="">Género (todos)</option>'+Object.keys(TAXONOMIA).map(g=>`<option value="${g.replace(/"/g,'&quot;')}">${_esc(g)}</option>`).join('');
+  gsel.value=(cur in TAXONOMIA)?cur:'';
+  _fillCatSubFilter();
+}
+/* Refresca la UI que depende de la taxonomía tras un cambio */
+function refreshTaxUI(){_fillCatGenFilter();}
+/* ── Gestor de Géneros ── */
+function openGenreManager(){renderGenreManager();openMod('genreModal');}
+function renderGenreManager(){
+  const box=$('genreMgrBody');if(!box)return;
+  const genres=Object.keys(TAXONOMIA);
+  if(!genres.length){box.innerHTML='<div style="padding:12px;font-size:13px;color:var(--ts);text-align:center">Aún no hay géneros. Añade uno arriba.</div>';return;}
+  box.innerHTML=genres.map(g=>{
+    const eg=g.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const subs=TAXONOMIA[g]||[];
+    return `<div style="border:1px solid var(--br);border-radius:var(--r);margin-bottom:8px;background:var(--wh)">
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--br);background:var(--cr)">
+        <i class="ti ti-bookmark" style="font-size:14px;color:var(--inf)"></i>
+        <input type="text" value="${g.replace(/"/g,'&quot;')}" onchange="genRenameGenre('${eg}',this.value)" title="Renombrar género" style="flex:1;font-size:14px;font-weight:700;color:var(--tm);border:1px solid transparent;background:transparent;border-radius:5px;padding:3px 5px;font-family:inherit">
+        <span style="font-size:11px;color:var(--ts);white-space:nowrap">${subs.length} subg.</span>
+        <button onclick="genDelGenre('${eg}')" title="Eliminar género" style="border:1px solid var(--er);color:var(--er);background:transparent;border-radius:6px;cursor:pointer;padding:3px 6px;font-size:11px"><i class="ti ti-trash" style="font-size:12px"></i></button>
+      </div>
+      <div style="padding:8px 10px">
+        ${subs.map((s,si)=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <i class="ti ti-corner-down-right" style="font-size:12px;color:var(--tl)"></i>
+          <input type="text" value="${s.replace(/"/g,'&quot;')}" onchange="genEditSub('${eg}',${si},this.value)" style="flex:1;font-size:13px;border:1px solid var(--br);border-radius:5px;padding:4px 7px;font-family:inherit;background:var(--cr)">
+          <button onclick="genDelSub('${eg}',${si})" title="Eliminar subgénero" style="border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:6px;cursor:pointer;padding:3px 6px;font-size:11px"><i class="ti ti-x" style="font-size:11px"></i></button>
+        </div>`).join('')||'<div style="font-size:11px;color:var(--tl);margin-bottom:4px">Sin subgéneros todavía.</div>'}
+        <div style="display:flex;gap:5px;margin-top:5px">
+          <input type="text" id="newSub_${genres.indexOf(g)}" placeholder="Añadir nuevo Subgénero…" onkeydown="if(event.key==='Enter')genAddSub('${eg}',${genres.indexOf(g)})" style="flex:1;font-size:12px;border:1px solid var(--br);border-radius:5px;padding:5px 8px;font-family:inherit">
+          <button onclick="genAddSub('${eg}',${genres.indexOf(g)})" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap"><i class="ti ti-plus" style="font-size:11px"></i> Subgénero</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function genAddGenre(){
+  const inp=$('newGenreName');const name=(inp?.value||'').trim();
+  if(!name){showToast('Escribe el nombre del género','del');return;}
+  if(Object.keys(TAXONOMIA).some(g=>_nm(g)===_nm(name))){showToast('Ese género ya existe','del');return;}
+  TAXONOMIA[name]=[];inp.value='';
+  _saveTaxonomy();refreshTaxUI();renderGenreManager();showToast('Género añadido','ok');
+}
+function genDelGenre(g){
+  if(!(g in TAXONOMIA))return;
+  if(!confirm('¿Eliminar el género "'+g+'" y todos sus subgéneros?\n(Los libros que ya lo usaban conservarán su valor.)'))return;
+  delete TAXONOMIA[g];
+  _saveTaxonomy();refreshTaxUI();renderGenreManager();showToast('Género eliminado','del');
+}
+function genRenameGenre(oldG,newName){
+  newName=(newName||'').trim();
+  if(!newName||newName===oldG){renderGenreManager();return;}
+  if(Object.keys(TAXONOMIA).some(g=>_nm(g)===_nm(newName))){showToast('Ya existe un género con ese nombre','del');renderGenreManager();return;}
+  const rebuilt={};for(const k in TAXONOMIA)rebuilt[k===oldG?newName:k]=TAXONOMIA[k];
+  TAXONOMIA=rebuilt;
+  _saveTaxonomy();refreshTaxUI();renderGenreManager();showToast('Género renombrado','ok');
+}
+function genAddSub(g,gi){
+  if(!(g in TAXONOMIA))return;
+  const inp=$('newSub_'+gi);const name=(inp?.value||'').trim();
+  if(!name){showToast('Escribe el nombre del subgénero','del');return;}
+  if(TAXONOMIA[g].some(s=>_nm(s)===_nm(name))){showToast('Ese subgénero ya existe en el género','del');return;}
+  TAXONOMIA[g].push(name);
+  _saveTaxonomy();refreshTaxUI();renderGenreManager();showToast('Subgénero añadido','ok');
+}
+function genDelSub(g,si){
+  if(!(g in TAXONOMIA)||!TAXONOMIA[g][si])return;
+  TAXONOMIA[g].splice(si,1);
+  _saveTaxonomy();refreshTaxUI();renderGenreManager();showToast('Subgénero eliminado','del');
+}
+function genEditSub(g,si,newName){
+  newName=(newName||'').trim();
+  if(!(g in TAXONOMIA)||TAXONOMIA[g][si]==null)return;
+  if(!newName){renderGenreManager();return;}
+  if(TAXONOMIA[g].some((s,idx)=>idx!==si&&_nm(s)===_nm(newName))){showToast('Ese subgénero ya existe en el género','del');renderGenreManager();return;}
+  TAXONOMIA[g][si]=newName;
+  _saveTaxonomy();refreshTaxUI();renderGenreManager();showToast('Subgénero actualizado','ok');
 }
 const _cg=(b,k)=>String((b&&b[k])||'').trim();
 function _catUniq(k){return [...new Set(bookCatalog.map(b=>_cg(b,k)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));}
@@ -3762,9 +3882,7 @@ function renderCatalogo(){
   const fillDL=(id,k)=>{const dl=$(id);if(dl&&!dl.childElementCount){dl.innerHTML=_catUniq(k).map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}};
   fillDL('catAutoresDL','a');
   /* Filtro de género/subgénero: selects cerrados (sin escritura) con la MISMA taxonomía que el formulario */
-  const gsel=$('catGen');
-  if(gsel&&gsel.options.length<=1){Object.keys(TAXONOMIA).forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;gsel.appendChild(o);});}
-  if($('catSub')&&$('catSub').options.length<=1)_fillCatSubFilter();
+  _fillCatGenFilter();
   renderCatResults();
 }
 function applyCatFilter(){renderCatResults();}
