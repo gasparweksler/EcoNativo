@@ -811,6 +811,7 @@ body.dark .info-note b{color:#7fb0e0}
           <select id="catNac" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">País (todos)</option></select>
           <select id="catGen" onchange="catFilterGenreChanged()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Género (todos)</option></select>
           <select id="catSub" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Subgénero (todos)</option></select>
+          <select id="catSort" onchange="applyCatFilter()" title="Ordenar los resultados filtrados" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Orden: predeterminado</option><option value="ta">Título A → Z</option><option value="td">Título Z → A</option><option value="aa">Autor A → Z</option><option value="ad">Autor Z → A</option></select>
           <button onclick="clearCatFilter()" style="padding:7px 8px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px"><i class="ti ti-x" style="font-size:11px;vertical-align:-1px"></i> Limpiar</button>
         </div>
         <datalist id="catAutoresDL"></datalist>
@@ -3743,7 +3744,7 @@ function _fillCatSubFilter(){
   ssel.value=subs.includes(cur)?cur:'';
 }
 function catFilterGenreChanged(){_fillCatSubFilter();renderCatResults();}
-function clearCatFilter(){['catQ','catAutor'].forEach(id=>{const e=$(id);if(e)e.value='';});const g=$('catGen');if(g)g.value='';const s=$('catSub');if(s)s.value='';_fillCatSubFilter();const n=$('catNac');if(n)n.value='';renderCatResults();}
+function clearCatFilter(){['catQ','catAutor'].forEach(id=>{const e=$(id);if(e)e.value='';});const g=$('catGen');if(g)g.value='';const s=$('catSub');if(s)s.value='';_fillCatSubFilter();const n=$('catNac');if(n)n.value='';const so=$('catSort');if(so)so.value='';renderCatResults();}
 function renderCatResults(){
   const cont=$('catResults');if(!cont)return;
   const q=($('catQ')?.value||'').toLowerCase().trim();
@@ -3758,6 +3759,13 @@ function renderCatResults(){
     (!ge||_cg(b,'g').toLowerCase().includes(ge))&&
     (!sg||_cg(b,'sg').toLowerCase().includes(sg))
   );
+  /* Ordenar los resultados ya filtrados (A-Z / Z-A por título o autor) */
+  const sort=($('catSort')?.value||'');
+  if(sort){
+    const cmp=(x,y)=>x.localeCompare(y,'es',{sensitivity:'base'});
+    const key=sort[0]==='a'?'a':'t';const dir=sort[1]==='d'?-1:1;
+    _catFiltered=_catFiltered.slice().sort((b1,b2)=>dir*cmp(_cg(b1,key),_cg(b2,key)));
+  }
   $('catCount').textContent='· '+_catFiltered.length+' de '+bookCatalog.length;
   if(!_catFiltered.length){cont.innerHTML='<div class="noo"><i class="ti ti-book-off" aria-hidden="true"></i><p>Sin resultados para los filtros aplicados</p></div>';return;}
   const CAP=300;const shown=_catFiltered.slice(0,CAP);
