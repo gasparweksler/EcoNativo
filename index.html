@@ -825,6 +825,7 @@ body.dark .info-note b{color:#7fb0e0}
             <div class="pt" style="margin-bottom:0">Cocina</div>
             <span id="kitCount" style="font-size:11px;color:var(--inf);font-weight:600"></span>
           </div>
+          <button onclick="callKitchen()" title="Hacer sonar la campana de cocina" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border:none;color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-bell-ringing" style="font-size:15px"></i> Llamar a Cocina</button>
           <div style="display:flex;align-items:center;gap:8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;padding:5px 12px">
             <button id="alarmIcon" onclick="toggleAlarmMute()" title="Silenciar / activar alarma" style="background:none;border:none;cursor:pointer;color:var(--bm);font-size:16px;line-height:1;padding:0;display:flex"><i class="ti ti-volume"></i></button>
             <input id="alarmVol" type="range" min="0" max="100" step="5" oninput="setAlarmVol(this.value)" style="width:120px;accent-color:var(--bm)">
@@ -1196,9 +1197,9 @@ function _updateAlarmUI(){
   if(pct)pct.textContent=_alarmVol+'%';
   if(ic)ic.innerHTML=_alarmVol===0?'<i class="ti ti-volume-off"></i>':_alarmVol<=40?'<i class="ti ti-volume-2"></i>':'<i class="ti ti-volume"></i>';
 }
-function playBell(){
+function playBell(forcePeak){
   try{
-    const peak=_alarmPeak();
+    const peak=(forcePeak!=null)?forcePeak:_alarmPeak();
     if(peak<=0)return; /* silenciado */
     /* Reutilizar UN solo AudioContext (crear uno nuevo cada vez agota el límite
        del navegador y el sonido deja de reproducirse). */
@@ -1228,6 +1229,15 @@ function showBell(msg){
 function bellKitchen(msg){
   showBell(msg);
   playBell();
+}
+/* "Llamar a Cocina": hace sonar la campana de cocina de forma deliberada.
+   Suena aunque el volumen esté silenciado (usa 60% en ese caso) y repite el toque. */
+function callKitchen(){
+  showBell('🔔 ¡Llamando a cocina!');
+  const peak=_alarmPeak();
+  const p=peak>0?peak:0.6;
+  playBell(p);
+  setTimeout(()=>playBell(p),800); /* segundo toque para reforzar el llamado */
 }
 
 /* ── STATE ── */
