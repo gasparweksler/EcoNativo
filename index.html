@@ -3625,6 +3625,40 @@ const TAXONOMIA={
   "Religión y espiritualidad":["Texto sagrado","Teología","Espiritualidad","Mitología","Esoterismo","Devocional"]
 };
 const _TAX_SUBS_ALL=[...new Set(Object.values(TAXONOMIA).flat())];
+/* Género de la taxonomía → abreviatura de 3 letras del código de lomo (mantiene tus convenciones) */
+const _GEN2CODE={"Narrativa (novela)":"NOV","Cuento y relato":"CUE","Poesía":"POE","Teatro y guion":"TEA","Cómic y novela gráfica":"COM","Historia":"HIS","Biografía y memorias":"BIO","Ensayo y pensamiento":"ENS","Crónica y periodismo":"CRO","Ciencia y salud":"CIE","Arte y fotografía":"ART","Educación y textos escolares":"EDU","Prácticos y manuales":"MAN","Obras de referencia":"REF","Religión y espiritualidad":"REL"};
+/* ── Mapeo de género/subgénero LIBRES → taxonomía (para importar y clasificar) ── */
+let _TAX_SUBIDX_C=null;
+function _TAX_SUBIDX(){if(!_TAX_SUBIDX_C){_TAX_SUBIDX_C=[];for(const g in TAXONOMIA)for(const s of TAXONOMIA[g])_TAX_SUBIDX_C.push({g,s,n:_nm(s)});}return _TAX_SUBIDX_C;}
+const _TAX_FB={"Narrativa (novela)":"Novela contemporánea","Cuento y relato":"Cuento literario","Poesía":"Poesía lírica","Teatro y guion":"Drama moderno","Cómic y novela gráfica":"Novela gráfica","Historia":"Divulgación histórica","Biografía y memorias":"Biografía","Ensayo y pensamiento":"Ensayo literario","Crónica y periodismo":"Crónica urbana","Ciencia y salud":"Divulgación científica","Arte y fotografía":"Historia del arte","Educación y textos escolares":"Texto escolar","Prácticos y manuales":"Manual técnico / oficio","Obras de referencia":"Enciclopedia","Religión y espiritualidad":"Espiritualidad"};
+const _TAX_RULES=[
+ [/dicc?ionario|enciclopedi|\batlas\b|anuario|directorio|glosario/,"Obras de referencia"],
+ [/comic|historieta|superhero|novela grafica|manga/,"Cómic y novela gráfica"],
+ [/poes|poema|lirica|verso|copla|soneto|elegia|oda/,"Poesía"],
+ [/cuento|relato|fabula|leyenda|\bmito\b|mitos|folclor|folklore|apologo/,"Cuento y relato"],
+ [/biograf|autobiograf|memorias|\bdiario\b|testimon|epistolar|semblanza/,"Biografía y memorias"],
+ [/cronica|reportaje|periodis|entrevista|columna|opinion/,"Crónica y periodismo"],
+ [/religi|teolog|espiritual|mitolog|esoter|devocional|sagrad|biblia|catecismo|santoral|mistica|hagiograf/,"Religión y espiritualidad"],
+ [/fotograf|\barte\b|pintura|escultura|arquitectur|diseno|monograf|estampa|grabado|belle?s? arte/,"Arte y fotografía"],
+ [/medic|odontolog|dental|kinesiolog|fisioterap|enfermer|anatom|semiolog|farmac|salud|biolog|zoolog|botanic|cientif|astronom|matematic|geometr|algebra|quimic|fisica|informatic|programacion|electro|nutricion|reflexolog|inmuno|alergolog/,"Ciencia y salud"],
+ [/texto escolar|manual universit|pedagog|didactic|linguist|ortografi|gramatic|educacion|ensenanza|escolar|estudiante|idiomas?|conversacion|aprend/,"Educación y textos escolares"],
+ [/gastronom|recetar|cocina|enolog|\bvino\b|guia de viaje|guia turis|guia gastro|autoayuda|desarrollo personal|finanzas|empresa|negocio|deporte|jardiner|\bhogar\b|oficio|manual tecnico|bienestar|electroterap|grafolog/,"Prácticos y manuales"],
+ [/ensayo|filosof|sociolog|psicolog|antropolog|derecho|econom|pensamiento|politic|ideolog|marxis|comunis|feminis/,"Ensayo y pensamiento"],
+ [/histor|arqueolog|militar|conquista|colonial|republica|prehisp/,"Historia"],
+ [/novela|ficcion|thriller|policial|negra|terror|gotic|fantas|romantic|distop|aventura|\bsaga\b|juvenil|epica/,"Narrativa (novela)"],
+ [/teatro|drama|comedia|tragedia|guion|dramaturg/,"Teatro y guion"],
+ [/antologia/,"Cuento y relato"],
+ [/hoteleria|turismo|tecnico[- ]?profesional|tecnicas de estudio|oficio/,"Prácticos y manuales"],
+ [/museistic|museo|patrimon/,"Arte y fotografía"],
+ [/\bmanual\b|guia practica/,"Prácticos y manuales"],
+ [/narrativa breve|relato breve|prosa poetica|escritura intima|costumbrista|folclor|folklor|tradicion oral|apologo/,"Cuento y relato"],
+ [/narrativa|literatura|clasico|prosa/,"Narrativa (novela)"]
+];
+function _taxPartToSub(part){const p=_nm(part);if(!p||p.length<3)return null;const IDX=_TAX_SUBIDX();for(const e of IDX)if(e.n===p)return {g:e.g,sg:e.s};let best=null,bl=0;for(const e of IDX){if(e.n.includes(p)||p.includes(e.n)){const l=Math.min(e.n.length,p.length);if(l>bl){bl=l;best={g:e.g,sg:e.s};}}}return best;}
+const _taxStem=w=>w.slice(0,6);
+function _taxSubWithin(genero,text){const t=_nm(text);const subs=TAXONOMIA[genero]||[];for(const s of subs){const ns=_nm(s);if(t.includes(ns)||ns.includes(t))return s;}const gw=new Set(_nm(genero).split(/[^a-z0-9]+/));const tw=t.split(/[^a-z0-9]+/).filter(w=>w.length>3).map(_taxStem);let best=null,bs=0;for(const s of subs){const sw=_nm(s).split(/[^a-z0-9]+/).filter(w=>w.length>3&&!gw.has(w));let sc=0;for(const w of sw)if(tw.includes(_taxStem(w)))sc++;if(sc>bs){bs=sc;best=s;}}return bs>0?best:null;}
+/* Devuelve {g,sg} de la taxonomía a partir de un valor libre "Género / Subgénero" ('' si no clasifica) */
+function mapGenSub(raw){raw=_cln(raw);if(!raw)return {g:'',sg:''};const parts=raw.split('/').map(x=>_cln(x)).filter(Boolean);for(const p of parts){const m=_taxPartToSub(p);if(m)return m;}const rn=_nm(raw);let genero=null;for(const [re,g] of _TAX_RULES){if(re.test(rn)){genero=g;break;}}if(!genero)return {g:'',sg:''};let sg=null;for(const p of parts){sg=_taxSubWithin(genero,p);if(sg)break;}if(!sg)sg=_taxSubWithin(genero,raw)||_TAX_FB[genero];return {g:genero,sg};}
 let bookCatalog=[];let _catLoaded=false,_catLoading=false,_catFiltered=[];
 async function loadBookCatalog(force){
   if(_catLoading)return; if(_catLoaded&&!force)return;
@@ -3763,7 +3797,7 @@ function _codifyCatalog(books){
   const genG=g=>(_noAcc(g).toUpperCase().replace(/[^A-Z]/g,'')+'XXX').slice(0,3);
   const genC=(p,n)=>(_noAcc(p||n).toUpperCase().replace(/[^A-Z]/g,'')+'XX').slice(0,2);
   books.forEach(b=>{const p=b._p;
-    b._G=(p&&p.g.length===3)?p.g:(gMap[_nm(b.g)]||genG(b.g));
+    b._G=(p&&p.g.length===3)?p.g:(_GEN2CODE[b.g]||gMap[_nm(b.g)]||genG(b.g));
     const canon=_NAT2CODE[_nm(b.pais)]||_NAT2CODE[_nm(b.nc)]||pMap[_nm(b.pais)]||nMap[_nm(b.nc)]||null;
     b._C=canon||((p&&p.c.length>=2&&p.c.length<=3)?p.c:genC(b.pais,b.nc));
     b._S=(p&&p.s.length===3)?p.s:(sMap[_nm(_firstAuthor(b.a))]||_surnameFromName(b.a));
@@ -3924,7 +3958,10 @@ function importCatalogXlsx(file){
     const books=[];
     for(let r=hr+1;r<aoa.length;r++){
       const row=aoa[r];if(!row)continue;const t=at(row,ci.t);if(!t)continue;
-      const gRaw=at(row,ci.g);let g=gRaw,sg='';const ix=gRaw.indexOf('/');if(ix>=0){g=_cln(gRaw.slice(0,ix));sg=_cln(gRaw.slice(ix+1));}
+      /* Mapear el valor libre del Excel a la taxonomía (género + subgénero). Si no clasifica,
+         conserva el valor original (se verá como "valor antiguo" al editar). */
+      const gRaw=at(row,ci.g);const m=mapGenSub(gRaw);let g=m.g,sg=m.sg;
+      if(!g){const ix=gRaw.indexOf('/');if(ix>=0){g=_cln(gRaw.slice(0,ix));sg=_cln(gRaw.slice(ix+1));}else{g=_cln(gRaw);sg='';}}
       let ib=at(row,ci.ib);if(ib==='-'||ib==='?')ib='';
       let pais=at(row,ci.pais);const ncRaw=at(row,ci.nc);
       if(!pais&&ncRaw){const p=_NAT2PAIS[_nm(String(ncRaw).split(/[\/,]|–|-/)[0])];if(p)pais=p;} /* consolidar: si trae Nacionalidad y no País, derivar País */
