@@ -2288,6 +2288,9 @@ function quitarDescuento(sub){
 function _syncCobrarTotals(sub){
   const disc=window._cobrarDiscount||0;
   if($('cobrarDescAmt'))$('cobrarDescAmt').textContent='−'+fmt(disc);
+  /* Recalcular la propina en % sobre el nuevo subtotal (con descuento).
+     En modo monto fijo, cobrarUpdateTip mantiene el valor ingresado. */
+  if($('cobrarTipPct'))cobrarUpdateTip(sub);
   if($('cobrarTotalAmt'))$('cobrarTotalAmt').textContent=fmt(_cobrarTotalNow());
   if(window._cobrarPago==='efectivo')_cobrarCalcChange();
   else if(window._cobrarPago==='mixto')_cobrarCalcMix();
@@ -2313,11 +2316,13 @@ function setTipMode(mode,sub){
   cobrarUpdateTip(sub);
 }
 function cobrarUpdateTip(sub){
+  /* La propina en % se calcula sobre el subtotal YA CON descuento aplicado. */
+  const base=Math.max(0,(window._cobrarSub||sub||0)-(window._cobrarDiscount||0));
   const v=parseInt($('cobrarTipPct').value)||0;
-  const tip=(window._cobrarTipMode==='amt')?v:Math.round(sub*v/100);
+  const tip=(window._cobrarTipMode==='amt')?v:Math.round(base*v/100);
   window._cobrarTip=tip;
   $('cobrarTipAmt').textContent=(window._cobrarTipMode==='amt')
-    ? ('≈ '+(sub>0?Math.round(tip/sub*100):0)+'%')
+    ? ('≈ '+(base>0?Math.round(tip/base*100):0)+'%')
     : fmt(tip);
   $('cobrarTotalAmt').textContent=fmt(_cobrarTotalNow());
   /* Refrescar cálculos de vuelto / mixto con el nuevo total */
