@@ -2171,7 +2171,8 @@ function cobrarTotal(){
 }
 
 function cobrarYCerrar(){
-  const o=currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled');
+  /* Mostrador: pedido ad-hoc (window._mcOrder). Mesa: pedido real por currentAccountId/cTable. */
+  const o=window._mcOrder||(currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled'));
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
   window._cobrarTempOid=(o&&o._mcTemp)?o.id:null;
   const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
@@ -2385,11 +2386,12 @@ function _cobrarCalcMix(edited){
 /* Cierra el modal de cobro; si era un cobro de mostrador temporal (cancelado), descarta el pedido */
 function _closeCobrar(){
   document.getElementById('cobrarModal')?.remove();
-  const tid=window._cobrarTempOid;
-  if(tid){const idx=orders.findIndex(o=>o.id===tid&&o._mcTemp&&o.status!=='closed');if(idx>=0)orders.splice(idx,1);window._cobrarTempOid=null;}
+  /* El pedido de mostrador es ad-hoc (nunca entró en `orders`): basta descartarlo. */
+  window._mcOrder=null;window._cobrarTempOid=null;
 }
 function confirmarCobro(oid,sub){
-  const o=getOrder(oid);if(!o)return;
+  const o=(window._mcOrder&&window._mcOrder.id===oid)?window._mcOrder:getOrder(oid);
+  if(!o)return;
   /* Mostrador directo (no pasó por cocina): descontar stock ahora. Las mesas ya lo hicieron al enviar. */
   if(!o.stockDescontado){descontarInventario(o.items);o.stockDescontado=true;}
   const tip=window._cobrarTip||0;
@@ -2420,7 +2422,7 @@ function confirmarCobro(oid,sub){
     const rem=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
     if(!rem.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
   }
-  if(o._mcTemp){totalOrdsIn++;delete o._mcTemp;}window._cobrarTempOid=null;
+  if(o._mcTemp){totalOrdsIn++;delete o._mcTemp;}window._cobrarTempOid=null;window._mcOrder=null;
   document.getElementById('cobrarModal')?.remove();
   /* Limpiar UI */
   const btnAC=$('btnAddClient');if(btnAC)btnAC.style.display='none';
@@ -2537,11 +2539,10 @@ function mcSendKitchen(){
 function mcCobrar(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   /* Cobro de mostrador con el MISMO modal que las mesas (propina, descuento, método de pago).
-     Se crea un pedido temporal oculto de cocina; si se cancela, se descarta (ver _closeCobrar).
-     El stock se descuenta al confirmar (confirmarCobro), no antes. */
+     Se usa un pedido AD-HOC que NUNCA entra en la lista compartida `orders` (así no aparece
+     ni interfiere en la vista de Cocina de otros dispositivos). El stock se descuenta al confirmar. */
   const id='MC'+String(ordCnt++).padStart(3,'0');
-  const o={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',pago:selPay,tip:0,items:cart.map(i=>({...i})),clientName:'',stockDescontado:false,kitchenHidden:true,_mcTemp:true};
-  orders.push(o);currentAccountId=id;
+  window._mcOrder={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'open',pago:selPay,tip:0,items:cart.map(i=>({...i})),clientName:'',stockDescontado:false,_mcTemp:true};
   cobrarYCerrar();
 }
 
