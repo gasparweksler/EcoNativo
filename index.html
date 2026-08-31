@@ -809,11 +809,11 @@ body.dark .info-note b{color:#7fb0e0}
           <div style="position:relative;grid-column:1/-1"><i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="catQ" type="text" oninput="applyCatFilter()" placeholder="Buscar por título o código…" style="width:100%;padding:7px 8px 7px 28px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);box-sizing:border-box"></div>
           <input id="catAutor" list="catAutoresDL" oninput="applyCatFilter()" placeholder="Autor…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
           <select id="catNac" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">País (todos)</option></select>
-          <input id="catGen" list="catGenerosDL" oninput="applyCatFilter()" placeholder="Género…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
-          <input id="catSub" list="catSubgenerosDL" oninput="applyCatFilter()" placeholder="Subgénero…" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)">
+          <select id="catGen" onchange="catFilterGenreChanged()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Género (todos)</option></select>
+          <select id="catSub" onchange="applyCatFilter()" style="padding:7px 8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh)"><option value="">Subgénero (todos)</option></select>
           <button onclick="clearCatFilter()" style="padding:7px 8px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px"><i class="ti ti-x" style="font-size:11px;vertical-align:-1px"></i> Limpiar</button>
         </div>
-        <datalist id="catAutoresDL"></datalist><datalist id="catGenerosDL"></datalist><datalist id="catSubgenerosDL"></datalist>
+        <datalist id="catAutoresDL"></datalist>
         <div id="catResults"></div>
       </div>
 
@@ -3710,14 +3710,24 @@ function renderCatalogo(){
   if(nac&&nac.options.length<=1){_catUniq('pais').forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;nac.appendChild(o);});}
   const fillDL=(id,k)=>{const dl=$(id);if(dl&&!dl.childElementCount){dl.innerHTML=_catUniq(k).map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}};
   fillDL('catAutoresDL','a');
-  /* Filtro de género/subgénero: usa la MISMA taxonomía que el formulario */
-  const fillDLopts=(id,arr)=>{const dl=$(id);if(dl&&!dl.childElementCount){dl.innerHTML=arr.map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');}};
-  fillDLopts('catGenerosDL',Object.keys(TAXONOMIA));
-  fillDLopts('catSubgenerosDL',_TAX_SUBS_ALL);
+  /* Filtro de género/subgénero: selects cerrados (sin escritura) con la MISMA taxonomía que el formulario */
+  const gsel=$('catGen');
+  if(gsel&&gsel.options.length<=1){Object.keys(TAXONOMIA).forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;gsel.appendChild(o);});}
+  if($('catSub')&&$('catSub').options.length<=1)_fillCatSubFilter();
   renderCatResults();
 }
 function applyCatFilter(){renderCatResults();}
-function clearCatFilter(){['catQ','catAutor','catGen','catSub'].forEach(id=>{const e=$(id);if(e)e.value='';});const n=$('catNac');if(n)n.value='';renderCatResults();}
+/* Rellena el select de subgénero según el género elegido (encadenado). Sin género → todos. */
+function _fillCatSubFilter(){
+  const gsel=$('catGen'),ssel=$('catSub');if(!ssel)return;
+  const g=gsel?gsel.value:'';
+  const subs=(g&&TAXONOMIA[g])?TAXONOMIA[g]:_TAX_SUBS_ALL;
+  const cur=ssel.value;
+  ssel.innerHTML='<option value="">Subgénero (todos)</option>'+subs.map(s=>`<option value="${s.replace(/"/g,'&quot;')}">${_esc(s)}</option>`).join('');
+  ssel.value=subs.includes(cur)?cur:'';
+}
+function catFilterGenreChanged(){_fillCatSubFilter();renderCatResults();}
+function clearCatFilter(){['catQ','catAutor'].forEach(id=>{const e=$(id);if(e)e.value='';});const g=$('catGen');if(g)g.value='';const s=$('catSub');if(s)s.value='';_fillCatSubFilter();const n=$('catNac');if(n)n.value='';renderCatResults();}
 function renderCatResults(){
   const cont=$('catResults');if(!cont)return;
   const q=($('catQ')?.value||'').toLowerCase().trim();
