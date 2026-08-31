@@ -921,7 +921,8 @@ body.dark .info-note b{color:#7fb0e0}
   <div style="position:relative;margin-bottom:.5rem"><i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ts)"></i><input id="lblSearch" type="text" oninput="lblRenderSearch()" placeholder="Buscar por título, autor o código…" style="width:100%;padding:8px 8px 8px 29px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);box-sizing:border-box"></div>
   <div id="lblSearchResults" style="max-height:170px;overflow:auto;border:1px solid var(--br);border-radius:var(--r);margin-bottom:.8rem;background:var(--wh)"></div>
   <div style="font-size:11px;font-weight:700;color:var(--bd);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Seleccionados (<span id="lblSelCount">0</span>)</div>
-  <div id="lblSelList" style="max-height:190px;overflow:auto;margin-bottom:.8rem"></div>
+  <div id="lblSelList" style="max-height:190px;overflow:auto;margin-bottom:.6rem"></div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin-bottom:.7rem;user-select:none"><input type="checkbox" id="lblTitles" style="width:16px;height:16px;cursor:pointer"> <span><b>Agregar Títulos</b> — imprime el título de cada libro arriba de su etiqueta</span></label>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;labelModal&#39;)">Cerrar</button><button class="bc2" onclick="lblPrint()"><i class="ti ti-tag" style="font-size:13px"></i> Etiquetas PDF (<span id="lblPdfCount">0</span>)</button></div>
 </div></div>
 
@@ -3774,22 +3775,26 @@ function renderCatResults(){
 }
 /* Genera un PDF (vía imprimir → guardar como PDF) con etiquetas de 15×20 mm de los libros
    actualmente FILTRADOS. El código va apilado (Género/País/Apellido/Nº) al estilo lomo. */
-function printLabels(list){
+function printLabels(list,withTitles){
   list=(list&&list.length)?list:((_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog);
   const withCode=list.filter(b=>_cg(b,'code'));
   if(!withCode.length){showToast('No hay libros con código para etiquetar','del');return;}
   const labels=withCode.map(b=>{
     const parts=_cg(b,'code').split('-');
-    return '<div class="lbl">'+parts.map(p=>'<div class="l">'+_esc(p)+'</div>').join('')+'</div>';
+    const sq='<div class="lbl">'+parts.map(p=>'<div class="l">'+_esc(p)+'</div>').join('')+'</div>';
+    if(!withTitles)return sq;
+    return '<div class="cell"><div class="tt">'+_esc(_cg(b,'t'))+'</div>'+sq+'</div>';
   }).join('');
   const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas de lomo</title><style>'
     +'@page{size:auto;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif}'
-    +'.wrap{display:flex;flex-wrap:wrap;gap:2mm}'
+    +'.wrap{display:flex;flex-wrap:wrap;gap:2mm;align-items:flex-end}'
     +'.lbl{width:15mm;height:20mm;border:0.2mm solid #000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.4mm;overflow:hidden}'
     +'.lbl .l{font-family:"Courier New",monospace;font-weight:700;font-size:3.3mm;line-height:1.12;letter-spacing:0.2mm}'
+    +'.cell{width:15mm;display:flex;flex-direction:column;align-items:center}'
+    +'.cell .tt{width:100%;font-size:2.3mm;line-height:1.1;text-align:center;margin-bottom:0.8mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;hyphens:auto}'
     +'.bar{padding:8px;font-family:sans-serif;font-size:13px}@media print{.bar{display:none}}'
     +'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()" style="padding:6px 12px;font-size:13px;cursor:pointer">🖨️ Imprimir / Guardar PDF</button> &nbsp; '+withCode.length+' etiqueta(s) · 15×20 mm</div>'
+    +'<div class="bar"><button onclick="window.print()" style="padding:6px 12px;font-size:13px;cursor:pointer">🖨️ Imprimir / Guardar PDF</button> &nbsp; '+withCode.length+' etiqueta(s) · 15×20 mm'+(withTitles?' · con títulos':'')+'</div>'
     +'<div class="wrap">'+labels+'</div>'
     +'<scr'+'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},350);}</scr'+'ipt>'
     +'</body></html>';
@@ -3839,7 +3844,7 @@ function lblRenderSel(){
 function lblPrint(){
   const withCode=_lblSel.filter(b=>_cg(b,'code'));
   if(!withCode.length){showToast('Selecciona al menos un libro con código','del');return;}
-  printLabels(withCode);
+  printLabels(withCode,$('lblTitles')?.checked);
 }
 let _biBook=null;
 function openBookInfo(i){
