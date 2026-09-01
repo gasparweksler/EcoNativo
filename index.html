@@ -6196,7 +6196,8 @@ async function initSupabase(){
         payload=>{
           if(payload.new?.key!==SYNC_ROW_KEY)return;
           const incoming=payload.new?.payload;
-          if(incoming&&incoming.ts>(_lastSyncTs||0)+300){
+          /* Ignorar el eco de nuestro propio envío; aplicar cualquier estado ajeno más nuevo. */
+          if(incoming&&incoming.src!==_deviceId&&incoming.ts>(_lastSyncTs||0)){
             _lastSyncTs=incoming.ts;
             applyRemoteState(incoming);
           }
@@ -6294,9 +6295,15 @@ async function pushToSupabase(payload){
   }catch(e){}
 }
 
+/* Identidad de este dispositivo y timestamp MONÓTONO (nunca dos envíos con el mismo ts,
+   ni retrocede). Evita que dos pedidos enviados casi a la vez colisionen y se pierda uno. */
+const _deviceId='D'+Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+let _lastLocalTs=0;
+function _nextTs(){_lastLocalTs=Math.max(Date.now(),_lastLocalTs+1);return _lastLocalTs;}
 /* ── Serialización del estado completo ── */
 function getSerializableState(){
   return JSON.stringify({
+    src:_deviceId,
     orders:orders.map(o=>({...o})),
     tables:tables.map(t=>({...t})),
     closedSales:closedSales.map(s=>({...s})),
@@ -6318,7 +6325,7 @@ function getSerializableState(){
     subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
-    ts:Date.now()
+    ts:_nextTs()
   });
 }
 
@@ -6440,7 +6447,7 @@ if(bc){
   bc.onmessage=e=>{
     if(e.data?.type==='STATE_UPDATE'){
       const s=JSON.parse(e.data.payload);
-      if(s.ts>(_lastSyncTs||0)+200){_lastSyncTs=s.ts;applyRemoteState(s);}
+      if(s.src!==_deviceId&&s.ts>(_lastSyncTs||0)){_lastSyncTs=s.ts;applyRemoteState(s);}
     }
   };
 }
@@ -6453,7 +6460,7 @@ setInterval(()=>{
     if(!raw)return;
     let s;
     try{s=JSON.parse(raw);}catch(parseErr){localStorage.removeItem(SYNC_KEY);return;}
-    if(s.ts&&s.ts>_lastSyncTs+800){_lastSyncTs=s.ts;applyRemoteState(s);}
+    if(s.src!==_deviceId&&s.ts&&s.ts>_lastSyncTs){_lastSyncTs=s.ts;applyRemoteState(s);}
   }catch(e){}
 },2000);
 
