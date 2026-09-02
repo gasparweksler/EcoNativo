@@ -2171,8 +2171,10 @@ function cobrarTotal(){
 }
 
 function cobrarYCerrar(){
-  /* Mostrador: pedido ad-hoc (window._mcOrder). Mesa: pedido real por currentAccountId/cTable. */
-  const o=window._mcOrder||(currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled'));
+  /* Mostrador (isMC): pedido ad-hoc (window._mcOrder). Mesa: pedido real por currentAccountId/cTable.
+     Se ata a isMC para que un ad-hoc no confirmado nunca se filtre a un cobro de mesa. */
+  if(!isMC)window._mcOrder=null;
+  const o=(isMC&&window._mcOrder)?window._mcOrder:(currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled'));
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
   window._cobrarTempOid=(o&&o._mcTemp)?o.id:null;
   const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
@@ -2473,7 +2475,8 @@ function _buildReceiptCanvas(o,tip){
   return c;
 }
 async function sendOrderReceipt(oid,tipOverride){
-  const o=getOrder(oid)||closedSales.find(s=>s.id===oid);
+  /* Incluye el pedido de mostrador AD-HOC (aún no confirmado, no está en orders/closedSales) */
+  const o=getOrder(oid)||closedSales.find(s=>s.id===oid)||((window._mcOrder&&window._mcOrder.id===oid)?window._mcOrder:null);
   if(!o||!o.items||!o.items.length){showToast('Sin detalle para enviar','del');return;}
   const tip=(tipOverride!=null)?tipOverride:(o.tip||0);
   const canvas=_buildReceiptCanvas(o,tip);
