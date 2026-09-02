@@ -6261,17 +6261,15 @@ async function initSupabase(){
       })
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
-          _updateSyncIndicator(true);
+          _setRealtime(true);
           console.log('%c[EcoNativo] Realtime activo ✓','color:#4A7C59;font-weight:bold');
-        } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-          /* Canal Realtime falló, pero _sb sigue activo para escrituras */
-          _updateSyncIndicator('partial');
-          console.warn('[EcoNativo] Realtime falló:',status);
-          /* Reintentar suscripción en 5s */
-          setTimeout(()=>{
-            if(_sbChannel){try{_sbChannel.unsubscribe();}catch(e){}}
-            initSupabase().catch(()=>{});
-          },5000);
+          _resyncNow(); /* al (re)conectar, traer el último estado por si se perdió algo */
+        } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+          /* Canal Realtime caído: escrituras aún posibles, pero NO recibe en tiempo real.
+             Se marca desconectado y se reintenta indefinidamente (backoff). */
+          console.warn('[EcoNativo] Realtime caído:',status);
+          _setRealtime(false);
+          _scheduleReconnect();
         }
       });
 
@@ -6292,7 +6290,9 @@ async function pushToSupabase(payload){
   if(!_sb)return;
   try{
     await _sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(payload),updated_at:new Date().toISOString()});
-  }catch(e){}
+  }catch(e){ /* Falló la escritura: probablemente sin conexión → reconectar y avisar */
+    if(typeof _scheduleReconnect==='function'){ _setRealtime(false); _scheduleReconnect(); }
+  }
 }
 
 /* Identidad de este dispositivo y timestamp MONÓTONO (nunca dos envíos con el mismo ts,
@@ -6475,16 +6475,83 @@ function _updateSyncIndicator(connected){
     if(badge)badge.parentNode.insertBefore(ind,badge);
   }
   if(connected===true){ind.textContent='● Online';ind.style.background='rgba(74,124,89,.3)';ind.style.color='#7CCA8C';}
-  else if(connected==='partial'){ind.textContent='◑ Sync';ind.style.background='rgba(58,107,158,.2)';ind.style.color='#7AABDA';}
-  else if(connected===false){ind.textContent='◌ Local';ind.style.background='rgba(196,135,10,.2)';ind.style.color='#C4870A';}
-  else{ind.textContent='⬡ Sync';ind.style.background='rgba(58,107,158,.2)';ind.style.color='#7AABDA';}
+  else if(connected==='partial'){ind.textContent='◑ Reconectando';ind.style.background='rgba(176,64,64,.2)';ind.style.color='#E08585';}
+  else if(connected===false){ind.textContent='◌ Sin conexión';ind.style.background='rgba(176,64,64,.2)';ind.style.color='#E08585';}
+  else{ind.textContent='⬡ Conectando';ind.style.background='rgba(58,107,158,.2)';ind.style.color='#7AABDA';}
 }
+
+/* ════════ CONEXIÓN OBLIGATORIA: reconexión agresiva + alerta visible ════════
+   Un dispositivo puede perder el Realtime por: red intermitente, cambio de WiFi/datos,
+   suspensión del móvil, pestaña en segundo plano, o cierre del WebSocket. Aquí se detecta,
+   se avisa al usuario, y se reconecta indefinidamente hasta volver a estar en línea. */
+let _rtOnline=false,_rtBackoff=2000,_rtTimer=null,_rtInitStarted=false;
+function _rtBanner(show,msg){
+  let b=document.getElementById('rtBanner');
+  if(show){
+    if(!b){
+      b=document.createElement('div');b.id='rtBanner';
+      b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:100000;background:#B04040;color:#fff;font-size:13px;font-weight:700;text-align:center;padding:9px 12px;box-shadow:0 2px 10px rgba(0,0,0,.3);font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap';
+      document.body.appendChild(b);
+    }
+    b.innerHTML='<span style="font-size:16px">⚠</span> '+(msg||'Sin conexión en tiempo real — reintentando…')+' <button onclick="forceReconnectRealtime()" style="background:#fff;color:#B04040;border:none;border-radius:14px;padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer">Reconectar ahora</button>';
+    b.style.display='flex';
+  } else if(b){ b.style.display='none'; }
+}
+function _setRealtime(online){
+  const changed=(online!==_rtOnline);
+  _rtOnline=online;
+  _updateSyncIndicator(online?true:(navigator.onLine?'partial':false));
+  _rtBanner(!online, navigator.onLine?'Sin conexión en tiempo real — reconectando…':'Este dispositivo está SIN INTERNET — no se está sincronizando');
+  if(online){_rtBackoff=2000;if(_rtTimer){clearTimeout(_rtTimer);_rtTimer=null;}
+    if(changed)showToast('Conexión en tiempo real restablecida ✓','ok');
+  }
+}
+function _scheduleReconnect(){
+  if(_rtTimer)return;
+  const delay=_rtBackoff;_rtBackoff=Math.min(_rtBackoff*2,15000);
+  _rtTimer=setTimeout(()=>{_rtTimer=null;forceReconnectRealtime();},delay);
+}
+function forceReconnectRealtime(){
+  if(_rtTimer){clearTimeout(_rtTimer);_rtTimer=null;}
+  if(!navigator.onLine){_setRealtime(false);_scheduleReconnect();return;}
+  try{if(_sbChannel){try{_sb&&_sb.removeChannel(_sbChannel);}catch(e){}_sbChannel=null;}}catch(e){}
+  initSupabase().catch(()=>{_setRealtime(false);_scheduleReconnect();});
+}
+/* Al reconectar, traer el último estado autoritativo de la nube (recupera lo perdido offline) */
+async function _resyncNow(){
+  try{
+    if(!_sb)return;
+    const {data}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).single();
+    if(data&&data.payload&&data.payload.src!==_deviceId){
+      _lastSyncTs=Math.max(_lastSyncTs||0,data.payload.ts||0);
+      applyRemoteState(data.payload);
+    }
+  }catch(e){}
+}
+/* Vigilancia continua: si el canal no está "joined" y hay Internet, reconectar */
+setInterval(()=>{
+  if(!_rtInitStarted||document.hidden)return;
+  const joined=_sbChannel&&_sbChannel.state==='joined';
+  if(navigator.onLine){ if(!joined){_setRealtime(false);_scheduleReconnect();} }
+  else { _setRealtime(false); }
+},7000);
+/* Eventos de red y visibilidad → reconexión obligatoria inmediata */
+window.addEventListener('online',()=>{ if(!_rtInitStarted)return; _rtBanner(true,'Internet detectado — reconectando…'); forceReconnectRealtime(); });
+window.addEventListener('offline',()=>{ if(_rtInitStarted)_setRealtime(false); });
+document.addEventListener('visibilitychange',()=>{
+  if(!_rtInitStarted||document.hidden)return;
+  const joined=_sbChannel&&_sbChannel.state==='joined';
+  if(!joined){ forceReconnectRealtime(); } else { _resyncNow(); }
+});
 
 /* ── Init Supabase después de login ── */
 /* Called at end of doLogin once app is visible */
 function postLoginInit(){
+  _rtInitStarted=true;
   initSupabase().then(()=>{
-    _updateSyncIndicator(!!_sb);
+    /* "Conectando" hasta que el canal reporte SUBSCRIBED (no basta con que exista el cliente) */
+    _updateSyncIndicator(_sb?undefined:false);
+    if(!_sb)_scheduleReconnect();
     if(typeof loadBookCatalog==='function')loadBookCatalog(); /* catálogo de Biblioteca (registro propio) */
     if(_sb) loadPersistentData();
     else {
