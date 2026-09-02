@@ -6389,10 +6389,20 @@ function applyRemoteState(data){
       waiters.length=0;
       s.waiters.forEach(rw=>{ if(rw&&rw.id)waiters.push({...rw}); });
     }
-    /* Carta: sincroniza por el mismo canal probado del estado global (igual que inventario) */
+    /* Carta: FUSIÓN (no reemplazo total) para no perder productos que el emisor no conoce.
+       El estado entrante relocaliza/actualiza solo los ítems presentes en su snapshot;
+       los productos que no aparecen en él se CONSERVAN. Las eliminaciones reales llegan por
+       el handler DELETE de la tabla `menu`. Esto evita que un dispositivo con el menú viejo
+       borre los productos nuevos de todos. */
     if(s.menu&&typeof s.menu==='object'){
-      Object.keys(menuData).forEach(k=>delete menuData[k]);
-      Object.entries(s.menu).forEach(([cat,subs])=>{ menuData[cat]=subs; });
+      const incoming={};
+      for(const cat in s.menu)for(const sub in s.menu[cat]){const arr=s.menu[cat][sub];if(Array.isArray(arr))arr.forEach(it=>{if(it&&it.name)incoming[it.name]={cat,sub,it};});}
+      /* Quitar de su ubicación local cualquier ítem presente en el entrante (para relocalizar/actualizar) */
+      for(const cat in menuData)for(const sub in menuData[cat]){menuData[cat][sub]=menuData[cat][sub].filter(x=>!(x&&incoming[x.name]));}
+      /* Insertar los entrantes en su ubicación */
+      for(const name in incoming){const {cat,sub,it}=incoming[name];if(!menuData[cat])menuData[cat]={};if(!menuData[cat][sub])menuData[cat][sub]=[];menuData[cat][sub].push(it);}
+      /* Limpiar subcategorías/categorías vacías */
+      for(const cat in menuData){for(const sub in menuData[cat])if(!menuData[cat][sub].length)delete menuData[cat][sub];if(!Object.keys(menuData[cat]).length)delete menuData[cat];}
       _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
@@ -6405,9 +6415,9 @@ function applyRemoteState(data){
     /* Alinear categorías de inventario con la Carta tras sincronizar.
        No hacerlo mientras se edita Inventario (evita mutar el arreglo bajo el campo activo). */
     if(typeof _syncInvCategoriesFromCarta==='function'&&!(_isEditingField()&&_activePageIsInventory()))_syncInvCategoriesFromCarta();
-    /* Recetas: misma sincronización instantánea por estado global */
+    /* Recetas: FUSIÓN (no reemplazo total): solo agrega/actualiza las del snapshot entrante,
+       conservando las que el emisor no conoce. Las eliminaciones llegan por la tabla `recipes`. */
     if(s.recipes&&typeof s.recipes==='object'){
-      Object.keys(recipes).forEach(k=>delete recipes[k]);
       Object.entries(s.recipes).forEach(([k,v])=>{ recipes[k]=v; });
     }
     _refreshActiveView();
