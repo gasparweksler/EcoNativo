@@ -2176,7 +2176,9 @@ function cobrarYCerrar(){
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
   window._cobrarTempOid=(o&&o._mcTemp)?o.id:null;
   const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
-  const defaultTip=Math.round(sub*0.1);
+  /* La PROPINA existe SOLO al cobrar mesas. En Mostrador no hay propina. */
+  const esMesa=!!o.tableId;
+  const defaultTip=esMesa?Math.round(sub*0.1):0;
   /* Mostrar modal de cobro con propina */
   const modal=document.createElement('div');
   modal.className='ov';modal.id='cobrarModal';modal.style.cssText='display:flex;z-index:9999';
@@ -2206,7 +2208,7 @@ function cobrarYCerrar(){
           <button onclick="aplicarDescuento(${sub})" style="flex:2;padding:7px;border:none;background:var(--ok);color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">Aplicar descuento</button>
         </div>
       </div>
-      <div class="dir" style="align-items:center;margin-top:6px">
+      ${esMesa?`<div class="dir" style="align-items:center;margin-top:6px">
         <span style="color:var(--ts)">Propina</span>
         <div style="display:flex;align-items:center;gap:5px">
           <button id="tipModePct" onclick="setTipMode('pct',${sub})" style="width:26px;height:26px;border:1px solid var(--bm);background:var(--bm);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">%</button>
@@ -2215,7 +2217,7 @@ function cobrarYCerrar(){
           <span style="font-size:11px;color:var(--ts)" id="cobrarTipAmt">${fmt(defaultTip)}</span>
           <button onclick="setNoTip(${sub})" title="Dejar propina en 0" style="padding:3px 8px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap">Sin propina</button>
         </div>
-      </div>
+      </div>`:''}
       <div class="dir" style="margin-top:6px;font-weight:700;font-size:15px"><span>Total</span><span id="cobrarTotalAmt" style="color:var(--bm)">${fmt(sub+defaultTip)}</span></div>
     </div>
     <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Método de pago</div>
