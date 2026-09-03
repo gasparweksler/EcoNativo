@@ -315,7 +315,7 @@ body.dark .info-note b{color:#7fb0e0}
 .on{font-size:12px;font-weight:600}
 .os{font-size:11px;color:var(--ts);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ot{font-size:13px;font-weight:700;color:var(--bm);white-space:nowrap}
-.ob{font-size:13px;padding:4px 10px;border-radius:20px;font-weight:700}
+.ob{font-size:15px;padding:4px 10px;border-radius:20px;font-weight:700}
 .ob-pending{background:#FDF5E0;color:var(--wn)}.ob-preparing{background:#E8F0F8;color:var(--inf)}.ob-ready{background:#EEF5E8;color:var(--ok)}.ob-canceled{background:#FEF0F0;color:var(--er)}
 .noo{text-align:center;padding:1.5rem;color:var(--tl)}
 .noo i{font-size:32px;display:block;margin-bottom:6px}
@@ -5871,7 +5871,7 @@ function renderKitchen(){
       <div class="kcH">
         <div><div class="ktn">${o.tableId?'Mesa '+o.tableId:'Mostrador'}</div><div class="kw"><i class="ti ti-user" style="font-size:9px" aria-hidden="true"></i> ${o.waiter}</div></div>
         <div style="text-align:right">
-          <div class="ktm" style="font-size:13px;color:var(--ts)">Ingresado hace ${elapsed(o.time)}</div>
+          <div class="ktm" style="font-size:15px;color:var(--ts)">Ingresado hace ${elapsed(o.time)}</div>
           ${o.kitchenStartTime?`<div class="ktm" style="color:var(--bm);font-weight:700;font-variant-numeric:tabular-nums" id="ktimer-${o.id}"><i class="ti ti-clock" style="font-size:9px"></i> ${_fmtDur(Date.now()-o.kitchenStartTime)}</div>`:''}
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
