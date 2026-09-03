@@ -6507,7 +6507,9 @@ function _updateSyncIndicator(connected){
    Un dispositivo puede perder el Realtime por: red intermitente, cambio de WiFi/datos,
    suspensión del móvil, pestaña en segundo plano, o cierre del WebSocket. Aquí se detecta,
    se avisa al usuario, y se reconecta indefinidamente hasta volver a estar en línea. */
-let _rtOnline=false,_rtBackoff=2000,_rtTimer=null,_rtInitStarted=false;
+let _rtOnline=false,_rtInitStarted=false,_rtDownSince=0,_rtShownDown=false;
+const _RT_GRACE=9000;   /* no alarmar hasta 9s caído (deja que el SDK se recupere solo → evita parpadeo) */
+const _RT_HARD=22000;   /* recrear el canal solo si sigue caído 22s (último recurso) */
 function _rtBanner(show,msg){
   let b=document.getElementById('rtBanner');
   if(show){
@@ -6520,25 +6522,33 @@ function _rtBanner(show,msg){
     b.style.display='flex';
   } else if(b){ b.style.display='none'; }
 }
-function _setRealtime(online){
-  const changed=(online!==_rtOnline);
-  _rtOnline=online;
-  _updateSyncIndicator(online?true:(navigator.onLine?'partial':false));
-  _rtBanner(!online, navigator.onLine?'Sin conexión en tiempo real — reconectando…':'Este dispositivo está SIN INTERNET — no se está sincronizando');
-  if(online){_rtBackoff=2000;if(_rtTimer){clearTimeout(_rtTimer);_rtTimer=null;}
-    if(changed)showToast('Conexión en tiempo real restablecida ✓','ok');
-  }
+function _rtGoOnline(){
+  _rtDownSince=0;
+  const was=_rtShownDown;
+  _rtOnline=true;_rtShownDown=false;
+  _updateSyncIndicator(true);_rtBanner(false);
+  if(was)showToast('Conexión en tiempo real restablecida ✓','ok');
 }
-function _scheduleReconnect(){
-  if(_rtTimer)return;
-  const delay=_rtBackoff;_rtBackoff=Math.min(_rtBackoff*2,15000);
-  _rtTimer=setTimeout(()=>{_rtTimer=null;forceReconnectRealtime();},delay);
+function _rtMarkDown(){ if(!_rtDownSince)_rtDownSince=Date.now(); }
+/* Refleja el estado REAL del canal en la UI con periodo de gracia (evita el parpadeo
+   "Conectando/Reconectando" ante micro-cortes normales que el SDK resuelve solo). */
+function _rtReflect(){
+  if(!_rtInitStarted)return;
+  const joined=_sbChannel&&_sbChannel.state==='joined';
+  if(joined){ _rtGoOnline(); return; }
+  if(!navigator.onLine){ _rtOnline=false;_rtShownDown=true;_updateSyncIndicator(false);_rtBanner(true,'Este dispositivo está SIN INTERNET — no se está sincronizando'); return; }
+  _rtMarkDown();
+  const down=Date.now()-_rtDownSince;
+  if(down>_RT_GRACE){ _rtOnline=false;_rtShownDown=true;_updateSyncIndicator('partial');_rtBanner(true,'Sin conexión en tiempo real — reconectando…'); }
+  if(down>_RT_HARD){ _rtDownSince=Date.now(); forceReconnectRealtime(); } /* último recurso */
 }
+/* Compatibilidad con quienes ya llaman _setRealtime/_scheduleReconnect (subscribe, pushToSupabase) */
+function _setRealtime(online){ if(online)_rtGoOnline(); else { _rtMarkDown(); _rtReflect(); } }
+function _scheduleReconnect(){ _rtMarkDown(); } /* no hace teardown; el watchdog decide tras la gracia */
 function forceReconnectRealtime(){
-  if(_rtTimer){clearTimeout(_rtTimer);_rtTimer=null;}
-  if(!navigator.onLine){_setRealtime(false);_scheduleReconnect();return;}
+  if(!navigator.onLine){ _rtReflect(); return; }
   try{if(_sbChannel){try{_sb&&_sb.removeChannel(_sbChannel);}catch(e){}_sbChannel=null;}}catch(e){}
-  initSupabase().catch(()=>{_setRealtime(false);_scheduleReconnect();});
+  initSupabase().catch(()=>{ _rtMarkDown(); _rtReflect(); });
 }
 /* Al reconectar, traer el último estado autoritativo de la nube (recupera lo perdido offline) */
 async function _resyncNow(){
@@ -6551,20 +6561,18 @@ async function _resyncNow(){
     }
   }catch(e){}
 }
-/* Vigilancia continua: si el canal no está "joined" y hay Internet, reconectar */
-setInterval(()=>{
-  if(!_rtInitStarted||document.hidden)return;
-  const joined=_sbChannel&&_sbChannel.state==='joined';
-  if(navigator.onLine){ if(!joined){_setRealtime(false);_scheduleReconnect();} }
-  else { _setRealtime(false); }
-},7000);
-/* Eventos de red y visibilidad → reconexión obligatoria inmediata */
-window.addEventListener('online',()=>{ if(!_rtInitStarted)return; _rtBanner(true,'Internet detectado — reconectando…'); forceReconnectRealtime(); });
-window.addEventListener('offline',()=>{ if(_rtInitStarted)_setRealtime(false); });
+/* Vigilancia continua (solo OBSERVA y refleja con gracia; NO destruye el canal salvo caída sostenida).
+   Así se deja que la reconexión automática del SDK resuelva los micro-cortes sin parpadeo. */
+setInterval(()=>{ if(document.hidden)return; _rtReflect(); },5000);
+/* Eventos de red: al volver Internet, reconectar; al perderlo, reflejar sin conexión */
+window.addEventListener('online',()=>{ if(!_rtInitStarted)return; _rtDownSince=0; forceReconnectRealtime(); });
+window.addEventListener('offline',()=>{ if(_rtInitStarted)_rtReflect(); });
+/* Al volver a la pestaña: si el canal sigue vivo, solo re-sincroniza; si se cayó (throttle en
+   segundo plano), reconecta. No se hace teardown si estaba sano. */
 document.addEventListener('visibilitychange',()=>{
   if(!_rtInitStarted||document.hidden)return;
   const joined=_sbChannel&&_sbChannel.state==='joined';
-  if(!joined){ forceReconnectRealtime(); } else { _resyncNow(); }
+  if(joined){ _rtGoOnline(); _resyncNow(); } else { forceReconnectRealtime(); }
 });
 
 /* ── Init Supabase después de login ── */
