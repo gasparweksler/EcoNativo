@@ -2028,11 +2028,11 @@ function setMC(c){
   renderMenuItems();
 }
 function renderMenuItems(){
-  const q=($('menuSearch')?.value||'').toLowerCase().trim();
+  const q=_nm($('menuSearch')?.value||''); /* búsqueda indiferente a tildes */
   let html='';
   if(q){
     let found=[];
-    Object.entries(menuData).forEach(([cat,subs])=>{if(!_catScope(cat).carta)return;Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);}));});
+    Object.entries(menuData).forEach(([cat,subs])=>{if(!_catScope(cat).carta)return;Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&_nm(item.name).includes(q))found.push(item);}));});
     html=found.length
       ?`<div class="mi-grid">${found.map(item=>{const av=isItemAvailable(item.name);return`<div class="mi${av?'':' unavailable'}" onclick="${av?`addItemByName('${item.name.replace(/'/g,String.fromCharCode(39))}')`:`showToast('Agotado')`}"><div class="mi-name">${item.name}</div>${item.desc?`<div class="mi-desc" style="font-size:10px;color:var(--ts);margin:1px 0 2px;line-height:1.2">${item.desc}</div>`:''}<div class="mi-price">${fmt(item.price)}</div>${item.isPizza?'<div class="mi-tag">Personalizable</div>':''}${item.isToast?'<div class="mi-tag" style="background:#FDF5E0;color:var(--wn)">+ Extras</div>':''}${item.isSandwich?'<div class="mi-tag">Elige '+item.sandwichMax+' ing.</div>':''}${item.isVariant?'<div class="mi-tag" style="background:#F3ECE0;color:var(--bm)">Elige variedad</div>':''}${!av?'<div class="mi-tag" style="background:#FEF0F0;color:var(--er)">Agotado</div>':''}</div>`;}).join('')}</div>`
       :`<div style="color:var(--tl);text-align:center;padding:1rem;font-size:12px">Sin resultados para "${q}"</div>`;
@@ -3334,11 +3334,11 @@ function openEditPending(cid,pi){
 }
 
 function renderPendingSearch(){
-  const q=($('pendingSearch').value||'').toLowerCase().trim();
+  const q=_nm($('pendingSearch').value||''); /* búsqueda indiferente a tildes */
   const res=$('pendingSearchResults');
   if(!q){res.style.display='none';res.innerHTML='';return;}
   let found=[];
-  Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&item.name.toLowerCase().includes(q))found.push(item);})));
+  Object.entries(menuData).forEach(([,subs])=>Object.entries(subs).forEach(([,items])=>items.forEach(item=>{if(item.active&&_nm(item.name).includes(q))found.push(item);})));
   if(!found.length){res.style.display='none';return;}
   res.style.display='block';
   res.innerHTML=found.slice(0,6).map(item=>`<div class="pend-search-result" onclick="selectPendingProduct('${item.name.replace(/'/g,"\\''")}',${item.price})"><span>${item.name}</span><span style="color:var(--bm);font-weight:700">${fmt(item.price)}</span></div>`).join('');
@@ -4546,13 +4546,13 @@ function _triggerImport(id){const el=$(id);if(el){el.value='';el.click();}}
 /* ── RECIPES — full CRUD ── */
 function renderRecipes(){
   buildRecipes();
-  const q=_recipesQ.toLowerCase().trim();
+  const q=_nm(_recipesQ); /* búsqueda indiferente a tildes */
   const cats=[...new Set(Object.values(recipes).map(r=>r.cat))].sort();
   $('recipesCatPills').innerHTML=cats.map(c=>`<button class="cp2 ${c===aRecipeCat?'active':''}" onclick="setRecipeCat('${c}')">${c}</button>`).join('');
   const btnRec=$('btnConfirmRecipes');
   if(btnRec)btnRec.style.display=cRole==='admin'?'':'none';
   let catRecipes=Object.entries(recipes).filter(([,r])=>r.cat===aRecipeCat);
-  if(q)catRecipes=catRecipes.filter(([name])=>name.toLowerCase().includes(q));
+  if(q)catRecipes=catRecipes.filter(([name])=>_nm(name).includes(q));
   if(!catRecipes.length){$('recipesContent').innerHTML=`<div class="noo"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i><p>${q?'Sin resultados':'Sin recetas en esta categoría'}</p></div>`;return;}
   $('recipesContent').innerHTML=catRecipes.map(([name,recipe])=>{
     const totalCost=recipe.ingredients.reduce((s,i)=>s+(parseInt(i.cost)||0),0);
@@ -4897,7 +4897,7 @@ function renderCarta(){
     +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones" onclick="openCartaButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
   const btnCarta=$('btnConfirmCarta');
   if(btnCarta)btnCarta.style.display=cRole==='admin'?'':'none';
-  const q=_cartaQ.toLowerCase().trim();
+  const q=_nm(_cartaQ); /* búsqueda indiferente a tildes */
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
   const _catSelHtml=(sel)=>_orderedCats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}"${c===sel?' selected':''}>${c}</option>`).join('');
@@ -4915,7 +4915,7 @@ function renderCarta(){
     let catHasResult=false, catHtml='';
     Object.entries(cd).forEach(([sub,items])=>{
     if(!_isTop && sub!==aCartaCat) return; /* subcategoría seleccionada → solo ese sub */
-    const filtered=q?items.filter(item=>item.name.toLowerCase().includes(q)):items;
+    const filtered=q?items.filter(item=>_nm(item.name).includes(q)):items;
     if(!filtered.length)return;
     anyResult=true; catHasResult=true;
     catHtml+=`<div style="font-size:10px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.6rem 0 .3rem">${sub}</div>
@@ -5480,10 +5480,10 @@ function renderInv(){
   if(pillsEl)pillsEl.innerHTML=`<button class="cp2 ${_invCat===''?'active':''}" onclick="_invCat='';renderInv()">Todos</button>`
     +_invBtnList.map(c=>`<button class="cp2 ${c===_invCat?'active':''}" onclick="_invCat='${c.replace(/'/g,String.fromCharCode(39))}';renderInv()">${c}</button>`).join('')
     +(cRole==='admin'?`<button class="cp2" style="border-style:dashed;color:var(--bm)" title="Elegir qué categorías mostrar como botones" onclick="openInvButtonsManager()"><i class="ti ti-adjustments-horizontal" style="font-size:14px;vertical-align:-2px"></i></button>`:'');
-  const q=_invQ.toLowerCase().trim();
+  const q=_nm(_invQ); /* búsqueda indiferente a tildes */
   let filtered=inventoryItems;
   if(_invCat)filtered=filtered.filter(x=>x.cat===_invCat);
-  if(q)filtered=filtered.filter(x=>x.name.toLowerCase().includes(q));
+  if(q)filtered=filtered.filter(x=>_nm(x.name).includes(q));
   const _subOpts=getSubcategorias();
   const _subSelHtml=(sel)=>`<option value="">— subcategoría —</option>`+_subOpts.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s}</option>`).join('');
   $('invContent').innerHTML=
