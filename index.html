@@ -6276,7 +6276,8 @@ async function initSupabase(){
         if(status==='SUBSCRIBED'){
           _setRealtime(true);
           console.log('%c[EcoNativo] Realtime activo ✓','color:#4A7C59;font-weight:bold');
-          _resyncNow(); /* al (re)conectar, traer el último estado por si se perdió algo */
+          /* Al (re)conectar: si hay una escritura pendiente, subirla (reconciliando); si no, ponerse al día */
+          if(_pushPending)_flushPendingPush(); else _resyncNow();
         } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
           /* Canal Realtime caído: escrituras aún posibles, pero NO recibe en tiempo real.
              Se marca desconectado y se reintenta indefinidamente (backoff). */
@@ -6299,13 +6300,42 @@ async function initSupabase(){
   }
 }
 
+/* ── COLA DE REINTENTO DE ESCRITURA ──
+   Si una escritura a la nube falla (sin red en ese instante), se marca pendiente y se
+   reintenta automáticamente hasta lograrlo, reenviando el ESTADO ACTUAL (ts fresco) y
+   fusionando los pedidos locales que aún no llegaron con lo que haya escrito otro dispositivo.
+   Así ningún pedido enviado justo durante un corte se pierde. */
+let _pushPending=false,_pushRetryTimer=null;
 async function pushToSupabase(payload){
   if(!_sb)return;
   try{
-    await _sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(payload),updated_at:new Date().toISOString()});
-  }catch(e){ /* Falló la escritura: probablemente sin conexión → reconectar y avisar */
+    const res=await _sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(payload),updated_at:new Date().toISOString()});
+    if(res&&res.error)throw res.error;
+    _pushPending=false;
+    if(_pushRetryTimer){clearTimeout(_pushRetryTimer);_pushRetryTimer=null;}
+  }catch(e){ /* Falló la escritura: probablemente sin conexión → encolar reintento + avisar */
+    _pushPending=true;
     if(typeof _scheduleReconnect==='function'){ _setRealtime(false); _scheduleReconnect(); }
+    _schedulePushRetry();
   }
+}
+function _schedulePushRetry(){
+  if(_pushRetryTimer)return;
+  _pushRetryTimer=setTimeout(()=>{ _pushRetryTimer=null; _flushPendingPush(); },4000);
+}
+async function _flushPendingPush(){
+  if(!_pushPending)return;
+  if(!_sb||!navigator.onLine){ _schedulePushRetry(); return; } /* aún sin condiciones → reintentar luego */
+  try{
+    /* Preservar pedidos locales aún no subidos: traer lo remoto reciente y re-agregar los que falten */
+    const localOrders=orders.map(o=>({...o}));
+    await _resyncNow();
+    let added=false;
+    localOrders.forEach(lo=>{ if(lo&&lo.id&&!orders.find(o=>o.id===lo.id)){ orders.push(lo); added=true; } });
+    _pushPending=false;
+    broadcastState(); /* reenvía el estado reconciliado con ts fresco; si vuelve a fallar, se re-encola */
+    if(added&&typeof _refreshActiveView==='function')_refreshActiveView();
+  }catch(e){ _schedulePushRetry(); }
 }
 
 /* Identidad de este dispositivo y timestamp MONÓTONO (nunca dos envíos con el mismo ts,
@@ -6565,7 +6595,7 @@ async function _resyncNow(){
    Así se deja que la reconexión automática del SDK resuelva los micro-cortes sin parpadeo. */
 setInterval(()=>{ if(document.hidden)return; _rtReflect(); },5000);
 /* Eventos de red: al volver Internet, reconectar; al perderlo, reflejar sin conexión */
-window.addEventListener('online',()=>{ if(!_rtInitStarted)return; _rtDownSince=0; forceReconnectRealtime(); });
+window.addEventListener('online',()=>{ if(!_rtInitStarted)return; _rtDownSince=0; forceReconnectRealtime(); if(_pushPending)_flushPendingPush(); });
 window.addEventListener('offline',()=>{ if(_rtInitStarted)_rtReflect(); });
 /* Al volver a la pestaña: si el canal sigue vivo, solo re-sincroniza; si se cayó (throttle en
    segundo plano), reconecta. No se hace teardown si estaba sano. */
