@@ -2573,12 +2573,16 @@ function gestionarPedidoCocina(items, tableId){
   if(order && order.tableId!==targetTable) order=null;
   if(!order) order = orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
   if(order&&order.status!=='closed'){
+    const _prevCount=order.items.length; /* ítems que la cocina YA tenía antes de agregar */
     order.items=[...order.items,...itemsToSend];
     if(order.kitchenHidden){
-      /* La cocina lo había despachado: reaparece mostrando solo los productos nuevos */
+      /* La cocina lo había despachado: reaparece mostrando SOLO los productos nuevos.
+         Se fija el límite al conteo real previo (no se confía en el valor almacenado, que
+         podría estar desactualizado si este dispositivo no recibió el despacho). */
       order.kitchenHidden=false;
       order.status='pending';
       order.kitchenStartTime=null;
+      order.kitchenSeenCount=_prevCount;
     }
     showToast('Enviado a cocina 🍳','ok');
   } else {
@@ -6394,7 +6398,11 @@ function applyRemoteState(data){
        o adición a una mesa ya abierta en cocina. */
     const _prevSeq=kitchenBellSeq;
 
+    /* Preservar el "visto por cocina" por pedido: un snapshot viejo (de un dispositivo que no
+       vio el despacho) NO debe reducir el límite, o la cocina volvería a mostrar todo el pedido. */
+    const _prevSeen={};orders.forEach(o=>{if(o&&o.id&&o.kitchenSeenCount!=null)_prevSeen[o.id]=o.kitchenSeenCount;});
     orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
+    orders.forEach(o=>{ if(o&&o.id&&_prevSeen[o.id]!=null){ o.kitchenSeenCount=Math.max(o.kitchenSeenCount||0,_prevSeen[o.id]); } });
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=s.kitchenBellSeq;
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
       bellKitchen('🔔 Pedido enviado a cocina');
