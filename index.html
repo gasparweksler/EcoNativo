@@ -138,6 +138,14 @@ button:active{transform:scale(.97)}
 body.dark .info-note{background:#1e2a36;border-color:#345066;color:var(--tm)}
 body.dark .info-note b{color:#7fb0e0}
 
+/* ── MÓVIL: campos de escritura a 16px para EVITAR el zoom automático de Safari/iOS ──
+   iOS hace zoom al enfocar un input con font-size < 16px. Forzándolo a 16px en el teléfono,
+   todo se ve sin zoom. Solo afecta a móvil (<768px); el escritorio queda compacto igual. */
+@media (max-width:767px){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),
+  select, textarea { font-size:16px !important; }
+}
+
 /* Desktop */
 @media(min-width:768px){
   #app{flex-direction:row}
