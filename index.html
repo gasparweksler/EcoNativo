@@ -6622,7 +6622,10 @@ function _rtBanner(show,msg){
     }
     b.innerHTML='<span style="font-size:16px">⚠</span> '+(msg||'Sin conexión en tiempo real — reintentando…')+' <button onclick="forceReconnectRealtime()" style="background:#fff;color:#B04040;border:none;border-radius:14px;padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer">Reconectar ahora</button>';
     b.style.display='flex';
-  } else if(b){ b.style.display='none'; }
+    /* Empujar el contenido hacia abajo para que el banner no tape los botones de arriba.
+       Leer offsetHeight fuerza el layout, así funciona aunque rAF esté pausado (pestaña oculta). */
+    try{ document.body.style.paddingTop=((b.offsetHeight||44)+'px'); }catch(e){}
+  } else if(b){ b.style.display='none'; try{ document.body.style.paddingTop=''; }catch(e){} }
 }
 function _rtGoOnline(){
   _rtDownSince=0;
@@ -6636,13 +6639,26 @@ function _rtMarkDown(){ if(!_rtDownSince)_rtDownSince=Date.now(); }
    "Conectando/Reconectando" ante micro-cortes normales que el SDK resuelve solo). */
 function _rtReflect(){
   if(!_rtInitStarted)return;
-  const joined=_sbChannel&&_sbChannel.state==='joined';
-  if(joined){ _rtGoOnline(); return; }
+  const st=_sbChannel&&_sbChannel.state;
+  if(st==='joined'){ _rtGoOnline(); return; }
   if(!navigator.onLine){ _rtOnline=false;_rtShownDown=true;_updateSyncIndicator(false);_rtBanner(true,'Este dispositivo está SIN INTERNET — no se está sincronizando'); return; }
+  /* ¿El socket de Realtime está conectado? (algunos PC reportan el canal fuera de 'joined'
+     por instantes aunque el socket esté sano; no hay que alarmar ni destruir en ese caso). */
+  const socketOk=!!(_sb&&_sb.realtime&&typeof _sb.realtime.isConnected==='function'&&_sb.realtime.isConnected());
+  const dead=(st==='closed'||st==='errored'||st==='leaving')||!socketOk;
+  if(!dead){
+    /* Socket sano y canal conectándose/unido: mantener el estado (Online si ya lo estaba, o
+       "Conectando"), sin banner rojo, y seguir sincronizando por REST por si acaso. */
+    _resyncNow();
+    _updateSyncIndicator(_rtOnline?true:undefined);
+    if(!_rtOnline)_rtBanner(false);
+    return;
+  }
   _rtMarkDown();
   const down=Date.now()-_rtDownSince;
+  _resyncNow(); /* FALLBACK POR REST: aunque el WebSocket no conecte, seguir sincronizando por HTTP */
   if(down>_RT_GRACE){ _rtOnline=false;_rtShownDown=true;_updateSyncIndicator('partial');_rtBanner(true,'Sin conexión en tiempo real — reconectando…'); }
-  if(down>_RT_HARD){ _rtDownSince=Date.now(); forceReconnectRealtime(); } /* último recurso */
+  if(down>_RT_HARD){ _rtDownSince=Date.now(); forceReconnectRealtime(); } /* último recurso: recrear canal */
 }
 /* Compatibilidad con quienes ya llaman _setRealtime/_scheduleReconnect (subscribe, pushToSupabase) */
 function _setRealtime(online){ if(online)_rtGoOnline(); else { _rtMarkDown(); _rtReflect(); } }
