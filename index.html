@@ -2575,14 +2575,16 @@ function gestionarPedidoCocina(items, tableId){
   if(order&&order.status!=='closed'){
     const _prevCount=order.items.length; /* ítems que la cocina YA tenía antes de agregar */
     order.items=[...order.items,...itemsToSend];
+    /* El límite "nuevo" se fija SIEMPRE al conteo previo: al agregar productos, la cocina
+       destaca solo los recién enviados. Los ítems anteriores no terminados siguen visibles
+       (ver renderKitchen), así que nada se pierde. No se confía en el valor almacenado (que
+       podría estar desactualizado si este dispositivo no recibió el despacho). */
+    order.kitchenSeenCount=_prevCount;
     if(order.kitchenHidden){
-      /* La cocina lo había despachado: reaparece mostrando SOLO los productos nuevos.
-         Se fija el límite al conteo real previo (no se confía en el valor almacenado, que
-         podría estar desactualizado si este dispositivo no recibió el despacho). */
+      /* La cocina lo había despachado: reaparece mostrando SOLO los productos nuevos. */
       order.kitchenHidden=false;
       order.status='pending';
       order.kitchenStartTime=null;
-      order.kitchenSeenCount=_prevCount;
     }
     showToast('Enviado a cocina 🍳','ok');
   } else {
@@ -2751,6 +2753,9 @@ let ingredientes={
   'Verduras':['Aceituna','Alcaparra','Cebolla','Champiñón','Choclo','Espinaca','Morrón','Rúcula','Tomate','Lechuga','Palta','Pepinillo'],
   'Salsa Adicional':['Barbiquiu','Paprika picante','Pesto','Jengibre-Ajo','Mayo','Mostaza','Ketchup','BBQ']
 };
+/* Versión (timestamp) de los ingredientes: un estado entrante con versión MÁS VIEJA no puede
+   sobrescribir los cambios del admin. Se sube en cada edición (agregar/quitar). */
+let _ingTs=0;
 function _ingList(cat){return Array.isArray(ingredientes[cat])?ingredientes[cat]:[];}
 function openSM(item){
   sItem=item;sIngs=[];
@@ -3092,8 +3097,9 @@ function renderDashboard(){
   /* "Mesas activas - Sin cobrar aún": pedidos que ya salieron del flujo de cocina
      (eliminados por cocina o cancelados) pero todavía no se cobran. */
   const sinCobrar=active.filter(o=>o.kitchenHidden||o.status==='canceled');
-  /* El flujo de cocina (pendiente/preparación/listo) excluye los ya retirados por cocina */
-  const inKitchen=active.filter(o=>!o.kitchenHidden&&o.status!=='canceled');
+  /* El flujo de cocina (pendiente/preparación/listo) excluye los ya retirados por cocina
+     y los pedidos sin ítems enviados (mesa abierta pero nada mandado a cocina). */
+  const inKitchen=active.filter(o=>_enCocina(o)&&o.status!=='canceled');
   const pending=inKitchen.filter(o=>o.status==='pending');
   const preparing=inKitchen.filter(o=>o.status==='preparing');
   const readyOrds=inKitchen.filter(o=>o.status==='ready');
@@ -5459,11 +5465,13 @@ function addIngrediente(cat){
   if(!Array.isArray(ingredientes[cat]))ingredientes[cat]=[];
   if(ingredientes[cat].some(x=>x.toLowerCase()===name.toLowerCase())){showToast('Ese ingrediente ya existe','del');return;}
   ingredientes[cat].push(name);
+  _ingTs=_nextTs(); /* nueva versión: gana sobre cualquier estado viejo */
   broadcastState();renderIngredientEditor();showToast('Ingrediente agregado','ok');
 }
 function removeIngrediente(cat,name){
   if(!Array.isArray(ingredientes[cat]))return;
   ingredientes[cat]=ingredientes[cat].filter(x=>x!==name);
+  _ingTs=_nextTs(); /* nueva versión: gana sobre cualquier estado viejo */
   broadcastState();renderIngredientEditor();showToast('Ingrediente quitado','del');
 }
 function renderInv(){
@@ -5857,9 +5865,12 @@ async function renderPublicCartaViewer(){
 }
 
 /* ── KITCHEN ── */
+/* Un pedido aparece en Cocina SOLO si tiene ítems realmente ENVIADOS y aún NO despachados.
+   Así una mesa recién abierta (o sin productos enviados) nunca aparece automáticamente. */
+function _enCocina(o){return o&&o.status!=='closed'&&!o.kitchenHidden&&((o.items&&o.items.length)||0)>(o.kitchenSeenCount||0);}
 function renderKitchen(){
   _updateAlarmUI();
-  const active=orders.filter(o=>o.status!=='closed'&&!o.kitchenHidden);
+  const active=orders.filter(_enCocina);
   $('kitCount').textContent=active.length+' órdenes';
   if(!active.length){$('kitchenGrid').innerHTML='<div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div>';return;}
   $('kitchenGrid').innerHTML=active.map(o=>{
@@ -5876,7 +5887,7 @@ function renderKitchen(){
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
-      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx||!(x.item.kdone||x.item.kstate==='listo'||x.item.kdisp)).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
         ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
         <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${(item.note&&item.noteKitchen!==false)?`<div class="ki-note" style="background:var(--wn);color:#fff;border-radius:6px;padding:3px 8px;margin-top:4px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><i class="ti ti-alert-triangle" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
         <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:${item.kstate==='listo'?'var(--ok)':item.kStart?'var(--wn)':'var(--ts)'}"><i class="ti ti-stopwatch" style="font-size:13px"></i> <span id="kitim-${o.id}-${i}">${_itemTimerText(item)}</span>${item.kstate==='listo'&&item.kStart&&item.kEnd?' <span style="font-size:10px;font-weight:600;color:var(--ts)">(preparación)</span>':''}</div>
@@ -5939,6 +5950,7 @@ function kDel(oid){
   const o=getOrder(oid);if(!o)return;
   o.kitchenHidden=true;  /* marca solo para cocina */
   o.kitchenSeenCount=o.items.length;  /* ítems ya despachados: los nuevos reaparecerán solos */
+  o.items.forEach(it=>{if(it)it.kdisp=true;});  /* marcar despachados: no reaparecen aunque no estén "listos" */
   showToast('Eliminado de cocina','del');renderKitchen();broadcastState();
 }
 
@@ -6369,6 +6381,7 @@ function getSerializableState(){
     invButtons:invButtons,
     categoryScopes:JSON.parse(JSON.stringify(categoryScopes)),
     ingredientes:JSON.parse(JSON.stringify(ingredientes)),
+    ingredientesTs:_ingTs,
     subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
@@ -6400,9 +6413,15 @@ function applyRemoteState(data){
 
     /* Preservar el "visto por cocina" por pedido: un snapshot viejo (de un dispositivo que no
        vio el despacho) NO debe reducir el límite, o la cocina volvería a mostrar todo el pedido. */
-    const _prevSeen={};orders.forEach(o=>{if(o&&o.id&&o.kitchenSeenCount!=null)_prevSeen[o.id]=o.kitchenSeenCount;});
+    const _prevSeen={},_prevDisp={};
+    orders.forEach(o=>{ if(o&&o.id){ if(o.kitchenSeenCount!=null)_prevSeen[o.id]=o.kitchenSeenCount; if(Array.isArray(o.items))_prevDisp[o.id]=o.items.map(it=>!!(it&&it.kdisp)); } });
     orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
-    orders.forEach(o=>{ if(o&&o.id&&_prevSeen[o.id]!=null){ o.kitchenSeenCount=Math.max(o.kitchenSeenCount||0,_prevSeen[o.id]); } });
+    orders.forEach(o=>{ if(!o||!o.id)return;
+      if(_prevSeen[o.id]!=null)o.kitchenSeenCount=Math.max(o.kitchenSeenCount||0,_prevSeen[o.id]);
+      /* kdisp (despachado) es forward-only: un snapshot viejo no debe "des-despachar" ítems. */
+      const pd=_prevDisp[o.id];
+      if(pd&&Array.isArray(o.items))o.items.forEach((it,idx)=>{ if(it&&pd[idx])it.kdisp=true; });
+    });
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=s.kitchenBellSeq;
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
       bellKitchen('🔔 Pedido enviado a cocina');
@@ -6459,7 +6478,12 @@ function applyRemoteState(data){
     if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
     if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
     if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
-    if(s.ingredientes&&typeof s.ingredientes==='object')ingredientes=s.ingredientes;
+    /* Ingredientes VERSIONADOS: solo aplicar si la versión entrante es >= la local.
+       Evita que un dispositivo con datos viejos revierta los cambios del admin. */
+    if(s.ingredientes&&typeof s.ingredientes==='object'){
+      const its=s.ingredientesTs||0;
+      if(its>=_ingTs){ ingredientes=s.ingredientes; _ingTs=its; }
+    }
     if(Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
     if(Array.isArray(s.bookSales)){bookSales.length=0;s.bookSales.forEach(b=>bookSales.push({...b}));}
     if(s.bookCnt!==undefined&&s.bookCnt>bookCnt)bookCnt=s.bookCnt;
