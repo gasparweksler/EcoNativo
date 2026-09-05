@@ -1306,6 +1306,9 @@ let waiters=[
   {id:'W1',user:'ana',pass:'1234',role:'waiter',name:'Ana Muñoz'},
   {id:'W2',user:'carlos',pass:'1234',role:'waiter',name:'Carlos Rojas'},
 ];
+/* Versión (timestamp) de la lista de usuarios: un estado entrante con versión más vieja
+   NO puede sobrescribir/pisar cambios recientes (crear/editar/eliminar personal). */
+let _waitersTs=0;
 
 /* ── TABLES ── */
 const tables=[
@@ -5731,13 +5734,14 @@ function saveWaiter(){
   if(!name||!user||!pass){showToast('Completa todos los campos');return;}
   if([...SYSTEM_USERS,...waiters].some(u=>u.user.toLowerCase()===user.toLowerCase())){showToast('Usuario ya existe');return;}
   waiters.push({id:'W'+Date.now(),user,pass,role:'waiter',name});
+  _waitersTs=_nextTs();broadcastState();
   showToast(name+' agregado como garzón','ok');closeMod('addWaiterModal');renderStaff();
 }
 function delWaiter(wid){
   if(!confirm('¿Eliminar a este garzón?'))return;
   waiters=waiters.filter(w=>w.id!==wid);
   if(_sb)_sb.from('staff').delete().eq('id',wid).then(({error})=>{if(error)console.warn('[Staff] delete:',error.message);});
-  broadcastState();
+  _waitersTs=_nextTs();broadcastState();
   closeMod('waiterDetailModal');showToast('Garzón eliminado','del');renderStaff();
 }
 
@@ -5939,9 +5943,7 @@ function kStart(oid){
   o.status='preparing';
   o.kitchenStartTime=Date.now();
   showToast('Preparación iniciada','ok');
-  renderKitchen();broadcastState();
-  /* Guardar en Supabase si disponible */
-  if(_sb){_sb.from('econativo_state').upsert({key:SYNC_ROW_KEY,payload:JSON.parse(getSerializableState()),updated_at:new Date().toISOString()}).catch(()=>{});}
+  renderKitchen();broadcastState(); /* broadcastState ya persiste en Supabase (pushToSupabase) */
 }
 function kReady(oid){const o=getOrder(oid);if(o){o.status='ready';showBell('✅ Listo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));showToast('Pedido listo ✓','ok');renderKitchen();broadcastState();}}
 function kDel(oid){
@@ -6079,6 +6081,7 @@ async function loadPersistentData(){
       });
       console.log('[EcoNativo] Carta cargada desde Supabase');
     }
+    _syncHistory(); /* historial de días compartido en la nube */
   }catch(e){
     console.warn('[EcoNativo] loadPersistentData error:',e.message);
   }
@@ -6132,7 +6135,7 @@ async function createStaffUser(){
     }
     /* Crear SIEMPRE localmente y propagar por el canal probado (econativo_state) */
     waiters.push({id:uid,user:username,pass,role,name});
-    broadcastState();
+    _waitersTs=_nextTs();broadcastState();
     console.log('[Staff] Usuario "'+username+'" creado y propagado por estado global ✓');
     showToast('Usuario "'+name+'" creado'+(savedRemote?' (en Supabase)':' (sincronizado)'),'ok');
     closeMod('addStaffUserModal');
@@ -6162,6 +6165,7 @@ async function editStaffUser(uid){
     if(error)throw error;
     w.name=newName;w.user=newUser.toLowerCase();w.role=newRole;
     if(newPass&&newPass.length>=4)w.pass=newPass;
+    _waitersTs=_nextTs();broadcastState();
     showToast('✅ Usuario actualizado','ok');
     renderStaff();
   }catch(e){showToast('Error al actualizar: '+e.message,'del');}
@@ -6175,7 +6179,7 @@ async function deleteStaffUser(uid){
   if(idx>=0)waiters.splice(idx,1);
   /* Borrado best-effort en la tabla staff (no bloquea si hay RLS / sin conexión) */
   if(_sb)_sb.from('staff').delete().eq('id',uid).then(({error})=>{if(error)console.warn('[Staff] delete:',error.message);});
-  broadcastState();
+  _waitersTs=_nextTs();broadcastState();
   showToast('Usuario eliminado','ok');
   renderStaff();
 }
@@ -6285,6 +6289,7 @@ async function initSupabase(){
           const idx=waiters.findIndex(x=>x.id===payload.old?.id);
           if(idx>=0)waiters.splice(idx,1);
         }
+        _waitersTs=_nextTs(); /* cambio autoritativo de la tabla staff → versión nueva */
         const ap=document.querySelector('.page.active');
         if(ap?.id==='page-staff')renderStaff();
       })
@@ -6375,6 +6380,7 @@ function getSerializableState(){
        de otro y el envío termina en la mesa equivocada (bug "siempre Mesa 3"). */
     inventory:inventoryItems.map(x=>({...x})),
     waiters:waiters.map(w=>({...w})),
+    waitersTs:_waitersTs,
     menu:JSON.parse(JSON.stringify(menuData)),
     recipes:JSON.parse(JSON.stringify(recipes)),
     cartaButtons:cartaButtons,
@@ -6390,7 +6396,37 @@ function getSerializableState(){
 }
 
 /* ── broadcastState: escribe en todas las capas ── */
+/* Poda pedidos CERRADOS antiguos del arreglo `orders` (el historial vive en closedSales).
+   Evita que el estado crezca sin límite y que cada sincronización arrastre pedidos viejos.
+   Se conservan los cerrados recientes (3 h) por si alguna vista los referencia justo tras cobrar. */
+function _pruneClosedOrders(){
+  const CUT=Date.now()-3*3600*1000;
+  for(let i=orders.length-1;i>=0;i--){
+    const o=orders[i];
+    if(o&&o.status==='closed'&&(o.closedAt||0)<CUT){ if(o.id&&kDone[o.id])delete kDone[o.id]; orders.splice(i,1); }
+  }
+}
+/* Historial de días (archivados por "Nuevo Día") COMPARTIDO en la nube.
+   Fusiona el historial local con el de Supabase (registro 'sales_history') en ambos sentidos,
+   deduplicando por día. Así las estadísticas históricas son consistentes entre dispositivos. */
+async function _syncHistory(){
+  if(!_sb)return;
+  let cloud=[];
+  try{ const {data}=await _sb.from('econativo_state').select('payload').eq('key','sales_history').maybeSingle(); if(data&&data.payload&&Array.isArray(data.payload.days))cloud=data.payload.days; }catch(e){ return; }
+  let local=[]; try{ const r=JSON.parse(localStorage.getItem('econativo_history')||'[]'); if(Array.isArray(r))local=r; }catch(e){}
+  const sig=d=>[d&&d.date,d&&d.transacciones,d&&d.ventas,d&&d.propinas].join('|');
+  const seen=new Set(),merged=[];
+  [...cloud,...local].forEach(d=>{ if(!d)return; const k=sig(d); if(!seen.has(k)){seen.add(k);merged.push(d);} });
+  const capped=merged.slice(-90);
+  try{ localStorage.setItem('econativo_history',JSON.stringify(capped)); }catch(e){}
+  if(JSON.stringify(capped)!==JSON.stringify(cloud)){
+    const ts=new Date().toISOString();
+    try{ await _sb.from('econativo_state').upsert({key:'sales_history',payload:{v:1,updated:ts,days:capped},updated_at:ts}); }catch(e){console.warn('[Historial] nube',e&&e.message);}
+  }
+  const ap=document.querySelector('.page.active'); if(ap&&ap.id==='page-stats'&&typeof renderStats==='function')renderStats();
+}
 function broadcastState(){
+  _pruneClosedOrders(); /* no transmitir pedidos cerrados antiguos */
   const payload=getSerializableState();
   /* Capa 1: BroadcastChannel (misma máquina) */
   if(bc)bc.postMessage({type:'STATE_UPDATE',payload});
@@ -6401,11 +6437,11 @@ function broadcastState(){
 }
 
 /* ── applyRemoteState: aplica estado entrante sin pisar local ── */
-function applyRemoteState(data){
+function applyRemoteState(data,force){
   try{
     const s=typeof data==='string'?JSON.parse(data):data;
-    /* Si el timestamp entrante es más antiguo que el nuestro, ignorar */
-    if(s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
+    /* Si el timestamp entrante es más antiguo que el nuestro, ignorar (salvo force: re-sync explícito) */
+    if(!force&&s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
 
     /* Campana: sonar en CADA envío a cocina (contador kitchenBellSeq), sea pedido nuevo
        o adición a una mesa ya abierta en cocina. */
@@ -6422,6 +6458,7 @@ function applyRemoteState(data){
       const pd=_prevDisp[o.id];
       if(pd&&Array.isArray(o.items))o.items.forEach((it,idx)=>{ if(it&&pd[idx])it.kdisp=true; });
     });
+    _pruneClosedOrders(); /* podar cerrados antiguos también al recibir (convergencia) */
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=s.kitchenBellSeq;
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
       bellKitchen('🔔 Pedido enviado a cocina');
@@ -6455,9 +6492,12 @@ function applyRemoteState(data){
     }
     /* Usuarios (Personal): el estado global es AUTORITATIVO → reemplazar la lista completa,
        así las eliminaciones se propagan y no quedan usuarios fantasma. */
-    if(Array.isArray(s.waiters)){
+    /* VERSIONADO: solo reemplazar la lista de usuarios si la versión entrante es >= la local.
+       Evita que un dispositivo con una lista vieja pise a un usuario recién creado/editado. */
+    if(Array.isArray(s.waiters)&&(s.waitersTs||0)>=_waitersTs){
       waiters.length=0;
       s.waiters.forEach(rw=>{ if(rw&&rw.id)waiters.push({...rw}); });
+      _waitersTs=s.waitersTs||0;
     }
     /* Carta: FUSIÓN (no reemplazo total) para no perder productos que el emisor no conoce.
        El estado entrante relocaliza/actualiza solo los ítems presentes en su snapshot;
@@ -6618,8 +6658,10 @@ async function _resyncNow(){
     if(!_sb)return;
     const {data}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).single();
     if(data&&data.payload&&data.payload.src!==_deviceId){
+      /* force=true: al reconectar, aplicar el estado autoritativo de la nube aunque el
+         timestamp local esté por encima (evita quedarse desactualizado por saltos de reloj). */
+      applyRemoteState(data.payload,true);
       _lastSyncTs=Math.max(_lastSyncTs||0,data.payload.ts||0);
-      applyRemoteState(data.payload);
     }
   }catch(e){}
 }
@@ -6669,10 +6711,11 @@ async function preloadAuthUsers(){
     if(!_sb)_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
     const {data}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).single();
     const s=data&&data.payload;
-    if(s&&Array.isArray(s.waiters)){
-      /* Reemplazo autoritativo: la lista de Personal del estado global es la vigente */
+    if(s&&Array.isArray(s.waiters)&&(s.waitersTs||0)>=_waitersTs){
+      /* Solo si la versión entrante es >= la local (no pisar cambios locales más nuevos) */
       waiters.length=0;
       s.waiters.forEach(rw=>{ if(rw&&rw.id)waiters.push({...rw}); });
+      _waitersTs=s.waitersTs||0;
       console.log('[Login] Usuarios cargados desde estado global: '+waiters.length);
     }
   }catch(e){console.warn('[Login] preloadAuthUsers:',e.message);}
@@ -6719,6 +6762,7 @@ function nuevoDia(){
     }
     hist.push({...yesterday,sales:closedSales.map(s=>({...s}))});
     localStorage.setItem('econativo_history',JSON.stringify(hist.slice(-90)));/* keep 90 days */
+    if(typeof _syncHistory==='function')_syncHistory(); /* subir el día archivado a la nube (compartido) */
   }catch(e){console.warn('EcoNativo: no se pudo guardar historial.',e);}
 
   /* 2. Clear active orders */
