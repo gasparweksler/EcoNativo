@@ -6054,6 +6054,48 @@ async function syncCartaToSupabase(){
   }
 }
 
+/* ── AUTO-REPARACIÓN de la tabla `menu` ──
+   La tabla `menu` es la fuente autoritativa de la Carta al recargar. Si hay productos que
+   viven SOLO en el estado global (pos_state) y faltan en esta tabla, quedan frágiles: un
+   dispositivo que escriba un menú más corto los borra ("productos que desaparecen"). Esta
+   función sube a la tabla `menu` los productos presentes en memoria (unión pos_state + tabla)
+   que aún no estén en ella. Es idempotente: si no falta nada, no escribe. Solo el admin la
+   ejecuta (es quien gestiona la Carta) para evitar escrituras redundantes desde otros equipos.
+   No resucita productos borrados: un producto eliminado ya no está en menuData. */
+async function _healMenuTable(tableRows){
+  if(!_sb||cRole!=='admin')return;
+  try{
+    /* Si no se pasan las filas de la tabla, obtenerlas (disparo diferido de seguridad). */
+    if(!tableRows){ try{ const {data:mr}=await _sb.from('menu').select('name'); tableRows=mr||[]; }catch(e){ tableRows=[]; } }
+    const have=new Set((tableRows||[]).map(r=>r&&r.name).filter(Boolean));
+    /* Fuente autoritativa = pos_state.menu (contiene TODOS los productos, incluidos los que la
+       carga inicial no volcó a menuData por el orden de arranque) ∪ menuData en memoria. */
+    let src={};
+    try{ const {data:ps}=await _sb.from('econativo_state').select('payload').eq('key',SYNC_ROW_KEY).maybeSingle(); if(ps&&ps.payload&&ps.payload.menu)src=ps.payload.menu; }catch(e){}
+    const seen=new Set(), missingRows=[], restoredMem=[];
+    const consider=(cat,sub,it,fromCloud)=>{
+      if(!it||!it.name||seen.has(it.name))return; seen.add(it.name);
+      /* (1) restaurar en memoria si falta (para que se VEA en la Carta ya, sin recargar) */
+      let inMem=false;
+      for(const c in menuData)for(const s in menuData[c]){ if(menuData[c][s].some(x=>x&&x.name===it.name))inMem=true; }
+      if(!inMem&&fromCloud){ if(!menuData[cat])menuData[cat]={}; if(!menuData[cat][sub])menuData[cat][sub]=[]; menuData[cat][sub].push({...it}); restoredMem.push(it.name); }
+      /* (2) subir a la tabla `menu` si falta (durabilidad: inmune a carreras de pos_state) */
+      if(!have.has(it.name)){
+        missingRows.push({name:it.name,cat,sub,price:it.price||0,active:it.active!==false,
+          extra_data:JSON.stringify(Object.fromEntries(Object.entries(it).filter(([k])=>!['name','price','active'].includes(k)))),
+          updated_at:new Date().toISOString()});
+      }
+    };
+    for(const cat in src)for(const sub in src[cat])(src[cat][sub]||[]).forEach(it=>consider(cat,sub,it,true));
+    for(const cat in menuData)for(const sub in menuData[cat])(menuData[cat][sub]||[]).forEach(it=>consider(cat,sub,it,false));
+    if(restoredMem.length){ if(typeof buildRecipes==='function')buildRecipes(); _refreshActiveView&&_refreshActiveView(); console.log('[EcoNativo] Carta: '+restoredMem.length+' producto(s) restaurados en pantalla'); }
+    if(missingRows.length){
+      const {error}=await _sb.from('menu').upsert(missingRows,{onConflict:'name'});
+      if(error)console.warn('[Carta] auto-reparación menu:',error.message);
+      else console.log('[EcoNativo] Carta: '+missingRows.length+' producto(s) restaurados en la tabla menu ✓');
+    }
+  }catch(e){console.warn('[Carta] heal menu error:',e&&e.message);}
+}
 async function loadPersistentData(){
   if(!_sb)return;
   try{
@@ -6093,6 +6135,8 @@ async function loadPersistentData(){
       });
       console.log('[EcoNativo] Carta cargada desde Supabase');
     }
+    /* Restaurar en la tabla `menu` los productos que solo viven en pos_state (Bug: desaparecen). */
+    _healMenuTable(menu||[]);
     _syncHistory(); /* historial de días compartido en la nube */
   }catch(e){
     console.warn('[EcoNativo] loadPersistentData error:',e.message);
@@ -6437,8 +6481,23 @@ async function _syncHistory(){
   }
   const ap=document.querySelector('.page.active'); if(ap&&ap.id==='page-stats'&&typeof renderStats==='function')renderStats();
 }
+/* ── VERSIONADO POR PEDIDO (evita perder pedidos en carreras de sincronización) ──
+   Cada pedido lleva una marca de modificación (_mts). Se estampa SOLO cuando su contenido
+   cambió localmente, para que al fusionar gane el más nuevo POR PEDIDO y ningún pedido local
+   se pierda por un snapshot ajeno más nuevo pero incompleto (bug "las mesas se cierran solas"). */
+let _ordSig={};
+function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.kitchenHidden,o.kitchenSeenCount,o.kitchenStartTime,o.tip,o.discount,o.pago,o.clientName,o.clientId,o.stockDescontado,(o.items||[]).map(it=>it&&[it.name,it.qty,it.price,it.kstate,it.kdone,it.kdisp,it.note,it.detail])]); }catch(e){ return 'x'+Math.random(); } }
+function _stampOrders(){
+  orders.forEach(o=>{ if(!o||!o.id)return; const sig=_ordSigOf(o); if(_ordSig[o.id]!==sig){ o._mts=_nextTs(); _ordSig[o.id]=sig; } });
+  const ids={}; orders.forEach(o=>{ if(o&&o.id)ids[o.id]=1; });
+  for(const k in _ordSig)if(!ids[k])delete _ordSig[k];
+}
+/* Tras fusionar un estado entrante: recalcular firmas para que los pedidos ya convergidos NO
+   se vuelvan a estampar como "modificados localmente" en el próximo envío (evita ping-pong). */
+function _resetOrdSig(){ _ordSig={}; orders.forEach(o=>{ if(o&&o.id)_ordSig[o.id]=_ordSigOf(o); }); }
 function broadcastState(){
   _pruneClosedOrders(); /* no transmitir pedidos cerrados antiguos */
+  _stampOrders();       /* versionar los pedidos modificados localmente */
   const payload=getSerializableState();
   /* Capa 1: BroadcastChannel (misma máquina) */
   if(bc)bc.postMessage({type:'STATE_UPDATE',payload});
@@ -6459,18 +6518,33 @@ function applyRemoteState(data,force){
        o adición a una mesa ya abierta en cocina. */
     const _prevSeq=kitchenBellSeq;
 
-    /* Preservar el "visto por cocina" por pedido: un snapshot viejo (de un dispositivo que no
-       vio el despacho) NO debe reducir el límite, o la cocina volvería a mostrar todo el pedido. */
-    const _prevSeen={},_prevDisp={};
-    orders.forEach(o=>{ if(o&&o.id){ if(o.kitchenSeenCount!=null)_prevSeen[o.id]=o.kitchenSeenCount; if(Array.isArray(o.items))_prevDisp[o.id]=o.items.map(it=>!!(it&&it.kdisp)); } });
-    orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
-    orders.forEach(o=>{ if(!o||!o.id)return;
-      if(_prevSeen[o.id]!=null)o.kitchenSeenCount=Math.max(o.kitchenSeenCount||0,_prevSeen[o.id]);
-      /* kdisp (despachado) es forward-only: un snapshot viejo no debe "des-despachar" ítems. */
-      const pd=_prevDisp[o.id];
-      if(pd&&Array.isArray(o.items))o.items.forEach((it,idx)=>{ if(it&&pd[idx])it.kdisp=true; });
+    /* ── FUSIÓN de pedidos por id (NO reemplazo total) ──
+       Reemplazar toda la lista hacía que un snapshot ajeno más nuevo pero que NO conoce un
+       pedido local lo borrara → "las mesas se cierran solas" al presionar Listo o agregar
+       productos desde otro equipo. Ahora se fusiona por id:
+         • pedido solo local        → se conserva (nunca se pierde);
+         • pedido solo en el entrante→ se agrega;
+         • pedido en ambos          → gana el de mayor _mts (marca de modificación por pedido).
+       Se preserva forward-only lo de cocina (kitchenSeenCount por máx, kdisp por OR). */
+    const _localById={}; orders.forEach(o=>{ if(o&&o.id)_localById[o.id]=o; });
+    (s.orders||[]).forEach(ro=>{
+      if(!ro)return;
+      if(!ro.id){ orders.push(ro); return; }
+      const lo=_localById[ro.id];
+      if(!lo){ orders.push(ro); _localById[ro.id]=ro; return; }
+      const rt=ro._mts||0, lt=lo._mts||0;
+      if(rt>=lt){
+        /* el entrante es igual o más nuevo → adoptar su contenido, preservando cocina forward-only */
+        const prevSeen=(lo.kitchenSeenCount!=null)?lo.kitchenSeenCount:null;
+        const prevDisp=Array.isArray(lo.items)?lo.items.map(it=>!!(it&&it.kdisp)):null;
+        const idx=orders.indexOf(lo); if(idx>=0)orders[idx]=ro; _localById[ro.id]=ro;
+        if(prevSeen!=null)ro.kitchenSeenCount=Math.max(ro.kitchenSeenCount||0,prevSeen);
+        if(prevDisp&&Array.isArray(ro.items))ro.items.forEach((it,i)=>{ if(it&&prevDisp[i])it.kdisp=true; });
+      }
+      /* else: el local es más nuevo → se conserva tal cual (no se pisa) */
     });
     _pruneClosedOrders(); /* podar cerrados antiguos también al recibir (convergencia) */
+    _resetOrdSig();       /* pedidos ya convergidos: no re-estampar como cambios locales */
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=s.kitchenBellSeq;
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
       bellKitchen('🔔 Pedido enviado a cocina');
@@ -6728,6 +6802,17 @@ function postLoginInit(){
     }
   });
 }
+/* Reconciliador robusto de la Carta: INDEPENDIENTE de la cadena initSupabase().then() (que en
+   redes inestables puede no completar). En cuanto haya conexión y sesión admin, reconcilia UNA vez
+   la tabla `menu` con pos_state (restaura en pantalla y en la tabla los productos faltantes). */
+(function _scheduleMenuHeal(){
+  let done=false;
+  const iv=setInterval(()=>{
+    if(done)return;
+    try{ if(_sb&&typeof cRole!=='undefined'&&cRole==='admin'&&typeof _healMenuTable==='function'){ done=true; clearInterval(iv); _healMenuTable(); } }catch(e){}
+  },2500);
+  setTimeout(()=>clearInterval(iv),90000); /* dejar de intentar tras 90s */
+})();
 
 /* ── Precarga de usuarios ANTES del login ──
    La tabla staff está bloqueada por RLS, así que los usuarios creados por el admin
