@@ -1299,6 +1299,10 @@ let splitMode='items',splitEqualN=2;   /* 'items' = por productos · 'equal' = p
 let currentClientId=null,editingPendingIdx=-1;
 let currentWaiterId=null,currentRecipeName=null;
 let totalOrdsIn=0,prevOrderCount=0;
+/* Época de jornada: la incrementa "Nuevo Día". Permite fusionar sin pérdida durante el MISMO
+   día y, a la vez, propagar el reinicio diario. Un dispositivo con época menor (que no vio el
+   día nuevo) no puede resucitar pedidos/ventas de la jornada anterior ni deshacer el reinicio. */
+let dayEpoch=0;
 
 /* ── CREDENTIALS ── */
 const SYSTEM_USERS=[
@@ -1798,7 +1802,7 @@ function _ctPartApply(sels,dest){
   /* pedido de destino: reutiliza uno activo o crea uno nuevo */
   let destOrder=_ctActiveOrders(dest).find(o=>!o.kitchenHidden)||_ctActiveOrders(dest)[0];
   if(!destOrder){
-    destOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:dest,type:'mesa',waiter:cUser||'—',time:Date.now(),status:'preparing',kitchenStartTime:Date.now(),tip:0,pago:'efectivo',items:[],clientName:'',stockDescontado:true};
+    destOrder={id:'ORD'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx(),tableId:dest,type:'mesa',waiter:cUser||'—',time:Date.now(),status:'preparing',kitchenStartTime:Date.now(),tip:0,pago:'efectivo',items:[],clientName:'',stockDescontado:true};
     kDone[destOrder.id]=[]; orders.push(destOrder); totalOrdsIn++;
   }
   destOrder.stockDescontado=true; /* recibe ítems ya descontados; no se toca inventario */
@@ -1841,7 +1845,7 @@ function tableClick(id){
   if(activeOrds.length>1){showAccountSelect(id);return;}
   if(activeOrds.length===1){loadTableOrder(id,activeOrds[0]);return;}
   /* No active orders — start new (sin prompt de cliente) */
-  const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:''};
+  const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx(),tableId:id,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:''};
   kDone[newOrder.id]=[]; /* pedido nuevo → sin marcas de tachado heredadas */
   orders.push(newOrder);totalOrdsIn++;
   loadTableOrder(id,newOrder);
@@ -1959,7 +1963,7 @@ function addNewTableAccount(){
   if(!tid)return;
   closeMod('accountSelectModal');
   const accountName=prompt('Nombre del nuevo cliente para Mesa '+tid+':','')||'Cliente';
-  const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:tid,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:accountName};
+  const newOrder={id:'ORD'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx(),tableId:tid,type:'mesa',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientName:accountName};
   kDone[newOrder.id]=[]; /* pedido nuevo → sin marcas de tachado heredadas */
   orders.push(newOrder);totalOrdsIn++;
   showToast('Cuenta "'+accountName+'" creada en Mesa '+tid,'ok');
@@ -2545,7 +2549,7 @@ function cobrarDividido(){
 /* ── MOSTRADOR: two independent actions ── */
 function _mcBuildOrder(){
   const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const id='MC'+String(ordCnt++).padStart(3,'0');
+  const id='MC'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx();
   return {id,sub};
 }
 function mcSendKitchen(){
@@ -2569,7 +2573,7 @@ function mcCobrar(){
   /* Cobro de mostrador con el MISMO modal que las mesas (propina, descuento, método de pago).
      Se usa un pedido AD-HOC que NUNCA entra en la lista compartida `orders` (así no aparece
      ni interfiere en la vista de Cocina de otros dispositivos). El stock se descuenta al confirmar. */
-  const id='MC'+String(ordCnt++).padStart(3,'0');
+  const id='MC'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx();
   window._mcOrder={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'open',pago:selPay,tip:0,items:cart.map(i=>({...i})),clientName:'',stockDescontado:false,_mcTemp:true};
   cobrarYCerrar();
 }
@@ -2603,7 +2607,7 @@ function gestionarPedidoCocina(items, tableId){
     }
     showToast('Enviado a cocina 🍳','ok');
   } else {
-    order={id:'ORD'+String(ordCnt++).padStart(3,'0'),tableId:targetTable,type:'mesa',
+    order={id:'ORD'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx(),tableId:targetTable,type:'mesa',
       waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',
       items:itemsToSend,clientName:''};
     /* FIX: limpiar cualquier marca de "completado" heredada de un id reutilizado,
@@ -3315,7 +3319,7 @@ function chargeClientItem(cid,pi){
   const payMethod=prompt('Método de pago (efectivo/tarjeta/transferencia):','efectivo')||'efectivo';
   /* Register as sold product in stats */
   closedSales.push({
-    id:'CLI'+String(clientCnt++).padStart(3,'0'),tableId:null,type:'cliente',waiter:cUser||'Admin',
+    id:'CLI'+String(clientCnt++).padStart(3,'0')+'-'+_dSfx(),tableId:null,type:'cliente',waiter:cUser||'Admin',
     time:Date.now(),closedAt:Date.now(),status:'closed',pago:payMethod,tip:0,
     clientId:cid,clientName:c.name,
     items:[{name:p.desc,price:p.unitVal,qty:p.qty||1}]
@@ -3408,7 +3412,7 @@ function assignClientToTable(cid){
   /* If no active order yet for that table, create a placeholder entry */
   const existingOrder=orders.find(o=>o.tableId===tid&&o.status!=='closed');
   if(!existingOrder){
-    const _nid='ORD'+String(ordCnt++).padStart(3,'0');kDone[_nid]=[];
+    const _nid='ORD'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx();kDone[_nid]=[];
     orders.push({id:_nid,tableId:tid,type:'mesa',waiter:cUser||'Admin',time:Date.now(),status:'pending',tip:0,pago:'efectivo',items:[],clientId:cid,clientName:c.name});
     totalOrdsIn++;
   }else{existingOrder.clientId=cid;existingOrder.clientName=c.name;}
@@ -3421,7 +3425,7 @@ function deleteClient(cid){
 }
 function saveClient(){
   const name=($('cliName').value||'').trim();if(!name){showToast('Ingresa un nombre');return;}
-  clients.push({id:'CLI'+String(clientCnt++).padStart(3,'0'),name,phone:$('cliPhone').value.trim(),email:$('cliEmail').value.trim(),notes:$('cliNotes').value.trim(),history:[],pendings:[],totalSpent:0});
+  clients.push({id:'CLI'+String(clientCnt++).padStart(3,'0')+'-'+_dSfx(),name,phone:$('cliPhone').value.trim(),email:$('cliEmail').value.trim(),notes:$('cliNotes').value.trim(),history:[],pendings:[],totalSpent:0});
   showToast(name+' creado','ok');closeMod('addClientModal');renderClients();
 }
 
@@ -6418,6 +6422,10 @@ async function _flushPendingPush(){
 /* Identidad de este dispositivo y timestamp MONÓTONO (nunca dos envíos con el mismo ts,
    ni retrocede). Evita que dos pedidos enviados casi a la vez colisionen y se pierda uno. */
 const _deviceId='D'+Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+/* Sufijo por dispositivo para IDs globalmente ÚNICOS. Dos equipos con el mismo contador
+   (ordCnt/clientCnt) generaban el MISMO id (ORD007) y un pedido pisaba al otro al fusionar.
+   Con este sufijo, cada equipo produce ids que jamás colisionan con los de otro equipo. */
+function _dSfx(){ return String(_deviceId||'d0').slice(-4); }
 let _lastLocalTs=0;
 function _nextTs(){_lastLocalTs=Math.max(Date.now(),_lastLocalTs+1);return _lastLocalTs;}
 /* ── Serialización del estado completo ── */
@@ -6447,6 +6455,7 @@ function getSerializableState(){
     subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
+    dayEpoch,
     ts:_nextTs()
   });
 }
@@ -6514,67 +6523,95 @@ function applyRemoteState(data,force){
     /* Si el timestamp entrante es más antiguo que el nuestro, ignorar (salvo force: re-sync explícito) */
     if(!force&&s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
 
-    /* Campana: sonar en CADA envío a cocina (contador kitchenBellSeq), sea pedido nuevo
-       o adición a una mesa ya abierta en cocina. */
+    /* Campana: sonar en CADA envío a cocina (contador kitchenBellSeq). */
     const _prevSeq=kitchenBellSeq;
 
-    /* ── FUSIÓN de pedidos por id (NO reemplazo total) ──
-       Reemplazar toda la lista hacía que un snapshot ajeno más nuevo pero que NO conoce un
-       pedido local lo borrara → "las mesas se cierran solas" al presionar Listo o agregar
-       productos desde otro equipo. Ahora se fusiona por id:
-         • pedido solo local        → se conserva (nunca se pierde);
-         • pedido solo en el entrante→ se agrega;
-         • pedido en ambos          → gana el de mayor _mts (marca de modificación por pedido).
-       Se preserva forward-only lo de cocina (kitchenSeenCount por máx, kdisp por OR). */
-    const _localById={}; orders.forEach(o=>{ if(o&&o.id)_localById[o.id]=o; });
-    (s.orders||[]).forEach(ro=>{
-      if(!ro)return;
-      if(!ro.id){ orders.push(ro); return; }
-      const lo=_localById[ro.id];
-      if(!lo){ orders.push(ro); _localById[ro.id]=ro; return; }
-      const rt=ro._mts||0, lt=lo._mts||0;
-      if(rt>=lt){
-        /* el entrante es igual o más nuevo → adoptar su contenido, preservando cocina forward-only */
-        const prevSeen=(lo.kitchenSeenCount!=null)?lo.kitchenSeenCount:null;
-        const prevDisp=Array.isArray(lo.items)?lo.items.map(it=>!!(it&&it.kdisp)):null;
-        const idx=orders.indexOf(lo); if(idx>=0)orders[idx]=ro; _localById[ro.id]=ro;
-        if(prevSeen!=null)ro.kitchenSeenCount=Math.max(ro.kitchenSeenCount||0,prevSeen);
-        if(prevDisp&&Array.isArray(ro.items))ro.items.forEach((it,i)=>{ if(it&&prevDisp[i])it.kdisp=true; });
+    /* ── ÉPOCA DE JORNADA (dayEpoch) ──
+       _newDay  : el emisor inició una jornada nueva (Nuevo Día) → adoptamos su reinicio.
+       _staleDay: el emisor NO vio aún la jornada nueva → IGNORAMOS sus datos de jornada
+                  (pedidos, ventas, caja, contadores), así no resucita la jornada anterior.
+       época igual → MISMO día → fusión segura por id: nunca se pierde nada. */
+    const _rEpoch=s.dayEpoch||0;
+    const _newDay=_rEpoch>dayEpoch, _staleDay=_rEpoch<dayEpoch;
+
+    if(_newDay){
+      /* Adoptar la jornada nueva tal cual (pedidos, mesas, ventas, contadores, caja). */
+      orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
+      _resetOrdSig();
+      tables.forEach(t=>{ const rt=(s.tables||[]).find(x=>x.id===t.id); if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;} });
+      closedSales.length=0;(s.closedSales||[]).forEach(x=>closedSales.push(x));
+      if(s.ordCnt!==undefined)ordCnt=s.ordCnt;
+      if(s.totalOrdsIn!==undefined)totalOrdsIn=s.totalOrdsIn;
+      if(s.caja){ caja.open=s.caja.open;caja.openTime=s.caja.openTime;caja.fondo=s.caja.fondo;caja.movements=[...(s.caja.movements||[])];caja.log=[...(s.caja.log||[])]; }
+      dayEpoch=_rEpoch;
+    } else if(!_staleDay){
+      /* ── MISMO DÍA → FUSIONES SEGURAS (jamás se pierde nada por una carrera) ── */
+      /* Pedidos: fusión por id; conflicto gana el de mayor _mts; local-solo se conserva. */
+      const _localById={}; orders.forEach(o=>{ if(o&&o.id)_localById[o.id]=o; });
+      (s.orders||[]).forEach(ro=>{
+        if(!ro)return;
+        if(!ro.id){ orders.push(ro); return; }
+        const lo=_localById[ro.id];
+        if(!lo){ orders.push(ro); _localById[ro.id]=ro; return; }
+        const rt=ro._mts||0, lt=lo._mts||0;
+        if(rt>=lt){
+          const prevSeen=(lo.kitchenSeenCount!=null)?lo.kitchenSeenCount:null;
+          const prevDisp=Array.isArray(lo.items)?lo.items.map(it=>!!(it&&it.kdisp)):null;
+          const idx=orders.indexOf(lo); if(idx>=0)orders[idx]=ro; _localById[ro.id]=ro;
+          if(prevSeen!=null)ro.kitchenSeenCount=Math.max(ro.kitchenSeenCount||0,prevSeen);
+          if(prevDisp&&Array.isArray(ro.items))ro.items.forEach((it,i)=>{ if(it&&prevDisp[i])it.kdisp=true; });
+        }
+        /* else: el local es más nuevo → se conserva tal cual */
+      });
+      _resetOrdSig();
+      /* Mesas: NO liberar una mesa que aún tiene un pedido abierto localmente. */
+      tables.forEach(t=>{
+        const rt=(s.tables||[]).find(x=>x.id===t.id);
+        const openLocal=orders.some(o=>o&&o.tableId===t.id&&o.status!=='closed'&&o.status!=='canceled');
+        if(rt){ t.status=(rt.status==='free'&&openLocal)?'occupied':rt.status; t.waiter=rt.waiter||t.waiter||''; t.clientId=rt.clientId||t.clientId||null; t.clientName=rt.clientName||t.clientName||''; t.startTime=rt.startTime||t.startTime||null; }
+        else if(openLocal){ t.status='occupied'; }
+      });
+      /* Ventas cerradas: UNIÓN por id — una venta jamás se pierde por una carrera. */
+      { const have={}; closedSales.forEach(x=>{ if(x&&x.id)have[x.id]=1; });
+        (s.closedSales||[]).forEach(x=>{ if(x&&x.id&&!have[x.id]){ closedSales.push(x); have[x.id]=1; } }); }
+      /* Contadores: MÁXIMO monótono → nunca retroceden → no se reutilizan ids (no duplicados). */
+      if(s.ordCnt!==undefined)ordCnt=Math.max(ordCnt||0,s.ordCnt);
+      if(s.totalOrdsIn!==undefined)totalOrdsIn=Math.max(totalOrdsIn||0,s.totalOrdsIn);
+      /* Caja: apertura/fondo del último; movimientos y bitácora por UNIÓN (no se pierde dinero). */
+      if(s.caja){
+        caja.open=s.caja.open;caja.openTime=s.caja.openTime||caja.openTime;caja.fondo=s.caja.fondo;
+        const msig=m=>[m&&m.time,m&&m.amount,m&&m.pago,m&&m.desc].join('|'); const mh={}; caja.movements.forEach(m=>{ mh[msig(m)]=1; });
+        (s.caja.movements||[]).forEach(m=>{ if(!mh[msig(m)]){ caja.movements.push(m); mh[msig(m)]=1; } });
+        const lsig=l=>[l&&l.time,l&&l.msg].join('|'); const lh={}; caja.log.forEach(l=>{ lh[lsig(l)]=1; });
+        (s.caja.log||[]).forEach(l=>{ if(!lh[lsig(l)]){ caja.log.push(l); lh[lsig(l)]=1; } });
       }
-      /* else: el local es más nuevo → se conserva tal cual (no se pisa) */
-    });
-    _pruneClosedOrders(); /* podar cerrados antiguos también al recibir (convergencia) */
-    _resetOrdSig();       /* pedidos ya convergidos: no re-estampar como cambios locales */
-    if(s.kitchenBellSeq!==undefined)kitchenBellSeq=s.kitchenBellSeq;
+    }
+    /* (si _staleDay: se ignoran por completo los datos de jornada del emisor) */
+    _pruneClosedOrders(); /* podar cerrados antiguos (convergencia) */
+
+    if(s.kitchenBellSeq!==undefined)kitchenBellSeq=Math.max(kitchenBellSeq||0,s.kitchenBellSeq);
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
       bellKitchen('🔔 Pedido enviado a cocina');
     }
-    tables.forEach(t=>{
-      const rt=(s.tables||[]).find(x=>x.id===t.id);
-      if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;}
-    });
-    closedSales.length=0;(s.closedSales||[]).forEach(x=>closedSales.push(x));
-    clients.length=0;(s.clients||[]).forEach(c=>clients.push(c));
-    if(s.ordCnt!==undefined)ordCnt=s.ordCnt;
-    if(s.totalOrdsIn!==undefined)totalOrdsIn=s.totalOrdsIn;
-    if(s.clientCnt!==undefined)clientCnt=s.clientCnt;
+    /* clientCnt: id de clientes (independiente de jornada) → máximo monótono. */
+    if(s.clientCnt!==undefined)clientCnt=Math.max(clientCnt||0,s.clientCnt);
+    /* Clientes (independiente de jornada): UNIÓN por id — nunca se pierde un cliente nuevo.
+       Un cliente solo-local se conserva; en conflicto por id gana el entrante (edición admin). */
+    if(Array.isArray(s.clients)){
+      const ch={}; clients.forEach(c=>{ if(c&&c.id)ch[c.id]=c; });
+      s.clients.forEach(rc=>{ if(!rc||!rc.id)return; const lc=ch[rc.id]; if(!lc){ clients.push(rc); ch[rc.id]=rc; } else { const idx=clients.indexOf(lc); if(idx>=0)clients[idx]=rc; ch[rc.id]=rc; } });
+    }
     if(s.kDone)Object.assign(kDone,s.kDone);
     /* NO aplicar s.currentAccountId: es local por dispositivo (ver getSerializableState). */
-    if(s.caja){
-      caja.open=s.caja.open;caja.openTime=s.caja.openTime;
-      caja.fondo=s.caja.fondo;
-      caja.movements=[...(s.caja.movements||[])];
-      caja.log=[...(s.caja.log||[])];
-    }
-    /* Inventario: sincroniza por el mismo canal probado del estado global.
-       PERO si el usuario está editando en la sección Inventario, NO reemplazar el arreglo:
-       reemplazarlo invalidaría los índices de las filas y pisaría lo que está escribiendo.
-       El estado entrante se aplicará al terminar la edición (focusout → refresh diferido). */
+    /* Inventario: FUSIÓN por nombre (no reemplazo total) → nunca se pierde un insumo; se
+       respetan ediciones locales sin guardar (_invDirty). Las eliminaciones llegan por la
+       tabla `inventory` (handler DELETE). */
     if(Array.isArray(s.inventory)&&s.inventory.length&&!(_isEditingField()&&_activePageIsInventory())){
-      inventoryItems.length=0;
-      s.inventory.forEach(x=>inventoryItems.push({...x}));
+      const ih={}; inventoryItems.forEach(x=>{ if(x&&x.name)ih[x.name.toLowerCase()]=x; });
+      s.inventory.forEach(rx=>{ if(!rx||!rx.name)return; const k=rx.name.toLowerCase(); const lx=ih[k];
+        if(!lx){ inventoryItems.push({...rx}); ih[k]=inventoryItems[inventoryItems.length-1]; }
+        else if(!(_invDirty&&_invDirty.has&&_invDirty.has(rx.name))){ Object.assign(lx,rx); } });
       _invSnapshot={};inventoryItems.forEach(x=>{ _invSnapshot[x.name]=x.stock; });
-      _invDirty.clear();
     }
     /* Usuarios (Personal): el estado global es AUTORITATIVO → reemplazar la lista completa,
        así las eliminaciones se propagan y no quedan usuarios fantasma. */
@@ -6611,7 +6648,11 @@ function applyRemoteState(data,force){
       if(its>=_ingTs){ ingredientes=s.ingredientes; _ingTs=its; }
     }
     if(Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
-    if(Array.isArray(s.bookSales)){bookSales.length=0;s.bookSales.forEach(b=>bookSales.push({...b}));}
+    /* Ventas de libros: UNIÓN por id — nunca se pierde una venta registrada. */
+    if(Array.isArray(s.bookSales)){
+      const bh={}; bookSales.forEach(b=>{ if(b&&b.id)bh[b.id]=1; });
+      s.bookSales.forEach(b=>{ if(b&&b.id&&!bh[b.id]){ bookSales.push({...b}); bh[b.id]=1; } });
+    }
     if(s.bookCnt!==undefined&&s.bookCnt>bookCnt)bookCnt=s.bookCnt;
     /* Alinear categorías de inventario con la Carta tras sincronizar.
        No hacerlo mientras se edita Inventario (evita mutar el arreglo bajo el campo activo). */
@@ -6881,6 +6922,9 @@ function nuevoDia(){
   /* 2. Clear active orders */
   orders.length=0;
   ordCnt=1;totalOrdsIn=0;prevOrderCount=0;
+  /* Marcar jornada nueva: los demás dispositivos adoptarán el reinicio; los que tengan una
+     época menor no podrán resucitar los pedidos/ventas de la jornada anterior. */
+  dayEpoch=Math.max(dayEpoch+1, Math.floor(Date.now()/1000));
 
   /* 3. Free all tables */
   tables.forEach(t=>{t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;});
