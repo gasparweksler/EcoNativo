@@ -1308,6 +1308,10 @@ let dayEpoch=0;
    a propósito: pedido cancelado/cerrado sin cobro/trasladado, cliente eliminado, venta de libro
    borrada (bookClearTs = "borrar todo el historial de libros"). id → marca de tiempo. */
 let delOrders={}, delClients={}, delBooks={}, bookClearTs=0;
+/* Para cada pedido eliminado: qué productos (uid) CONOCÍA quien lo eliminó. Un producto que
+   otro equipo agregó EN PARALELO (no está en esta lista) no se pierde: se rescata a una cuenta
+   nueva de la misma mesa. pedidoId → {uid:1,...} */
+let delOrderUids={};
 
 /* ── CREDENTIALS ── */
 const SYSTEM_USERS=[
@@ -1833,7 +1837,7 @@ function _ctPartApply(sels,dest){
   /* liberar la mesa de origen: quitar pedidos activos que quedaron sin ítems (con lápida) */
   for(let i=orders.length-1;i>=0;i--){
     const o=orders[i];
-    if(o.tableId===_ctSourceId&&o.status!=='closed'&&o.status!=='canceled'&&!o.items.length){ _tomb(delOrders,o.id); delete kDone[o.id]; orders.splice(i,1); }
+    if(o.tableId===_ctSourceId&&o.status!=='closed'&&o.status!=='canceled'&&!o.items.length){ _tombOrder(o); delete kDone[o.id]; orders.splice(i,1); }
   }
   broadcastState();
   showToast('Productos trasladados a Mesa '+dest,'ok');
@@ -1909,7 +1913,7 @@ function cancelarPedido(){
   if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
   /* Eliminar orden completamente (con lápida: ningún equipo atrasado la revive) */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
-  _tomb(delOrders,currentAccountId);
+  _tombOrder(order); /* registra qué productos se cancelaron: uno agregado en paralelo se rescata */
   if(idx>=0)orders.splice(idx,1);
   /* Liberar mesa — estado exactamente igual que mesa nueva */
   const t=getTable(mesa);
@@ -1936,7 +1940,7 @@ function cerrarSinCobrar(){
   if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
   /* Eliminar orden completamente del array — no queda rastro (con lápida: no revive) */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
-  _tomb(delOrders,currentAccountId);
+  _tombOrder(order); /* registra qué productos se cancelaron: uno agregado en paralelo se rescata */
   if(idx>=0)orders.splice(idx,1);
   /* Liberar mesa completamente */
   const t=getTable(mesa);
@@ -2464,11 +2468,13 @@ function confirmarCobro(oid,sub){
     const card=parseInt($('cobrarMixCard')?.value)||0;
     const cash=parseInt($('cobrarMixCash')?.value)||0;
     if(card+cash<total){showToast('El pago no cubre el total (falta '+fmt(total-card-cash)+')','del');return;}
+    _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
     o.tip=tip;o.pago='mixto';o.status='closed';o.closedAt=Date.now();
     closedSales.push({...o,items:o.items.map(i=>({...i}))});
     if(card>0)addCajaMov(card,'tarjeta',lugar+' (mixto)');
     if(total-card>0)addCajaMov(total-card,'efectivo',lugar+' (mixto)'); /* parte en efectivo que cuenta (sin vuelto) */
   }else{
+  _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
   /* Stock ya se descontó al enviar a cocina (order.stockDescontado) — NO descontar de nuevo al cobrar */
@@ -3067,6 +3073,7 @@ function paySplitPerson(pi){
   addCajaMov(total,pago,`Split ${o.tableId?'Mesa '+o.tableId:'MC'} P${pi+1}`);
   showToast(`Persona ${pi+1} pagó ${fmt(total)} ✓`,'ok');
   if(splitPeople.every(p=>p.paid)){
+    _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
     o.status='closed';o.closedAt=Date.now();
     closedSales.push({...o,items:o.items.map(i=>({...i}))});
     /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al dividir/cerrar */
@@ -3255,6 +3262,7 @@ function chkSt(id,s){const o=getOrder(id);if(o)o.status=s;showToast('Estado actu
 function closeOrd(id){
   const o=getOrder(id);if(!o)return;
   const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(oTotal(o)*.1):Math.round(oTotal(o)*.1);
+  _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
   o.tip=tip;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:o.items.map(i=>({...i}))});
   /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al cobrar y cerrar */
@@ -6526,11 +6534,76 @@ function _mergeOrder(lo,ro){
     if(other.kdisp&&!win.kdisp)win.kdisp=true;
     byUid.set(it.uid,win); };
   (lo.items||[]).forEach(put); (ro.items||[]).forEach(put);
-  const items=[...byUid.values()].sort((a,b)=>((a._at||0)-(b._at||0))||String(a.uid).localeCompare(String(b.uid)));
+  const items=[...byUid.values()].sort(_byAt);
   const m=Object.assign({},base,{items,rmItems:rm});
   m.kitchenSeenCount=Math.max(lo.kitchenSeenCount||0,ro.kitchenSeenCount||0);
   m._kv=2;
+  /* COBRO en paralelo con un producto nuevo: si el pedido quedó cerrado (cobrado), solo le
+     pertenecen los productos que ESTABAN en el cobro. Un producto agregado al mismo tiempo desde
+     otro equipo no se cobró: se separa (__orphans) y se rescata a una cuenta abierta de la mesa,
+     así sigue en Cocina y se cobra aparte (antes quedaba escondido dentro de la cuenta cerrada). */
+  if(m.status==='closed'){
+    const known=new Set();
+    let hasKnown=false;
+    [lc?lo:null,rc?ro:null].forEach(x=>{ const k=x&&_closedUidsOf(x); if(k){ hasKnown=true; k.forEach(u=>known.add(u)); } });
+    if(hasKnown){
+      const orphans=items.filter(it=>!known.has(it.uid));
+      if(orphans.length){
+        m.items=items.filter(it=>known.has(it.uid));
+        m.closedUids=[...known];
+        Object.defineProperty(m,'__orphans',{value:orphans,enumerable:false,configurable:true});
+      }
+    }
+  }
   return m;
+}
+function _byAt(a,b){ return ((a._at||0)-(b._at||0))||String(a.uid).localeCompare(String(b.uid)); }
+/* Productos que conocía un pedido: los que tiene + los que se le quitaron a propósito. */
+function _orderKnownUids(o){ const s={}; ((o&&o.items)||[]).forEach(it=>{ if(it&&it.uid)s[it.uid]=1; }); Object.keys((o&&o.rmItems)||{}).forEach(u=>{ s[u]=1; }); return s; }
+/* Eliminar un pedido a propósito (cancelar, cerrar sin cobrar, vaciado por traslado, poda de
+   cobrados): lápida + lista de productos que se conocían en ese momento. */
+function _tombOrder(o){ if(!o||!o.id)return; _normOrder(o); _tomb(delOrders,o.id); delOrderUids[o.id]=Object.assign(delOrderUids[o.id]||{},_orderKnownUids(o)); }
+function _mergeUidMap(dst,src){ if(src&&typeof src==='object')for(const k in src){ if(src[k]&&typeof src[k]==='object')dst[k]=Object.assign(dst[k]||{},src[k]); } }
+/* Productos que estaban en el COBRO de un pedido cerrado (null si no se puede saber). */
+function _closedUidsOf(o){
+  if(!o)return null;
+  if(Array.isArray(o.closedUids))return new Set(o.closedUids);
+  const sale=closedSales.find(s=>s&&s.id===o.id);   /* respaldo: la copia guardada al cobrar */
+  if(sale&&Array.isArray(sale.items)){ const u=sale.items.map(it=>it&&it.uid).filter(Boolean); if(u.length===sale.items.length)return new Set(u); }
+  return null;
+}
+/* Productos de un pedido eliminado que quien lo eliminó NO conocía (agregados en paralelo). */
+function _tombOrphans(o){
+  const known=delOrderUids[o&&o.id]; if(!known)return [];   /* lápida antigua sin lista: comportamiento anterior */
+  const rm=(o&&o.rmItems)||{};
+  return ((o&&o.items)||[]).filter(it=>it&&it.uid&&!known[it.uid]&&!rm[it.uid]);
+}
+/* Rescate: los productos huérfanos pasan a una cuenta ABIERTA de la misma mesa. El id de esa
+   cuenta es DETERMINISTA (idOriginal-R), así todos los equipos llegan a la MISMA cuenta y el
+   producto nunca se duplica. Si esa cuenta de rescate también fue cobrada/eliminada, se usa -RR. */
+function _rescueOrphans(orig,orphans){
+  if(!orig||!orphans||!orphans.length)return;
+  let rid=String(orig.id)+'-R';
+  for(let guard=0;guard<8&&orphans.length;guard++){
+    if(delOrders[rid]){ const known=delOrderUids[rid]; if(!known)return; orphans=orphans.filter(it=>!known[it.uid]); rid+='R'; continue; }
+    const ex=getOrder(rid);
+    if(ex&&ex.status==='closed'){ const known=_closedUidsOf(ex); if(!known)return; orphans=orphans.filter(it=>!known.has(it.uid)); rid+='R'; continue; }
+    if(ex){
+      _normOrder(ex);
+      const have=new Set(ex.items.map(i=>i&&i.uid)), rm=ex.rmItems||{};
+      orphans.forEach(it=>{ if(!have.has(it.uid)&&!rm[it.uid]){ ex.items.push(it); have.add(it.uid); } });
+      ex.items.sort(_byAt);
+    } else {
+      orders.push({id:rid,tableId:orig.tableId,type:orig.type||(orig.tableId?'mesa':'mostrador'),waiter:orig.waiter||'',
+        time:Math.min(...orphans.map(it=>it._at||Date.now())),status:'pending',tip:0,pago:'efectivo',
+        items:orphans.slice().sort(_byAt),clientName:orig.clientName||'',clientId:orig.clientId||null,
+        stockDescontado:true,_kv:2,rmItems:{},rescuedFrom:orig.id});
+    }
+    const lugar=orig.tableId?'Mesa '+orig.tableId:'Mostrador';
+    console.warn('[Sync] '+lugar+': '+orphans.length+' producto(s) agregados en paralelo a un cobro/cancelación/traslado → rescatados en cuenta '+rid);
+    try{ showToast(lugar+': se recuperó '+orphans.map(i=>i.name).join(', ')+' (agregado mientras se cerraba la cuenta)','ok'); }catch(e){}
+    return;
+  }
 }
 let _lastLocalTs=0;
 function _nextTs(){_lastLocalTs=Math.max(Date.now(),_lastLocalTs+1);return _lastLocalTs;}
@@ -6562,7 +6635,7 @@ function getSerializableState(){
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
     dayEpoch,
-    delOrders,delClients,delBooks,bookClearTs,
+    delOrders,delClients,delBooks,bookClearTs,delOrderUids,
     ts:_nextTs()
   });
 }
@@ -6575,7 +6648,12 @@ function _pruneClosedOrders(){
   const CUT=Date.now()-3*3600*1000;
   for(let i=orders.length-1;i>=0;i--){
     const o=orders[i];
-    if(o&&o.status==='closed'&&(o.closedAt||0)<CUT){ if(o.id&&kDone[o.id])delete kDone[o.id]; orders.splice(i,1); }
+    if(o&&o.status==='closed'&&(o.closedAt||0)<CUT){
+      /* Lápida con los productos cobrados: un equipo que estuvo desconectado horas con la cuenta
+         aún abierta NO puede revivirla (cobro duplicado); solo se rescata lo que nunca se cobró. */
+      _tombOrder(o);
+      if(o.id&&kDone[o.id])delete kDone[o.id]; orders.splice(i,1);
+    }
   }
 }
 /* Historial de días (archivados por "Nuevo Día") COMPARTIDO en la nube.
@@ -6642,6 +6720,7 @@ function _seenSnap(s){ const k=(s&&s.src)+'|'+(s&&s.ts); if(_seenSnaps.has(k))re
 function broadcastState(){
   _pruneClosedOrders(); /* no transmitir pedidos cerrados antiguos */
   _pruneTombs(delOrders,2*86400000); _pruneTombs(delClients,30*86400000); _pruneTombs(delBooks,30*86400000);
+  for(const k in delOrderUids)if(!delOrders[k])delete delOrderUids[k];
   _stampOrders();       /* versionar los pedidos/productos modificados localmente */
   const payload=getSerializableState();
   /* Capa 1: BroadcastChannel (misma máquina) */
@@ -6684,6 +6763,7 @@ function applyRemoteState(data,force){
     if(_newDay){
       /* Adoptar la jornada nueva tal cual (pedidos, mesas, ventas, contadores, caja). */
       delOrders={}; _mergeMaxMap(delOrders,s.delOrders);
+      delOrderUids={}; _mergeUidMap(delOrderUids,s.delOrderUids);
       orders.length=0;(s.orders||[]).forEach(o=>{ if(o&&!(o.id&&delOrders[o.id]))orders.push(_normOrder(o)); });
       tables.forEach(t=>{ const rt=(s.tables||[]).find(x=>x.id===t.id); if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;} });
       closedSales.length=0;(s.closedSales||[]).forEach(x=>closedSales.push(x));
@@ -6697,19 +6777,30 @@ function applyRemoteState(data,force){
          Antes se elegía el pedido entero más nuevo: si Cocina marcaba "Listo" sobre una copia que
          aún no tenía el producto recién agregado por el garzón, ese producto se BORRABA. */
       _mergeMaxMap(delOrders,s.delOrders);
+      _mergeUidMap(delOrderUids,s.delOrderUids);
       orders.forEach(_normOrder);
+      /* Productos "huérfanos": agregados por un equipo AL MISMO TIEMPO que otro cobraba, cancelaba,
+         cerraba sin cobrar o trasladaba la mesa. No se descartan: se rescatan (ver _rescueOrphans). */
+      const _rescue=[];
       const _localById={}; orders.forEach(o=>{ if(o&&o.id)_localById[o.id]=o; });
       (s.orders||[]).forEach(ro=>{
         if(!ro)return;
         if(!ro.id){ orders.push(ro); return; }
-        if(delOrders[ro.id])return;                 /* eliminado a propósito → no revivir */
+        if(delOrders[ro.id]){                        /* eliminado a propósito → no revivir… */
+          _normOrder(ro); const orph=_tombOrphans(ro); /* …salvo productos que quien eliminó no conocía */
+          if(orph.length)_rescue.push([ro,orph]);
+          return;
+        }
         _normOrder(ro);
         const lo=_localById[ro.id];
         if(!lo){ orders.push(ro); _localById[ro.id]=ro; return; }
         const m=_mergeOrder(lo,ro);
+        if(m.__orphans){ _rescue.push([m,m.__orphans]); delete m.__orphans; }  /* agregados mientras se cobraba */
         const idx=orders.indexOf(lo); if(idx>=0)orders[idx]=m; _localById[ro.id]=m;
       });
-      for(let i=orders.length-1;i>=0;i--){ const o=orders[i]; if(o&&o.id&&delOrders[o.id])orders.splice(i,1); }
+      for(let i=orders.length-1;i>=0;i--){ const o=orders[i];
+        if(o&&o.id&&delOrders[o.id]){ const orph=_tombOrphans(o); if(orph.length)_rescue.push([o,orph]); orders.splice(i,1); } }
+      _rescue.forEach(([o,orph])=>_rescueOrphans(o,orph));
       /* Mesas: NO liberar una mesa que aún tiene un pedido abierto localmente. */
       if(!_older)tables.forEach(t=>{
         const rt=(s.tables||[]).find(x=>x.id===t.id);
@@ -7103,7 +7194,7 @@ function nuevoDia(){
   /* Marcar jornada nueva: los demás dispositivos adoptarán el reinicio; los que tengan una
      época menor no podrán resucitar los pedidos/ventas de la jornada anterior. */
   dayEpoch=Math.max(dayEpoch+1, Math.floor(Date.now()/1000));
-  delOrders={}; /* las lápidas de pedidos pertenecen a la jornada que termina */
+  delOrders={}; delOrderUids={}; /* las lápidas de pedidos pertenecen a la jornada que termina */
 
   /* 3. Free all tables */
   tables.forEach(t=>{t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;});
