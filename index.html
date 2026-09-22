@@ -1303,6 +1303,11 @@ let totalOrdsIn=0,prevOrderCount=0;
    día y, a la vez, propagar el reinicio diario. Un dispositivo con época menor (que no vio el
    día nuevo) no puede resucitar pedidos/ventas de la jornada anterior ni deshacer el reinicio. */
 let dayEpoch=0;
+/* Lápidas (tombstones) de eliminaciones LEGÍTIMAS. La sincronización fusiona por unión (nunca
+   pierde datos), y estas marcas evitan que un dispositivo atrasado REVIVA lo que un usuario borró
+   a propósito: pedido cancelado/cerrado sin cobro/trasladado, cliente eliminado, venta de libro
+   borrada (bookClearTs = "borrar todo el historial de libros"). id → marca de tiempo. */
+let delOrders={}, delClients={}, delBooks={}, bookClearTs=0;
 
 /* ── CREDENTIALS ── */
 const SYSTEM_USERS=[
@@ -1759,8 +1764,8 @@ function _ctFullConfirm(){
 /* ---- PARCIAL ---- */
 function _ctPartStart(){
   const tid=_ctSourceId, ords=_ctActiveOrders(tid), rows=[];
-  ords.forEach(o=>o.items.forEach((it,idx)=>{
-    const key=o.id+'|'+idx;
+  ords.forEach(o=>{ _normOrder(o); o.items.forEach(it=>{
+    const key=o.id+'|'+it.uid; /* por uid: si la lista cambia por sincronización, se traslada el producto correcto */
     rows.push(`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--cr2)">
       <input type="checkbox" data-key="${key}" style="width:17px;height:17px;accent-color:var(--bm);flex-shrink:0">
       <div style="flex:1;min-width:0">
@@ -1770,7 +1775,7 @@ function _ctPartStart(){
       <input type="number" data-qty="${key}" value="${it.qty}" min="1" max="${it.qty}" style="width:52px;padding:5px;border:1px solid var(--br);border-radius:6px;font-size:13px;text-align:center;flex-shrink:0">
       <span style="font-size:10px;color:var(--ts);flex-shrink:0">/ ${it.qty}</span>
     </div>`);
-  }));
+  }); });
   $('ctBody').innerHTML=`${_ctBackBtn()}
     <div style="font-weight:700;margin-bottom:6px">Cambiar Parte de la Mesa</div>
     <div style="font-size:12px;color:var(--ts);margin-bottom:8px">Origen: <b style="color:var(--tm)">Mesa ${tid}</b>. Marca los productos y ajusta cuántas unidades trasladar.</div>
@@ -1786,12 +1791,13 @@ function _ctPartConfirm(){
   const sels=[];
   document.querySelectorAll('#ctBody input[type="checkbox"][data-key]').forEach(chk=>{
     if(!chk.checked)return;
-    const key=chk.dataset.key, [oid,idxs]=key.split('|'), idx=parseInt(idxs);
-    const o=getOrder(oid); if(!o||!o.items[idx])return;
+    const key=chk.dataset.key, [oid,uid]=key.split('|');
+    const o=getOrder(oid); if(!o)return;
+    const idx=_findItemIdx(o,uid); if(idx<0)return;
     const qInp=document.querySelector('#ctBody input[data-qty="'+key.replace(/"/g,'')+'"]');
     let qty=parseInt(qInp&&qInp.value)||0;
     qty=Math.max(1,Math.min(qty,o.items[idx].qty)); /* nunca más de lo disponible */
-    sels.push({oid,idx,qty,name:o.items[idx].name});
+    sels.push({oid,uid,qty,name:o.items[idx].name});
   });
   if(!sels.length){showToast('Marca al menos un producto','del');return;}
   const resumen=sels.map(s=>'• '+s.qty+'× '+s.name).join('\n');
@@ -1806,22 +1812,28 @@ function _ctPartApply(sels,dest){
     kDone[destOrder.id]=[]; orders.push(destOrder); totalOrdsIn++;
   }
   destOrder.stockDescontado=true; /* recibe ítems ya descontados; no se toca inventario */
-  /* agrupar por pedido y remover desde el índice mayor para no invalidar índices */
-  const byOrder={};
-  sels.forEach(s=>{(byOrder[s.oid]=byOrder[s.oid]||[]).push(s);});
-  Object.keys(byOrder).forEach(oid=>{
-    const o=getOrder(oid); if(!o)return;
-    byOrder[oid].sort((a,b)=>b.idx-a.idx).forEach(s=>{
-      const it=o.items[s.idx]; if(!it)return;
-      const moveQty=Math.min(s.qty,it.qty);
-      if(moveQty>=it.qty){ o.items.splice(s.idx,1); destOrder.items.push(it); }
-      else { it.qty-=moveQty; destOrder.items.push({...it,qty:moveQty}); }
-    });
+  _normOrder(destOrder);
+  /* Trasladar por uid (no por posición). En la mesa destino cada producto recibe identidad
+     NUEVA (es un producto nuevo para ese pedido); en el origen queda una lápida, así ningún
+     equipo atrasado lo vuelve a poner en la mesa de origen (no se duplica). */
+  sels.forEach(s=>{
+    const o=getOrder(s.oid); if(!o)return;
+    _normOrder(o);
+    const idx=_findItemIdx(o,s.uid); if(idx<0)return;
+    const it=o.items[idx];
+    const moveQty=Math.min(s.qty,it.qty);
+    if(moveQty>=it.qty){
+      o.rmItems[it.uid]=_nextTs(); o.items.splice(idx,1);
+      destOrder.items.push({...it,uid:_newItemUid(),_at:_nextTs()});
+    } else {
+      it.qty-=moveQty;
+      destOrder.items.push({...it,qty:moveQty,uid:_newItemUid(),_at:_nextTs()});
+    }
   });
-  /* liberar la mesa de origen: quitar pedidos activos que quedaron sin ítems */
+  /* liberar la mesa de origen: quitar pedidos activos que quedaron sin ítems (con lápida) */
   for(let i=orders.length-1;i>=0;i--){
     const o=orders[i];
-    if(o.tableId===_ctSourceId&&o.status!=='closed'&&o.status!=='canceled'&&!o.items.length){ delete kDone[o.id]; orders.splice(i,1); }
+    if(o.tableId===_ctSourceId&&o.status!=='closed'&&o.status!=='canceled'&&!o.items.length){ _tomb(delOrders,o.id); delete kDone[o.id]; orders.splice(i,1); }
   }
   broadcastState();
   showToast('Productos trasladados a Mesa '+dest,'ok');
@@ -1895,8 +1907,9 @@ function cancelarPedido(){
   /* Reponer stock si el pedido ya había descontado inventario (fue enviado a cocina).
      Se usa el flag stockDescontado para no reponer de más. */
   if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
-  /* Eliminar orden completamente */
+  /* Eliminar orden completamente (con lápida: ningún equipo atrasado la revive) */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
+  _tomb(delOrders,currentAccountId);
   if(idx>=0)orders.splice(idx,1);
   /* Liberar mesa — estado exactamente igual que mesa nueva */
   const t=getTable(mesa);
@@ -1921,8 +1934,9 @@ function cerrarSinCobrar(){
   if(!confirm('¿Cerrar Mesa '+mesa+' sin cobrar? El pedido no pasará a caja ni a historial.'))return;
   /* Cierre sin cobro = descarte: reponer stock si ya se había descontado al enviar a cocina */
   if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
-  /* Eliminar orden completamente del array — no queda rastro */
+  /* Eliminar orden completamente del array — no queda rastro (con lápida: no revive) */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
+  _tomb(delOrders,currentAccountId);
   if(idx>=0)orders.splice(idx,1);
   /* Liberar mesa completamente */
   const t=getTable(mesa);
@@ -2085,10 +2099,14 @@ function openNoteModal(idx){
   $('noteDelBtn').style.display=cart[idx].note?'':'none';
   openMod('noteModal');
 }
-function openSentNoteModal(oid,idx){
-  const o=getOrder(oid);if(!o||!o.items[idx])return;
+let _noteUid=null;
+function openSentNoteModal(oid,key){
+  const o=getOrder(oid);if(!o)return;
+  _normOrder(o);
+  const idx=_findItemIdx(o,key);if(idx<0)return;
   _noteMode='sent';_noteOid=oid;noteItemIdx=idx;
   const it=o.items[idx];
+  _noteUid=it.uid; /* se guarda por uid: aunque la lista cambie por sincronización, la nota va al producto correcto */
   $('noteItemName').textContent=it.name;
   $('noteText').value=it.note||'';
   /* Si el producto ya está Listo, avisar que la nota NO irá a Cocina */
@@ -2099,8 +2117,10 @@ function openSentNoteModal(oid,idx){
 function saveNote(){
   const val=$('noteText').value.trim();
   if(_noteMode==='sent'){
-    const o=getOrder(_noteOid);if(!o||!o.items[noteItemIdx]){closeMod('noteModal');return;}
-    const it=o.items[noteItemIdx];
+    const o=getOrder(_noteOid);
+    const _ni=o?_findItemIdx(o,_noteUid!=null?_noteUid:noteItemIdx):-1;
+    if(!o||_ni<0){closeMod('noteModal');showToast('El producto ya no está en el pedido','del');return;}
+    const it=o.items[_ni];
     it.note=val;
     /* Visibilidad en Cocina: solo si el producto NO está aún Listo (no reaparece tras salir de cocina) */
     it.noteKitchen=(it.kstate!=='listo');
@@ -2115,12 +2135,18 @@ function saveNote(){
 function delNote(){$('noteText').value='';saveNote();}
 
 /* Eliminar un ítem YA enviado a cocina (ingresado por error). Devuelve el stock y ajusta el total. */
-function removeSentItem(oid,idx){
-  const o=getOrder(oid);if(!o||!o.items||!o.items[idx])return;
+function removeSentItem(oid,key){
+  const o=getOrder(oid);if(!o)return;
+  _normOrder(o);
+  let idx=_findItemIdx(o,key);if(idx<0)return;
   const it=o.items[idx];
   if(!confirm('¿Eliminar "'+it.name+'" del pedido? Se ingresó por error.'))return;
+  idx=_findItemIdx(o,it.uid);if(idx<0)return; /* re-ubicar tras el confirm (pudo sincronizarse) */
   /* Reponer el stock si el pedido ya lo había descontado al enviarse a cocina */
   if(o.stockDescontado&&typeof reponerInventario==='function')reponerInventario([it]);
+  /* Lápida: esta eliminación es intencional → ningún otro equipo lo re-agrega al fusionar */
+  if(!o.rmItems||typeof o.rmItems!=='object')o.rmItems={};
+  o.rmItems[it.uid]=_nextTs();
   o.items.splice(idx,1);
   broadcastState();
   renderCart();
@@ -2136,6 +2162,7 @@ function renderCart(){
   if(!el)return;
   /* ── Historial: ítems YA enviados a cocina (gris, detalle completo, pendiente de cobro) ── */
   const activeOrder=currentAccountId?getOrder(currentAccountId):null;
+  if(activeOrder)_normOrder(activeOrder);
   const sentItems=activeOrder&&activeOrder.items&&activeOrder.items.length?activeOrder.items:[];
   const sentTotal=sentItems.reduce((s,i)=>s+i.price*i.qty,0);
   let historyHTML='';
@@ -2148,10 +2175,10 @@ function renderCart(){
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--ts)">
           <span style="flex:1;min-width:0">${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}</span>
           <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
-          <button onclick="removeSentItem('${activeOrder.id}',${idx})" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
+          <button onclick="removeSentItem('${activeOrder.id}','${it.uid}')" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
         </div>
         ${it.note?`<div style="font-size:10px;color:var(--bm);font-style:italic;background:var(--cr);border-radius:6px;padding:3px 7px;margin-top:3px;display:flex;align-items:center;gap:4px"><i class="ti ti-note" style="font-size:11px"></i> ${it.note}</div>`:''}
-        <button onclick="openSentNoteModal('${activeOrder.id}',${idx})" style="background:none;border:1px dashed var(--bm);color:var(--bm);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px"><i class="ti ti-pencil" style="font-size:10px;vertical-align:-1px"></i> ${it.note?'Editar Nota':'Agregar Nota'}</button>
+        <button onclick="openSentNoteModal('${activeOrder.id}','${it.uid}')" style="background:none;border:1px dashed var(--bm);color:var(--bm);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px"><i class="ti ti-pencil" style="font-size:10px;vertical-align:-1px"></i> ${it.note?'Editar Nota':'Agregar Nota'}</button>
       </div>`).join('')}
       <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--tm);margin-top:5px">
         <span>Total enviado</span><span>${fmt(sentTotal)}</span>
@@ -2555,8 +2582,8 @@ function _mcBuildOrder(){
 function mcSendKitchen(){
   if(!cart.length){showToast('El carrito está vacío');return;}
   const {id}=_mcBuildOrder();
-  const mcItems=cart.map(i=>({...i}));
-  const ord={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:mcItems,stockDescontado:true};
+  const mcItems=_stampNewItems(cart.map(i=>({...i})));
+  const ord={id,tableId:null,type:'mostrador',waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:selPay,items:mcItems,stockDescontado:true,_kv:2,rmItems:{}};
   kDone[id]=[]; /* limpiar marcas heredadas de un id reutilizado → NO tachado al llegar a cocina */
   orders.push(ord);
   totalOrdsIn++;
@@ -2585,6 +2612,7 @@ function gestionarPedidoCocina(items, tableId){
   const targetTable = tableId || cTable?.id;
   const itemsToSend = items || cart.map(i=>({...i}));
   if(!itemsToSend.length){showToast('El carrito está vacío');return;}
+  _stampNewItems(itemsToSend); /* identidad propia por producto (fusión segura entre equipos) */
   let order = currentAccountId ? getOrder(currentAccountId) : null;
   /* VALIDACIÓN CLAVE: el pedido apuntado por currentAccountId debe pertenecer a la mesa
      seleccionada (targetTable). Si no coincide (o ya no existe), se descarta y se usa/crea
@@ -2592,13 +2620,18 @@ function gestionarPedidoCocina(items, tableId){
   if(order && order.tableId!==targetTable) order=null;
   if(!order) order = orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
   if(order&&order.status!=='closed'){
+    _normOrder(order);
     const _prevCount=order.items.length; /* ítems que la cocina YA tenía antes de agregar */
+    /* Archivar de Cocina SOLO los productos que YA estaban terminados antes de este envío,
+       para que la cocina no vea el pedido completo repetido. Los productos que Cocina marque
+       "Listo" DESPUÉS de este momento siguen visibles en verde (no desaparecen). */
+    order.items.forEach(it=>{ if(it&&!it.kdisp&&(it.kdone||it.kstate==='listo'))it.kdisp=true; });
     order.items=[...order.items,...itemsToSend];
     /* El límite "nuevo" se fija SIEMPRE al conteo previo: al agregar productos, la cocina
        destaca solo los recién enviados. Los ítems anteriores no terminados siguen visibles
        (ver renderKitchen), así que nada se pierde. No se confía en el valor almacenado (que
        podría estar desactualizado si este dispositivo no recibió el despacho). */
-    order.kitchenSeenCount=_prevCount;
+    order.kitchenSeenCount=_prevCount; /* se mantiene por compatibilidad con equipos aún no actualizados */
     if(order.kitchenHidden){
       /* La cocina lo había despachado: reaparece mostrando SOLO los productos nuevos. */
       order.kitchenHidden=false;
@@ -2609,7 +2642,7 @@ function gestionarPedidoCocina(items, tableId){
   } else {
     order={id:'ORD'+String(ordCnt++).padStart(3,'0')+'-'+_dSfx(),tableId:targetTable,type:'mesa',
       waiter:cUser,time:Date.now(),status:'pending',tip:0,pago:'efectivo',
-      items:itemsToSend,clientName:''};
+      items:itemsToSend,clientName:'',_kv:2,rmItems:{}};
     /* FIX: limpiar cualquier marca de "completado" heredada de un id reutilizado,
        para que el pedido recién enviado NO aparezca tachado en cocina */
     kDone[order.id]=[];
@@ -3421,12 +3454,15 @@ function assignClientToTable(cid){
 }
 function deleteClient(cid){
   if(!confirm('¿Eliminar este cliente?'))return;
+  _tomb(delClients,cid); /* lápida: el cliente eliminado no revive desde otro equipo */
   clients=clients.filter(c=>c.id!==cid);closeMod('clientDetailModal');showToast('Cliente eliminado','del');renderClients();
+  broadcastState();
 }
 function saveClient(){
   const name=($('cliName').value||'').trim();if(!name){showToast('Ingresa un nombre');return;}
   clients.push({id:'CLI'+String(clientCnt++).padStart(3,'0')+'-'+_dSfx(),name,phone:$('cliPhone').value.trim(),email:$('cliEmail').value.trim(),notes:$('cliNotes').value.trim(),history:[],pendings:[],totalSpent:0});
   showToast(name+' creado','ok');closeMod('addClientModal');renderClients();
+  broadcastState(); /* sincronizar de inmediato (antes quedaba solo en este equipo hasta otra acción) */
 }
 
 /* ── CAJA ── */
@@ -3450,10 +3486,10 @@ function renderCaja(){
     </div>
     ${caja.log.length?`<div class="caja-card"><h3>Movimientos recientes</h3>${[...caja.log].reverse().slice(0,10).map(l=>`<div style="font-size:11px;color:var(--ts);padding:5px 0;border-bottom:1px solid var(--cr2)"><span style="color:var(--tl)">${ftime(l.time)}</span> · ${l.msg}</div>`).join('')}</div>`:''}`;
 }
-function abrirCaja(){const f=parseInt($('fInp').value)||0;caja.open=true;caja.openTime=Date.now();caja.fondo=f;caja.movements=[];caja.log=[{time:Date.now(),msg:`Apertura · Fondo: ${fmt(f)}`}];showToast('Caja abierta · '+fmt(f),'ok');renderCaja();}
+function abrirCaja(){const f=parseInt($('fInp').value)||0;caja.open=true;caja.openTime=_nextTs();caja.fondo=f;caja.movements=[];caja.log=[{time:Date.now(),msg:`Apertura · Fondo: ${fmt(f)}`}];showToast('Caja abierta · '+fmt(f),'ok');renderCaja();broadcastState();}
 function cerrarCaja(){
   if(!confirm('🔒 CERRAR CAJA\n\nEsta acción registrará el cierre del turno y archivará los movimientos actuales.\n\n¿Confirmar cierre de caja?'))return;
-  const nota=$('nCierre')?.value||'';caja.log.push({time:Date.now(),msg:`Cierre · Total: ${fmt(cajaTotal())}${nota?' · '+nota:''}`});caja.open=false;showToast('Caja cerrada · Total: '+fmt(cajaTotal()),'ok');renderCaja();
+  const nota=$('nCierre')?.value||'';caja.log.push({time:Date.now(),msg:`Cierre · Total: ${fmt(cajaTotal())}${nota?' · '+nota:''}`});caja.open=false;showToast('Caja cerrada · Total: '+fmt(cajaTotal()),'ok');renderCaja();broadcastState();
 }
 
 /* ── STATS ── */
@@ -3661,7 +3697,7 @@ function saveBookSale(){
     return;
   }
   /* Registro ÚNICO en bookSales (fuente de verdad) → sección Venta de Libros y Excel del día */
-  bookSales.push({id:'BK'+(bookCnt++)+'_'+Date.now(),book,buyer,price,date,ts:Date.now()});
+  bookSales.push({id:'BK'+(bookCnt++)+'_'+Date.now()+_dSfx(),book,buyer,price,date,ts:_nextTs()});
   broadcastState();
   closeMod('bookModal');
   showToast('Venta de libro registrada','ok');
@@ -3672,12 +3708,14 @@ function _bookSearch(v){_bookQ=v;renderBiblioteca();}
 function delBook(id){
   const b=bookSales.find(x=>x.id===id);if(!b)return;
   if(!confirm('¿Eliminar permanentemente esta venta?\n\n«'+b.book+'» · '+b.buyer+' · '+fmt(b.price)+'\n\nNo se podrá recuperar.'))return;
+  _tomb(delBooks,id); /* lápida: la venta borrada no revive desde otro equipo */
   bookSales=bookSales.filter(x=>x.id!==id);
   broadcastState();showToast('Registro eliminado','del');renderBiblioteca();
 }
 function delAllBooks(){
   if(!bookSales.length){showToast('No hay registros de libros','del');return;}
   if(!confirm('⚠️ ELIMINAR TODO EL HISTORIAL DE BIBLIOTECA\n\nSe eliminarán PERMANENTEMENTE las '+bookSales.length+' venta(s) de libros y no se podrán recuperar.\n\nEsto NO afecta ventas de cafetería, estadísticas, inventario, pedidos ni usuarios.\n\n¿Confirmar?'))return;
+  bookClearTs=_nextTs(); /* todas las ventas hasta este instante quedan borradas en todos los equipos */
   bookSales=[];
   broadcastState();showToast('Historial de Biblioteca eliminado','del');renderBiblioteca();
 }
@@ -5887,7 +5925,12 @@ async function renderPublicCartaViewer(){
 /* ── KITCHEN ── */
 /* Un pedido aparece en Cocina SOLO si tiene ítems realmente ENVIADOS y aún NO despachados.
    Así una mesa recién abierta (o sin productos enviados) nunca aparece automáticamente. */
-function _enCocina(o){return o&&o.status!=='closed'&&!o.kitchenHidden&&((o.items&&o.items.length)||0)>(o.kitchenSeenCount||0);}
+/* Modelo POR PRODUCTO: un producto está en Cocina mientras NO esté despachado (kdisp).
+   Sale de Cocina solo por "Eliminar" (despacha todo) o, al agregar productos nuevos a la mesa,
+   si YA estaba terminado (así no se repite el pedido completo). Marcar "Listo" NUNCA lo oculta:
+   queda en verde. Una mesa vacía (sin productos) nunca aparece. */
+function _kVisibleItems(o){ return ((o&&o.items)||[]).filter(it=>it&&!it.kdisp); }
+function _enCocina(o){ if(!o||o.status==='closed')return false; _normOrder(o); return _kVisibleItems(o).length>0; }
 function renderKitchen(){
   _updateAlarmUI();
   const active=orders.filter(_enCocina);
@@ -5896,7 +5939,6 @@ function renderKitchen(){
   $('kitchenGrid').innerHTML=active.map(o=>{
     /* El "completado" se guarda en cada ítem (item.kdone): viaja con el pedido y nunca
        colisiona entre instancias del mismo id. Por defecto undefined → NADA tachado al llegar. */
-    const startIdx=o.kitchenSeenCount||0;
     const statusLabels={pending:'Pendiente',preparing:'Preparando',ready:'Listo',canceled:'Cancelado'};
     return `<div class="kc ${o.status}">
       <div class="kcH">
@@ -5907,13 +5949,13 @@ function renderKitchen(){
           <div class="ob ob-${o.status}" style="margin-top:2px">${statusLabels[o.status]||o.status}</div>
         </div>
       </div>
-      <div class="ki">${o.items.map((item,i)=>({item,i})).filter(x=>x.i>=startIdx||!(x.item.kdone||x.item.kstate==='listo'||x.item.kdisp)).map(({item,i})=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
-        ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}',${i})">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
+      <div class="ki">${_kVisibleItems(o).map(item=>`<div class="ki-row" style="background:${_kItemBg(item.kstate)};border-radius:8px;padding:7px 8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+        ${o.status!=='canceled'?`<div class="kck ${item.kdone?'done':''}" onclick="tkI('${o.id}','${item.uid}')">${item.kdone?'<i class="ti ti-check" style="font-size:17px" aria-hidden="true"></i>':''}</div>`:`<div style="width:30px;flex-shrink:0;text-align:center;color:var(--er)"><i class="ti ti-x" style="font-size:18px" aria-hidden="true"></i></div>`}
         <div class="kn ${item.kdone?'done':''}">${item.qty>1?item.qty+'× ':''}${item.name}${item.detail?`<div style="font-size:13px;color:var(--ts)">${item.detail}</div>`:''}${(item.note&&item.noteKitchen!==false)?`<div class="ki-note" style="background:var(--wn);color:#fff;border-radius:6px;padding:3px 8px;margin-top:4px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><i class="ti ti-alert-triangle" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> ${item.note}</div>`:''}</div>
-        <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:${item.kstate==='listo'?'var(--ok)':item.kStart?'var(--wn)':'var(--ts)'}"><i class="ti ti-stopwatch" style="font-size:13px"></i> <span id="kitim-${o.id}-${i}">${_itemTimerText(item)}</span>${item.kstate==='listo'&&item.kStart&&item.kEnd?' <span style="font-size:10px;font-weight:600;color:var(--ts)">(preparación)</span>':''}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:${item.kstate==='listo'?'var(--ok)':item.kStart?'var(--wn)':'var(--ts)'}"><i class="ti ti-stopwatch" style="font-size:13px"></i> <span id="kitim-${o.id}-${item.uid}">${_itemTimerText(item)}</span>${item.kstate==='listo'&&item.kStart&&item.kEnd?' <span style="font-size:10px;font-weight:600;color:var(--ts)">(preparación)</span>':''}</div>
         ${o.status!=='canceled'?`<div style="display:flex;gap:6px;width:100%;margin-top:6px">
-          <button onclick="tkItemState('${o.id}',${i},'prep')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--wn);${item.kstate==='prep'?'background:var(--wn);color:#fff':'background:transparent;color:var(--wn)'}">Preparando</button>
-          <button onclick="tkItemState('${o.id}',${i},'listo')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--ok);${item.kstate==='listo'?'background:var(--ok);color:#fff':'background:transparent;color:var(--ok)'}">Listo</button>
+          <button onclick="tkItemState('${o.id}','${item.uid}','prep')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--wn);${item.kstate==='prep'?'background:var(--wn);color:#fff':'background:transparent;color:var(--wn)'}">Preparando</button>
+          <button onclick="tkItemState('${o.id}','${item.uid}','listo')" style="flex:1;padding:7px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;border:1.5px solid var(--ok);${item.kstate==='listo'?'background:var(--ok);color:#fff':'background:transparent;color:var(--ok)'}">Listo</button>
         </div>`:''}
       </div>`).join('')}</div>
       <div class="kac">
@@ -5934,8 +5976,12 @@ function _kItemBg(state){
   return d?'#3d1f1f':'#F7C6C9';                       /* rojo — sin comenzar */
 }
 /* Cambiar el estado de preparación de UN ítem (solo uno activo; se guarda en el ítem y se sincroniza) */
-function tkItemState(oid,i,state){
-  const o=getOrder(oid);if(!o||!o.items[i])return;
+function tkItemState(oid,key,state){
+  /* key = uid del producto (o índice, compatibilidad). Por uid: aunque una sincronización
+     cambie el orden/cantidad de productos, se actúa SIEMPRE sobre el producto correcto. */
+  const o=getOrder(oid);if(!o)return;
+  _normOrder(o);
+  const i=_findItemIdx(o,key);if(i<0)return;
   const it=o.items[i];
   const wasActive=(it.kstate===state);
   if(state==='prep'){
@@ -5947,9 +5993,12 @@ function tkItemState(oid,i,state){
   }
   renderKitchen();broadcastState();
 }
-function tkI(oid,i){
-  /* Marca/desmarca el ítem como completado EN el propio ítem (viaja con el pedido) */
-  const o=getOrder(oid);if(!o||!o.items[i])return;
+function tkI(oid,key){
+  /* Marca/desmarca el ítem como completado EN el propio ítem (viaja con el pedido).
+     Tachar un producto NO lo saca de Cocina (solo lo marca). */
+  const o=getOrder(oid);if(!o)return;
+  _normOrder(o);
+  const i=_findItemIdx(o,key);if(i<0)return;
   o.items[i].kdone=!o.items[i].kdone;
   renderKitchen();
   broadcastState();
@@ -6289,9 +6338,10 @@ async function initSupabase(){
         payload=>{
           if(payload.new?.key!==SYNC_ROW_KEY)return;
           const incoming=payload.new?.payload;
-          /* Ignorar el eco de nuestro propio envío; aplicar cualquier estado ajeno más nuevo. */
-          if(incoming&&incoming.src!==_deviceId&&incoming.ts>(_lastSyncTs||0)){
-            _lastSyncTs=incoming.ts;
+          /* Ignorar el eco de nuestro propio envío. Cualquier estado AJENO se fusiona (aunque su
+             marca de tiempo sea menor: puede traer productos creados en paralelo); la fusión
+             decide qué es seguro aplicar. Se deduplica para no re-procesar el mismo estado. */
+          if(incoming&&incoming.src!==_deviceId&&!_seenSnap(incoming)){
             applyRemoteState(incoming);
           }
         })
@@ -6412,7 +6462,7 @@ async function _flushPendingPush(){
     const localOrders=orders.map(o=>({...o}));
     await _resyncNow();
     let added=false;
-    localOrders.forEach(lo=>{ if(lo&&lo.id&&!orders.find(o=>o.id===lo.id)){ orders.push(lo); added=true; } });
+    localOrders.forEach(lo=>{ if(lo&&lo.id&&!delOrders[lo.id]&&!orders.find(o=>o.id===lo.id)){ orders.push(lo); added=true; } });
     _pushPending=false;
     broadcastState(); /* reenvía el estado reconciliado con ts fresco; si vuelve a fallar, se re-encola */
     if(added&&typeof _refreshActiveView==='function')_refreshActiveView();
@@ -6426,6 +6476,63 @@ const _deviceId='D'+Math.random().toString(36).slice(2,10)+Date.now().toString(3
    (ordCnt/clientCnt) generaban el MISMO id (ORD007) y un pedido pisaba al otro al fusionar.
    Con este sufijo, cada equipo produce ids que jamás colisionan con los de otro equipo. */
 function _dSfx(){ return String(_deviceId||'d0').slice(-4); }
+/* ── Identidad de PRODUCTO dentro de un pedido (uid) ──
+   La sincronización fusiona producto por producto (no el pedido entero). Así un "Listo" de
+   Cocina y un producto recién agregado por el garzón NUNCA se pisan entre sí. */
+function _h36(s){ s=String(s); let h=5381; for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); }
+function _newItemUid(){ return 'i'+_nextTs().toString(36)+_dSfx(); }
+function _stampNewItems(arr){ (arr||[]).forEach(it=>{ if(it){ it.uid=_newItemUid(); it._at=_nextTs(); } }); return arr; }
+/* Normaliza un pedido (idempotente y DETERMINISTA: da el mismo resultado en todos los equipos):
+   • productos antiguos sin uid → uid derivado de posición+contenido (igual en todos los equipos);
+   • migra la visibilidad de Cocina del modelo anterior (por índice kitchenSeenCount) al modelo
+     por producto (kdisp = despachado). Se congela exactamente lo que Cocina veía; desde ahora un
+     producto SOLO sale de Cocina por kdisp (botón Eliminar, o archivado al agregar productos),
+     NUNCA por marcarlo "Listo". */
+function _normOrder(o){
+  if(!o||!Array.isArray(o.items))return o;
+  o.items.forEach((it,i)=>{ if(!it)return;
+    if(!it.uid)it.uid='L'+i+'h'+_h36([it.name,it.qty,it.price,it.detail||''].join('|'));
+    if(it._at==null)it._at=(o.time||0)+i;
+  });
+  if(o._kv!==2){
+    const seen=o.kitchenSeenCount||0;
+    const wasHidden=!!o.kitchenHidden||(seen>0&&o.items.length<=seen);
+    o.items.forEach((it,i)=>{ if(!it)return;
+      if(wasHidden)it.kdisp=true;
+      else if(i<seen&&(it.kdone||it.kstate==='listo'))it.kdisp=true;
+    });
+    o._kv=2;
+  }
+  if(!o.rmItems||typeof o.rmItems!=='object')o.rmItems={};
+  return o;
+}
+/* Ubicar un producto por uid (o por índice numérico, compatibilidad). */
+function _findItemIdx(o,key){ if(!o||!Array.isArray(o.items))return -1; if(typeof key==='number')return o.items[key]?key:-1; return o.items.findIndex(it=>it&&it.uid===key); }
+function _tomb(map,id){ if(id)map[id]=_nextTs(); }
+function _mergeMaxMap(dst,src){ if(src&&typeof src==='object')for(const k in src){ const v=+src[k]||0; if(v>(dst[k]||0))dst[k]=v; } }
+function _pruneTombs(map,maxAgeMs){ const cut=Math.max(Date.now(),_lastLocalTs||0)-maxAgeMs; for(const k in map)if((map[k]||0)<cut)delete map[k]; }
+/* Fusión de UN pedido presente en ambos lados.
+   • Nivel pedido (estado, mesa, propina, pago…): gana la versión más nueva (_mts).
+     "Cerrado" (cobrado) es definitivo: si un lado ya cobró, queda cerrado.
+   • Nivel PRODUCTO: unión por uid; en conflicto gana la versión más nueva del producto (_its);
+     "despachado" (kdisp) nunca retrocede; lo eliminado a propósito (rmItems) no revive. */
+function _mergeOrder(lo,ro){
+  const lc=lo.status==='closed', rc=ro.status==='closed';
+  const base=(lc!==rc)?(lc?lo:ro):(((ro._mts||0)>(lo._mts||0))?ro:lo);
+  const rm={}; _mergeMaxMap(rm,lo.rmItems); _mergeMaxMap(rm,ro.rmItems);
+  const byUid=new Map();
+  const put=it=>{ if(!it||!it.uid||rm[it.uid])return; const cur=byUid.get(it.uid);
+    if(!cur){ byUid.set(it.uid,it); return; }
+    const win=((it._its||0)>(cur._its||0))?it:cur, other=(win===it)?cur:it;
+    if(other.kdisp&&!win.kdisp)win.kdisp=true;
+    byUid.set(it.uid,win); };
+  (lo.items||[]).forEach(put); (ro.items||[]).forEach(put);
+  const items=[...byUid.values()].sort((a,b)=>((a._at||0)-(b._at||0))||String(a.uid).localeCompare(String(b.uid)));
+  const m=Object.assign({},base,{items,rmItems:rm});
+  m.kitchenSeenCount=Math.max(lo.kitchenSeenCount||0,ro.kitchenSeenCount||0);
+  m._kv=2;
+  return m;
+}
 let _lastLocalTs=0;
 function _nextTs(){_lastLocalTs=Math.max(Date.now(),_lastLocalTs+1);return _lastLocalTs;}
 /* ── Serialización del estado completo ── */
@@ -6456,6 +6563,7 @@ function getSerializableState(){
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
     dayEpoch,
+    delOrders,delClients,delBooks,bookClearTs,
     ts:_nextTs()
   });
 }
@@ -6494,19 +6602,48 @@ async function _syncHistory(){
    Cada pedido lleva una marca de modificación (_mts). Se estampa SOLO cuando su contenido
    cambió localmente, para que al fusionar gane el más nuevo POR PEDIDO y ningún pedido local
    se pierda por un snapshot ajeno más nuevo pero incompleto (bug "las mesas se cierran solas"). */
-let _ordSig={};
-function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.kitchenHidden,o.kitchenSeenCount,o.kitchenStartTime,o.tip,o.discount,o.pago,o.clientName,o.clientId,o.stockDescontado,(o.items||[]).map(it=>it&&[it.name,it.qty,it.price,it.kstate,it.kdone,it.kdisp,it.note,it.detail])]); }catch(e){ return 'x'+Math.random(); } }
+/* Versión de NIVEL PEDIDO (_mts) y de NIVEL PRODUCTO (_its), por separado: un cambio de Cocina
+   en un producto y un producto nuevo agregado por el garzón son cambios independientes. */
+let _ordSig={}, _itemSig={};
+function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.type,o.waiter,o.tip,o.discount,o.discountInfo,o.pago,o.clientName,o.clientId,o.kitchenHidden,o.kitchenStartTime,o.stockDescontado,o.closedAt]); }catch(e){ return 'x'+Math.random(); } }
+function _itemSigOf(it){ try{ return JSON.stringify([it.name,it.qty,it.price,it.detail,it.note,it.noteKitchen,it.kstate,it.kStart,it.kEnd,it.kdone,it.kdisp]); }catch(e){ return 'x'+Math.random(); } }
 function _stampOrders(){
-  orders.forEach(o=>{ if(!o||!o.id)return; const sig=_ordSigOf(o); if(_ordSig[o.id]!==sig){ o._mts=_nextTs(); _ordSig[o.id]=sig; } });
-  const ids={}; orders.forEach(o=>{ if(o&&o.id)ids[o.id]=1; });
+  const ids={}, iks={};
+  orders.forEach(o=>{ if(!o||!o.id)return; _normOrder(o); ids[o.id]=1;
+    const sig=_ordSigOf(o); if(_ordSig[o.id]!==sig){ o._mts=_nextTs(); _ordSig[o.id]=sig; }
+    (o.items||[]).forEach(it=>{ if(!it||!it.uid)return; const k=o.id+'|'+it.uid; iks[k]=1;
+      const s2=_itemSigOf(it); if(_itemSig[k]!==s2){ it._its=_nextTs(); _itemSig[k]=s2; } });
+  });
   for(const k in _ordSig)if(!ids[k])delete _ordSig[k];
+  for(const k in _itemSig)if(!iks[k])delete _itemSig[k];
 }
-/* Tras fusionar un estado entrante: recalcular firmas para que los pedidos ya convergidos NO
-   se vuelvan a estampar como "modificados localmente" en el próximo envío (evita ping-pong). */
-function _resetOrdSig(){ _ordSig={}; orders.forEach(o=>{ if(o&&o.id)_ordSig[o.id]=_ordSigOf(o); }); }
+/* Tras fusionar un estado entrante: recalcular firmas para que lo ya convergido NO se vuelva a
+   estampar como "modificado localmente" en el próximo envío (evita ping-pong). */
+function _resetOrdSig(){ _ordSig={}; _itemSig={}; orders.forEach(o=>{ if(!o||!o.id)return; _ordSig[o.id]=_ordSigOf(o); (o.items||[]).forEach(it=>{ if(it&&it.uid)_itemSig[o.id+'|'+it.uid]=_itemSigOf(it); }); }); }
+/* Huella de lo que la fusión PROTEGE (pedidos abiertos y sus productos, ventas, clientes, libros,
+   caja, lápidas). Si tras fusionar lo local tiene algo que el snapshot entrante no tenía, este
+   equipo re-publica el estado ya fusionado → la NUBE converge y nada queda solo en memoria
+   (así un producto agregado en paralelo no se pierde aunque ambos equipos recarguen). */
+function _convDigest(st){
+  try{
+    const o=(st.orders||[]).filter(x=>x&&x.id&&x.status!=='closed'&&!delOrders[x.id]).map(x=>x.id+':'+(x._mts||0)+':'+(x.status||'')+':'+(x.items||[]).filter(it=>it&&!(x.rmItems&&x.rmItems[it.uid])).map(it=>(it.uid||'?')+'.'+(it._its||0)+'.'+(it.kdisp?1:0)).sort().join(',')+':'+Object.keys(x.rmItems||{}).sort().join(',')).sort().join('|');
+    const cs=(st.closedSales||[]).map(x=>x&&x.id).filter(Boolean).sort().join(',');
+    const cl=(st.clients||[]).map(x=>x&&x.id).filter(id=>id&&!delClients[id]).sort().join(',');
+    const bk=(st.bookSales||[]).filter(b=>b&&b.id&&!delBooks[b.id]&&!((b.ts||0)<=bookClearTs)).map(b=>b.id).sort().join(',');
+    const cm=st.caja?((st.caja.openTime||0)+'#'+(st.caja.open?1:0)+'#'+(st.caja.movements||[]).length):'';
+    const tb=[Object.keys(st.delOrders||{}).length,Object.keys(st.delClients||{}).length,Object.keys(st.delBooks||{}).length,st.bookClearTs||0].join('/');
+    return [o,cs,cl,bk,cm,tb].join('~');
+  }catch(e){ console.warn('[Sync] digest',e); return 'err'+Math.random(); }
+}
+let _rebTimer=null;
+function _scheduleRebroadcast(){ if(_rebTimer)return; _rebTimer=setTimeout(()=>{ _rebTimer=null; try{ broadcastState(); }catch(e){ console.warn('[Sync] re-publicación fallida:',e); } },350+Math.floor(Math.random()*400)); }
+/* Snapshots ya procesados (src|ts) → no re-fusionar el mismo estado una y otra vez. */
+const _seenSnaps=new Set();
+function _seenSnap(s){ const k=(s&&s.src)+'|'+(s&&s.ts); if(_seenSnaps.has(k))return true; _seenSnaps.add(k); if(_seenSnaps.size>300){ const it=_seenSnaps.values(); for(let i=0;i<100;i++)_seenSnaps.delete(it.next().value); } return false; }
 function broadcastState(){
   _pruneClosedOrders(); /* no transmitir pedidos cerrados antiguos */
-  _stampOrders();       /* versionar los pedidos modificados localmente */
+  _pruneTombs(delOrders,2*86400000); _pruneTombs(delClients,30*86400000); _pruneTombs(delBooks,30*86400000);
+  _stampOrders();       /* versionar los pedidos/productos modificados localmente */
   const payload=getSerializableState();
   /* Capa 1: BroadcastChannel (misma máquina) */
   if(bc)bc.postMessage({type:'STATE_UPDATE',payload});
@@ -6520,8 +6657,19 @@ function broadcastState(){
 function applyRemoteState(data,force){
   try{
     const s=typeof data==='string'?JSON.parse(data):data;
-    /* Si el timestamp entrante es más antiguo que el nuestro, ignorar (salvo force: re-sync explícito) */
-    if(!force&&s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200)return;
+    if(!s||typeof s!=='object')return;
+    /* Un snapshot MÁS ANTIGUO que el último aplicado ya NO se descarta entero: puede traer
+       pedidos o productos que otro equipo creó en paralelo (antes se perdían). De él se aplican
+       SOLO las fusiones seguras (versionadas, o por unión con lápidas); las sobrescrituras simples
+       (Carta, inventario, recetas, configuración, mesas…) solo se toman de snapshots más nuevos. */
+    const _older=!force&&!!(s.ts&&_lastSyncTs&&s.ts<_lastSyncTs-200);
+    if(s.ts){
+      /* Reloj lógico híbrido: tras ver un estado, toda versión local posterior será MAYOR.
+         Así un equipo con el reloj adelantado no "gana" siempre ni pisa los cambios de otros. */
+      _lastLocalTs=Math.max(_lastLocalTs||0,s.ts);
+      _lastSyncTs=Math.max(_lastSyncTs||0,s.ts);
+    }
+    _stampOrders(); /* versionar cambios locales aún no publicados ANTES de fusionar */
 
     /* Campana: sonar en CADA envío a cocina (contador kitchenBellSeq). */
     const _prevSeq=kitchenBellSeq;
@@ -6536,8 +6684,8 @@ function applyRemoteState(data,force){
 
     if(_newDay){
       /* Adoptar la jornada nueva tal cual (pedidos, mesas, ventas, contadores, caja). */
-      orders.length=0;(s.orders||[]).forEach(o=>orders.push(o));
-      _resetOrdSig();
+      delOrders={}; _mergeMaxMap(delOrders,s.delOrders);
+      orders.length=0;(s.orders||[]).forEach(o=>{ if(o&&!(o.id&&delOrders[o.id]))orders.push(_normOrder(o)); });
       tables.forEach(t=>{ const rt=(s.tables||[]).find(x=>x.id===t.id); if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;} });
       closedSales.length=0;(s.closedSales||[]).forEach(x=>closedSales.push(x));
       if(s.ordCnt!==undefined)ordCnt=s.ordCnt;
@@ -6546,26 +6694,25 @@ function applyRemoteState(data,force){
       dayEpoch=_rEpoch;
     } else if(!_staleDay){
       /* ── MISMO DÍA → FUSIONES SEGURAS (jamás se pierde nada por una carrera) ── */
-      /* Pedidos: fusión por id; conflicto gana el de mayor _mts; local-solo se conserva. */
+      /* Pedidos: fusión por id y, DENTRO de cada pedido, PRODUCTO POR PRODUCTO (_mergeOrder).
+         Antes se elegía el pedido entero más nuevo: si Cocina marcaba "Listo" sobre una copia que
+         aún no tenía el producto recién agregado por el garzón, ese producto se BORRABA. */
+      _mergeMaxMap(delOrders,s.delOrders);
+      orders.forEach(_normOrder);
       const _localById={}; orders.forEach(o=>{ if(o&&o.id)_localById[o.id]=o; });
       (s.orders||[]).forEach(ro=>{
         if(!ro)return;
         if(!ro.id){ orders.push(ro); return; }
+        if(delOrders[ro.id])return;                 /* eliminado a propósito → no revivir */
+        _normOrder(ro);
         const lo=_localById[ro.id];
         if(!lo){ orders.push(ro); _localById[ro.id]=ro; return; }
-        const rt=ro._mts||0, lt=lo._mts||0;
-        if(rt>=lt){
-          const prevSeen=(lo.kitchenSeenCount!=null)?lo.kitchenSeenCount:null;
-          const prevDisp=Array.isArray(lo.items)?lo.items.map(it=>!!(it&&it.kdisp)):null;
-          const idx=orders.indexOf(lo); if(idx>=0)orders[idx]=ro; _localById[ro.id]=ro;
-          if(prevSeen!=null)ro.kitchenSeenCount=Math.max(ro.kitchenSeenCount||0,prevSeen);
-          if(prevDisp&&Array.isArray(ro.items))ro.items.forEach((it,i)=>{ if(it&&prevDisp[i])it.kdisp=true; });
-        }
-        /* else: el local es más nuevo → se conserva tal cual */
+        const m=_mergeOrder(lo,ro);
+        const idx=orders.indexOf(lo); if(idx>=0)orders[idx]=m; _localById[ro.id]=m;
       });
-      _resetOrdSig();
+      for(let i=orders.length-1;i>=0;i--){ const o=orders[i]; if(o&&o.id&&delOrders[o.id])orders.splice(i,1); }
       /* Mesas: NO liberar una mesa que aún tiene un pedido abierto localmente. */
-      tables.forEach(t=>{
+      if(!_older)tables.forEach(t=>{
         const rt=(s.tables||[]).find(x=>x.id===t.id);
         const openLocal=orders.some(o=>o&&o.tableId===t.id&&o.status!=='closed'&&o.status!=='canceled');
         if(rt){ t.status=(rt.status==='free'&&openLocal)?'occupied':rt.status; t.waiter=rt.waiter||t.waiter||''; t.clientId=rt.clientId||t.clientId||null; t.clientName=rt.clientName||t.clientName||''; t.startTime=rt.startTime||t.startTime||null; }
@@ -6577,17 +6724,30 @@ function applyRemoteState(data,force){
       /* Contadores: MÁXIMO monótono → nunca retroceden → no se reutilizan ids (no duplicados). */
       if(s.ordCnt!==undefined)ordCnt=Math.max(ordCnt||0,s.ordCnt);
       if(s.totalOrdsIn!==undefined)totalOrdsIn=Math.max(totalOrdsIn||0,s.totalOrdsIn);
-      /* Caja: apertura/fondo del último; movimientos y bitácora por UNIÓN (no se pierde dinero). */
+      /* Caja por SESIÓN (identificada por openTime):
+         • sesión entrante más nueva (reapertura) → se adopta completa;
+         • misma sesión → movimientos y bitácora por UNIÓN (no se pierde dinero) y la caja solo
+           puede pasar de abierta a cerrada (nunca se "reabre" por un dispositivo atrasado);
+         • sesión entrante más antigua → se ignora (no revive movimientos ya archivados). */
       if(s.caja){
-        caja.open=s.caja.open;caja.openTime=s.caja.openTime||caja.openTime;caja.fondo=s.caja.fondo;
-        const msig=m=>[m&&m.time,m&&m.amount,m&&m.pago,m&&m.desc].join('|'); const mh={}; caja.movements.forEach(m=>{ mh[msig(m)]=1; });
-        (s.caja.movements||[]).forEach(m=>{ if(!mh[msig(m)]){ caja.movements.push(m); mh[msig(m)]=1; } });
-        const lsig=l=>[l&&l.time,l&&l.msg].join('|'); const lh={}; caja.log.forEach(l=>{ lh[lsig(l)]=1; });
-        (s.caja.log||[]).forEach(l=>{ if(!lh[lsig(l)]){ caja.log.push(l); lh[lsig(l)]=1; } });
+        const rOT=s.caja.openTime||0, lOT=caja.openTime||0;
+        if(rOT>lOT){
+          caja.open=!!s.caja.open;caja.openTime=s.caja.openTime;caja.fondo=s.caja.fondo;caja.movements=[...(s.caja.movements||[])];caja.log=[...(s.caja.log||[])];
+        } else if(rOT===lOT){
+          caja.open=!!(caja.open&&s.caja.open);
+          if(!_older&&s.caja.fondo!==undefined)caja.fondo=s.caja.fondo;
+          const msig=m=>[m&&m.time,m&&m.amount,m&&m.pago,m&&m.desc].join('|'); const mh={}; caja.movements.forEach(m=>{ mh[msig(m)]=1; });
+          (s.caja.movements||[]).forEach(m=>{ if(!mh[msig(m)]){ caja.movements.push(m); mh[msig(m)]=1; } });
+          caja.movements.sort((a,b)=>((a&&a.time)||0)-((b&&b.time)||0));
+          const lsig=l=>[l&&l.time,l&&l.msg].join('|'); const lh={}; caja.log.forEach(l=>{ lh[lsig(l)]=1; });
+          (s.caja.log||[]).forEach(l=>{ if(!lh[lsig(l)]){ caja.log.push(l); lh[lsig(l)]=1; } });
+          caja.log.sort((a,b)=>((a&&a.time)||0)-((b&&b.time)||0));
+        }
       }
     }
     /* (si _staleDay: se ignoran por completo los datos de jornada del emisor) */
     _pruneClosedOrders(); /* podar cerrados antiguos (convergencia) */
+    _resetOrdSig();       /* lo ya fusionado no se re-estampa como cambio local */
 
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=Math.max(kitchenBellSeq||0,s.kitchenBellSeq);
     if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
@@ -6596,17 +6756,22 @@ function applyRemoteState(data,force){
     /* clientCnt: id de clientes (independiente de jornada) → máximo monótono. */
     if(s.clientCnt!==undefined)clientCnt=Math.max(clientCnt||0,s.clientCnt);
     /* Clientes (independiente de jornada): UNIÓN por id — nunca se pierde un cliente nuevo.
-       Un cliente solo-local se conserva; en conflicto por id gana el entrante (edición admin). */
+       Un cliente solo-local se conserva; en conflicto gana el entrante SOLO si es más nuevo.
+       Un cliente eliminado a propósito (lápida) no revive en ningún equipo. */
+    _mergeMaxMap(delClients,s.delClients);
     if(Array.isArray(s.clients)){
       const ch={}; clients.forEach(c=>{ if(c&&c.id)ch[c.id]=c; });
-      s.clients.forEach(rc=>{ if(!rc||!rc.id)return; const lc=ch[rc.id]; if(!lc){ clients.push(rc); ch[rc.id]=rc; } else { const idx=clients.indexOf(lc); if(idx>=0)clients[idx]=rc; ch[rc.id]=rc; } });
+      s.clients.forEach(rc=>{ if(!rc||!rc.id||delClients[rc.id])return; const lc=ch[rc.id];
+        if(!lc){ clients.push(rc); ch[rc.id]=rc; }
+        else if(!_older){ const idx=clients.indexOf(lc); if(idx>=0)clients[idx]=rc; ch[rc.id]=rc; } });
     }
-    if(s.kDone)Object.assign(kDone,s.kDone);
+    for(let i=clients.length-1;i>=0;i--){ const c=clients[i]; if(c&&c.id&&delClients[c.id])clients.splice(i,1); }
+    if(!_older&&s.kDone)Object.assign(kDone,s.kDone);
     /* NO aplicar s.currentAccountId: es local por dispositivo (ver getSerializableState). */
     /* Inventario: FUSIÓN por nombre (no reemplazo total) → nunca se pierde un insumo; se
        respetan ediciones locales sin guardar (_invDirty). Las eliminaciones llegan por la
-       tabla `inventory` (handler DELETE). */
-    if(Array.isArray(s.inventory)&&s.inventory.length&&!(_isEditingField()&&_activePageIsInventory())){
+       tabla `inventory` (handler DELETE). Solo desde snapshots nuevos (evita revertir stock). */
+    if(!_older&&Array.isArray(s.inventory)&&s.inventory.length&&!(_isEditingField()&&_activePageIsInventory())){
       const ih={}; inventoryItems.forEach(x=>{ if(x&&x.name)ih[x.name.toLowerCase()]=x; });
       s.inventory.forEach(rx=>{ if(!rx||!rx.name)return; const k=rx.name.toLowerCase(); const lx=ih[k];
         if(!lx){ inventoryItems.push({...rx}); ih[k]=inventoryItems[inventoryItems.length-1]; }
@@ -6627,7 +6792,7 @@ function applyRemoteState(data,force){
        los productos que no aparecen en él se CONSERVAN. Las eliminaciones reales llegan por
        el handler DELETE de la tabla `menu`. Esto evita que un dispositivo con el menú viejo
        borre los productos nuevos de todos. */
-    if(s.menu&&typeof s.menu==='object'){
+    if(!_older&&s.menu&&typeof s.menu==='object'){
       const incoming={};
       for(const cat in s.menu)for(const sub in s.menu[cat]){const arr=s.menu[cat][sub];if(Array.isArray(arr))arr.forEach(it=>{if(it&&it.name)incoming[it.name]={cat,sub,it};});}
       /* Quitar de su ubicación local cualquier ítem presente en el entrante (para relocalizar/actualizar) */
@@ -6638,30 +6803,41 @@ function applyRemoteState(data,force){
       for(const cat in menuData){for(const sub in menuData[cat])if(!menuData[cat][sub].length)delete menuData[cat][sub];if(!Object.keys(menuData[cat]).length)delete menuData[cat];}
       _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
-    if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
-    if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
-    if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
+    if(!_older){
+      if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
+      if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
+      if(s.categoryScopes&&typeof s.categoryScopes==='object')categoryScopes=s.categoryScopes;
+    }
     /* Ingredientes VERSIONADOS: solo aplicar si la versión entrante es >= la local.
        Evita que un dispositivo con datos viejos revierta los cambios del admin. */
     if(s.ingredientes&&typeof s.ingredientes==='object'){
       const its=s.ingredientesTs||0;
       if(its>=_ingTs){ ingredientes=s.ingredientes; _ingTs=its; }
     }
-    if(Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
-    /* Ventas de libros: UNIÓN por id — nunca se pierde una venta registrada. */
+    if(!_older&&Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
+    /* Ventas de libros: UNIÓN por id — nunca se pierde una venta registrada; pero una venta
+       borrada (lápida) o anterior a "Eliminar historial" (bookClearTs) no revive. */
+    _mergeMaxMap(delBooks,s.delBooks);
+    if((+s.bookClearTs||0)>bookClearTs)bookClearTs=+s.bookClearTs;
+    const _bookGone=b=>!b||(b.id&&delBooks[b.id])||(bookClearTs>0&&(b.ts||0)<=bookClearTs);
     if(Array.isArray(s.bookSales)){
       const bh={}; bookSales.forEach(b=>{ if(b&&b.id)bh[b.id]=1; });
-      s.bookSales.forEach(b=>{ if(b&&b.id&&!bh[b.id]){ bookSales.push({...b}); bh[b.id]=1; } });
+      s.bookSales.forEach(b=>{ if(b&&b.id&&!bh[b.id]&&!_bookGone(b)){ bookSales.push({...b}); bh[b.id]=1; } });
     }
+    for(let i=bookSales.length-1;i>=0;i--){ if(_bookGone(bookSales[i]))bookSales.splice(i,1); }
     if(s.bookCnt!==undefined&&s.bookCnt>bookCnt)bookCnt=s.bookCnt;
     /* Alinear categorías de inventario con la Carta tras sincronizar.
        No hacerlo mientras se edita Inventario (evita mutar el arreglo bajo el campo activo). */
-    if(typeof _syncInvCategoriesFromCarta==='function'&&!(_isEditingField()&&_activePageIsInventory()))_syncInvCategoriesFromCarta();
+    if(!_older&&typeof _syncInvCategoriesFromCarta==='function'&&!(_isEditingField()&&_activePageIsInventory()))_syncInvCategoriesFromCarta();
     /* Recetas: FUSIÓN (no reemplazo total): solo agrega/actualiza las del snapshot entrante,
        conservando las que el emisor no conoce. Las eliminaciones llegan por la tabla `recipes`. */
-    if(s.recipes&&typeof s.recipes==='object'){
+    if(!_older&&s.recipes&&typeof s.recipes==='object'){
       Object.entries(s.recipes).forEach(([k,v])=>{ recipes[k]=v; });
     }
+    /* CONVERGENCIA: si este equipo tiene algo que el snapshot entrante no tenía (un producto
+       agregado en paralelo, una venta, una lápida…), re-publica el estado YA FUSIONADO para que
+       la nube lo tenga también. Si ya son iguales, no escribe nada (sin bucles). */
+    if(_staleDay||_convDigest({orders,closedSales,clients,bookSales,caja,delOrders,delClients,delBooks,bookClearTs})!==_convDigest(s))_scheduleRebroadcast();
     _refreshActiveView();
   }catch(e){console.warn('[EcoNativo] Sync error:',e);}
 }
@@ -6687,7 +6863,10 @@ function _refreshActiveView(){
   const ap=document.querySelector('.page.active');
   if(!ap)return;
   const pid=ap.id?.replace('page-','');
-  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,cartapdf:renderCartaPdf,inventory:renderInv,staff:renderStaff,biblioteca:renderBiblioteca};
+  const map={tables:renderTables,dashboard:renderDashboard,kitchen:renderKitchen,stats:renderStats,clients:renderClients,recipes:renderRecipes,carta:renderCarta,cartapdf:renderCartaPdf,inventory:renderInv,staff:renderStaff,biblioteca:renderBiblioteca,
+    /* Vista de Pedido del garzón: refrescar lo "Ya enviado a cocina" (productos agregados desde
+       otro equipo, eliminados, etc.) para que nunca muestre una lista desfasada. */
+    order:()=>{ if(typeof renderCart==='function')renderCart(); if(currentAccountId&&typeof _updateCobrarBtn==='function'){const _o=getOrder(currentAccountId);if(_o)_updateCobrarBtn(_o);} }};
   if(map[pid])map[pid]();
   updateOCBadge();
 }
@@ -6699,7 +6878,7 @@ if(bc){
   bc.onmessage=e=>{
     if(e.data?.type==='STATE_UPDATE'){
       const s=JSON.parse(e.data.payload);
-      if(s.src!==_deviceId&&s.ts>(_lastSyncTs||0)){_lastSyncTs=s.ts;applyRemoteState(s);}
+      if(s&&s.src!==_deviceId&&!_seenSnap(s))applyRemoteState(s);
     }
   };
 }
@@ -6712,8 +6891,8 @@ setInterval(()=>{
     if(!raw)return;
     let s;
     try{s=JSON.parse(raw);}catch(parseErr){localStorage.removeItem(SYNC_KEY);return;}
-    if(s.src!==_deviceId&&s.ts&&s.ts>_lastSyncTs){_lastSyncTs=s.ts;applyRemoteState(s);}
-  }catch(e){}
+    if(s&&s.src!==_deviceId&&s.ts&&!_seenSnap(s))applyRemoteState(s);
+  }catch(e){ console.warn('[Sync] lectura local fallida:',e&&e.message); }
 },2000);
 
 /* ── Indicador de estado de conexión en navbar ── */
@@ -6925,6 +7104,7 @@ function nuevoDia(){
   /* Marcar jornada nueva: los demás dispositivos adoptarán el reinicio; los que tengan una
      época menor no podrán resucitar los pedidos/ventas de la jornada anterior. */
   dayEpoch=Math.max(dayEpoch+1, Math.floor(Date.now()/1000));
+  delOrders={}; /* las lápidas de pedidos pertenecen a la jornada que termina */
 
   /* 3. Free all tables */
   tables.forEach(t=>{t.status='free';t.waiter='';t.clientId=null;t.clientName='';t.startTime=null;});
@@ -6974,9 +7154,9 @@ setInterval(()=>{
       if(el)el.innerHTML='<i class="ti ti-clock" style="font-size:9px"></i> '+_fmtDur(Date.now()-o.kitchenStartTime);
     }
     /* Cronómetro por producto */
-    (o.items||[]).forEach((it,i)=>{
-      if(it.kStart&&!it.kEnd){
-        const el=document.getElementById('kitim-'+o.id+'-'+i);
+    (o.items||[]).forEach(it=>{
+      if(it&&it.kStart&&!it.kEnd){
+        const el=document.getElementById('kitim-'+o.id+'-'+it.uid);
         if(el)el.textContent=_fmtDur(Date.now()-it.kStart);
       }
     });
