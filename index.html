@@ -1312,6 +1312,16 @@ let delOrders={}, delClients={}, delBooks={}, bookClearTs=0;
    otro equipo agregó EN PARALELO (no está en esta lista) no se pierde: se rescata a una cuenta
    nueva de la misma mesa. pedidoId → {uid:1,...} */
 let delOrderUids={};
+/* ── CARTA: productos ELIMINADOS y VERSIÓN por producto ──
+   delMenu: nombre → marca de tiempo del borrado. Evita que un producto borrado reaparezca:
+   ni desde la lista inicial que trae la app, ni desde otro equipo, ni desde la tabla `menu`.
+   Se guarda también en este dispositivo para que el borrado valga desde el arranque (antes de
+   sincronizar). Si más adelante se crea OTRO producto con el mismo nombre, su versión (_pts)
+   será posterior al borrado y por eso sí se conserva.
+   _menuSig: firma por producto para detectar ediciones locales y versionarlas (_pts), de modo
+   que un equipo con datos viejos NUNCA revierta un precio recién cambiado. */
+let delMenu={}, _menuSig={};
+try{ const _dm=JSON.parse(localStorage.getItem('econativo_delmenu')||'{}'); if(_dm&&typeof _dm==='object')delMenu=_dm; }catch(e){}
 
 /* ── CREDENTIALS ── */
 const SYSTEM_USERS=[
@@ -1393,6 +1403,39 @@ const menuData={
 /* Normaliza la estructura del menú aunque el estado global guarde nombres viejos:
    renombra "Cafetería Caliente"→"Bebidas Calientes" y saca "Sándwich" de Platos a su
    propia categoría "Sándwiches". Se ejecuta al cargar y tras cada sync. */
+/* ── CARTA: borrado que PERSISTE y versión por producto ──────────────────────── */
+function _saveDelMenu(){ try{ localStorage.setItem('econativo_delmenu',JSON.stringify(delMenu)); }catch(e){} }
+/* ¿Este producto fue eliminado a propósito? (una versión POSTERIOR al borrado lo re-habilita,
+   así se puede volver a crear un producto con el mismo nombre). */
+function _menuGone(it){ if(!it||!it.name)return false; const t=delMenu[it.name]; return !!t&&(it._pts||0)<=t; }
+function _tombMenu(name){ if(!name)return; delMenu[name]=_nextTs(); _saveDelMenu(); }
+/* Quita de la Carta en memoria todo lo eliminado (incluida la lista inicial de la app). */
+function _applyMenuTombs(){
+  let n=0;
+  for(const cat in menuData)for(const sub in menuData[cat]){
+    const before=menuData[cat][sub].length;
+    menuData[cat][sub]=menuData[cat][sub].filter(x=>!_menuGone(x));
+    n+=before-menuData[cat][sub].length;
+  }
+  for(const cat in menuData){ for(const sub in menuData[cat])if(!menuData[cat][sub].length)delete menuData[cat][sub]; if(!Object.keys(menuData[cat]).length)delete menuData[cat]; }
+  return n;
+}
+/* Ubica un producto por nombre en cualquier categoría (evita duplicarlo al recargar).
+   Nombre propio (_menuLoc) para NO chocar con la función _findMenuItem que ya existe en la app. */
+function _menuLoc(name){ for(const cat in menuData)for(const sub in menuData[cat]){ const it=(menuData[cat][sub]||[]).find(x=>x&&x.name===name); if(it)return {cat,sub,it}; } return null; }
+function _menuSigOf(it){ try{ const o={...it}; delete o._pts; return JSON.stringify(o); }catch(e){ return 'x'+Math.random(); } }
+/* Versiona SOLO los productos editados en este equipo (precio, nombre, descripción, variedades…). */
+function _stampMenu(){
+  const seen={};
+  for(const cat in menuData)for(const sub in menuData[cat])(menuData[cat][sub]||[]).forEach(it=>{
+    if(!it||!it.name)return; const k=cat+'|'+sub+'|'+it.name; seen[k]=1;
+    const sig=_menuSigOf(it); if(_menuSig[k]!==sig){ it._pts=_nextTs(); _menuSig[k]=sig; }
+  });
+  for(const k in _menuSig)if(!seen[k])delete _menuSig[k];
+}
+/* Línea base: lo ya sincronizado NO cuenta como edición local (evita que la lista inicial de la
+   app "gane" y revierta precios). */
+function _resetMenuSig(){ _menuSig={}; for(const cat in menuData)for(const sub in menuData[cat])(menuData[cat][sub]||[]).forEach(it=>{ if(it&&it.name)_menuSig[cat+'|'+sub+'|'+it.name]=_menuSigOf(it); }); }
 function _migrateMenu(){
   if(menuData['Cafetería Caliente']){
     if(!menuData['Bebidas Calientes'])menuData['Bebidas Calientes']={};
@@ -1411,6 +1454,8 @@ function _migrateMenu(){
 /* ── RECIPES (CRUD) ── */
 let recipes={};
 _migrateMenu(); /* normaliza la estructura del menú una vez declaradas menuData y recipes */
+_applyMenuTombs(); /* quita ya en el arranque los productos eliminados (aunque la lista inicial los traiga) */
+_resetMenuSig();   /* línea base: la lista inicial NO se considera una edición local */
 function buildRecipes(){
   const defs={
     'Espresso':{cat:'Bebidas Calientes',ingredients:[{name:'Café molido',qty:7,unit:'g',cost:120}]},
@@ -4712,6 +4757,7 @@ function delRecipe(encodedName){
   if(!recipes[name])return;
   if(!confirm('¿Eliminar la receta y el producto "'+name+'" de la Carta? Esta acción no se puede deshacer.'))return;
   delete recipes[name];
+  _tombMenu(name); /* también es un borrado de la Carta: no debe reaparecer al recargar */
   const loc=_findMenuItem(name);
   if(loc)loc.arr.splice(loc.i,1);
   if(_sb){
@@ -4740,6 +4786,7 @@ function saveEditRecipe(){
     if(recipes[newName]){showToast('Ya existe una receta "'+newName+'"','del');return;}
     recipes[newName]={...r};delete recipes[old];
     if(loc)loc.item.name=newName;
+    _tombMenu(old); /* el nombre anterior queda eliminado: no reaparece como producto duplicado */
     if(_sb){
       _sb.from('recipes').delete().eq('name',old).then(()=>{});
       _sb.from('menu').delete().eq('name',old).then(()=>{});
@@ -5402,6 +5449,7 @@ function mcMoveSubToCat(cat,sub,newCat){
    La vía confiable es el estado global (broadcastState); esto es solo persistencia adicional. */
 function _cartaUpsertItem(cat,sub,item){
   if(!_sb)return;
+  item._pts=_nextTs(); /* versión de esta edición: un equipo con datos viejos ya no la revierte */
   const row={name:item.name,cat,sub,price:item.price,active:!!item.active,
     extra_data:JSON.stringify(Object.fromEntries(Object.entries(item).filter(([k])=>!['name','price','active'].includes(k)))),
     updated_at:new Date().toISOString()};
@@ -5422,6 +5470,7 @@ function editCartaName(cat,sub,i,value){
   if(!v||v===old){renderCarta();return;}
   if(recipes[old]){recipes[v]={...recipes[old]};delete recipes[old];}
   item.name=v;
+  _tombMenu(old); /* el nombre anterior queda eliminado: no reaparece como producto duplicado */
   if(_sb){_sb.from('menu').delete().eq('name',old).then(()=>{});}
   _cartaUpsertItem(cat,sub,item);broadcastState();
   showToast('Nombre actualizado','ok');renderCarta();
@@ -5431,6 +5480,7 @@ function delP(cat,sub,i){
   if(!confirm('¿Eliminar "'+name+'" de la Carta?'))return;
   const hasInv=inventoryItems.some(x=>x.name.toLowerCase()===name.toLowerCase());
   const alsoInv=hasInv&&confirm('¿Eliminar también "'+name+'" del Inventario?\n\nAceptar = borrar de la Carta y del Inventario.\nCancelar = mantener en el Inventario (solo se quita de la Carta).');
+  _tombMenu(name); /* registra el borrado: no reaparece al recargar ni desde otro equipo */
   menuData[cat][sub].splice(i,1);
   if(!menuData[cat][sub].length)delete menuData[cat][sub];
   delete recipes[name];
@@ -5456,7 +5506,7 @@ function saveNewProd(){
   if(!confirm('"'+name+'" se agregará a la Carta y TAMBIÉN se reflejará en el Inventario.\n\n¿Confirmar?'))return;
   if(!menuData[cat])menuData[cat]={};
   if(!menuData[cat][sub])menuData[cat][sub]=[];
-  const prod={name,price,active:true};if(area)prod.area=area;
+  const prod={name,price,active:true,_pts:_nextTs()};if(area)prod.area=area; /* versión propia: si antes existió un producto con este nombre y se borró, este NUEVO sí se conserva */
   menuData[cat][sub].push(prod);
   recipes[name]={cat,price,ingredients:[]};
   /* Vínculo unidireccional Carta → Inventario: crear en Inventario con la subcategoría como categoría */
@@ -6127,7 +6177,18 @@ async function _healMenuTable(tableRows){
   if(!_sb||cRole!=='admin')return;
   try{
     /* Si no se pasan las filas de la tabla, obtenerlas (disparo diferido de seguridad). */
-    if(!tableRows){ try{ const {data:mr}=await _sb.from('menu').select('name'); tableRows=mr||[]; }catch(e){ tableRows=[]; } }
+    if(!tableRows){ try{ const {data:mr}=await _sb.from('menu').select('name,updated_at,extra_data'); tableRows=mr||[]; }catch(e){ tableRows=[]; } }
+    /* Limpieza: borrar de la nube las filas de productos ELIMINADOS a propósito que quedaron
+       (por ejemplo, resucitados por versiones anteriores de esta misma reparación). */
+    try{
+      const gone=(tableRows||[]).filter(r=>{ if(!r||!r.name)return false; let ex={}; try{ex=JSON.parse(r.extra_data||'{}');}catch(e){}
+        const pts=Math.max(Date.parse(r.updated_at||'')||0,+ex._pts||0); return _menuGone({name:r.name,_pts:pts}); }).map(r=>r.name);
+      if(gone.length){
+        const {error}=await _sb.from('menu').delete().in('name',gone);
+        if(error)console.warn('[Carta] limpieza de eliminados:',error.message);
+        else { console.log('[EcoNativo] Carta: '+gone.length+' producto(s) eliminados quedaron fuera de la nube ✓'); tableRows=(tableRows||[]).filter(r=>!gone.includes(r&&r.name)); }
+      }
+    }catch(e){ console.warn('[Carta] limpieza eliminados:',e&&e.message); }
     const have=new Set((tableRows||[]).map(r=>r&&r.name).filter(Boolean));
     /* Fuente autoritativa = pos_state.menu (contiene TODOS los productos, incluidos los que la
        carga inicial no volcó a menuData por el orden de arranque) ∪ menuData en memoria. */
@@ -6136,6 +6197,9 @@ async function _healMenuTable(tableRows){
     const seen=new Set(), missingRows=[], restoredMem=[];
     const consider=(cat,sub,it,fromCloud)=>{
       if(!it||!it.name||seen.has(it.name))return; seen.add(it.name);
+      /* NUNCA restaurar ni volver a subir un producto ELIMINADO a propósito (esto era lo que
+         hacía reaparecer productos borrados, porque la lista inicial de la app los recreaba). */
+      if(_menuGone(it))return;
       /* (1) restaurar en memoria si falta (para que se VEA en la Carta ya, sin recargar) */
       let inMem=false;
       for(const c in menuData)for(const s in menuData[c]){ if(menuData[c][s].some(x=>x&&x.name===it.name))inMem=true; }
@@ -6149,7 +6213,7 @@ async function _healMenuTable(tableRows){
     };
     for(const cat in src)for(const sub in src[cat])(src[cat][sub]||[]).forEach(it=>consider(cat,sub,it,true));
     for(const cat in menuData)for(const sub in menuData[cat])(menuData[cat][sub]||[]).forEach(it=>consider(cat,sub,it,false));
-    if(restoredMem.length){ if(typeof buildRecipes==='function')buildRecipes(); _refreshActiveView&&_refreshActiveView(); console.log('[EcoNativo] Carta: '+restoredMem.length+' producto(s) restaurados en pantalla'); }
+    if(restoredMem.length){ _applyMenuTombs(); _resetMenuSig(); if(typeof buildRecipes==='function')buildRecipes(); _refreshActiveView&&_refreshActiveView(); console.log('[EcoNativo] Carta: '+restoredMem.length+' producto(s) restaurados en pantalla'); }
     if(missingRows.length){
       const {error}=await _sb.from('menu').upsert(missingRows,{onConflict:'name'});
       if(error)console.warn('[Carta] auto-reparación menu:',error.message);
@@ -6188,12 +6252,25 @@ async function loadPersistentData(){
     if(menu&&menu.length){
       menu.forEach(r=>{
         let extra={};try{extra=JSON.parse(r.extra_data||'{}');}catch(e){}
-        if(!menuData[r.cat])menuData[r.cat]={};
-        if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
-        const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
-        if(ex){ex.price=r.price;ex.active=r.active;Object.assign(ex,extra);}
-        else menuData[r.cat][r.sub].push({name:r.name,price:r.price,active:r.active,...extra});
+        const pts=Math.max(Date.parse(r.updated_at||'')||0, +extra._pts||0);
+        const row={name:r.name,price:r.price,active:r.active,...extra,_pts:pts};
+        if(_menuGone(row))return;                      /* eliminado a propósito → no se repone */
+        const loc=_menuLoc(r.name);                    /* buscar por NOMBRE (no duplicar si se movió) */
+        if(loc){
+          if((loc.it._pts||0)>pts)return;              /* lo local es más nuevo → se conserva */
+          if(loc.cat===r.cat&&loc.sub===r.sub){ Object.assign(loc.it,row); }
+          else { /* la nube lo tiene en otra categoría y es más nuevo → moverlo, sin duplicar */
+            menuData[loc.cat][loc.sub]=menuData[loc.cat][loc.sub].filter(x=>x!==loc.it);
+            if(!menuData[r.cat])menuData[r.cat]={}; if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
+            menuData[r.cat][r.sub].push(Object.assign(loc.it,row));
+          }
+        } else {
+          if(!menuData[r.cat])menuData[r.cat]={};
+          if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
+          menuData[r.cat][r.sub].push(row);
+        }
       });
+      _applyMenuTombs(); _resetMenuSig();
       console.log('[EcoNativo] Carta cargada desde Supabase');
     }
     /* Restaurar en la tabla `menu` los productos que solo viven en pos_state (Bug: desaparecen). */
@@ -6373,14 +6450,31 @@ async function initSupabase(){
       .on('postgres_changes',{event:'*',schema:'public',table:'menu'},payload=>{
         if(payload.eventType==='UPDATE'||payload.eventType==='INSERT'){
           const r=payload.new;let extra={};try{extra=JSON.parse(r.extra_data||'{}');}catch(e){}
-          if(!menuData[r.cat])menuData[r.cat]={};
-          if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
-          const ex=menuData[r.cat][r.sub].find(x=>x.name===r.name);
-          if(ex){ex.price=r.price;ex.active=r.active;Object.assign(ex,extra);}
-          else menuData[r.cat][r.sub].push({name:r.name,price:r.price,active:r.active,...extra});
+          const pts=Math.max(Date.parse(r.updated_at||'')||0, +extra._pts||0);
+          const row={name:r.name,price:r.price,active:r.active,...extra,_pts:pts};
+          if(!_menuGone(row)){
+            const loc=_menuLoc(r.name);
+            if(loc){
+              if((loc.it._pts||0)<=pts){
+                if(loc.cat===r.cat&&loc.sub===r.sub)Object.assign(loc.it,row);
+                else { menuData[loc.cat][loc.sub]=menuData[loc.cat][loc.sub].filter(x=>x!==loc.it);
+                  if(!menuData[r.cat])menuData[r.cat]={}; if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
+                  menuData[r.cat][r.sub].push(Object.assign(loc.it,row)); }
+              }
+            } else {
+              if(!menuData[r.cat])menuData[r.cat]={};
+              if(!menuData[r.cat][r.sub])menuData[r.cat][r.sub]=[];
+              menuData[r.cat][r.sub].push(row);
+            }
+            _resetMenuSig();
+          }
         }else if(payload.eventType==='DELETE'){
           const nm=payload.old?.name;
+          /* Solo se quita de pantalla. El registro del borrado (que impide que reaparezca) viaja
+             en el estado compartido desde el equipo que lo eliminó, con SU marca de tiempo: así,
+             si el producto se vuelve a crear enseguida, la nueva versión no queda bloqueada. */
           Object.values(menuData).forEach(subs=>Object.values(subs).forEach(items=>{const idx=items.findIndex(x=>x.name===nm);if(idx>=0)items.splice(idx,1);}));
+          _resetMenuSig();
         }
         const ap=document.querySelector('.page.active');
         if(ap?.id==='page-carta')renderCarta();else if(ap?.id==='page-order')renderMenuItems();
@@ -6635,7 +6729,7 @@ function getSerializableState(){
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
     dayEpoch,
-    delOrders,delClients,delBooks,bookClearTs,delOrderUids,
+    delOrders,delClients,delBooks,bookClearTs,delOrderUids,delMenu,
     ts:_nextTs()
   });
 }
@@ -6722,6 +6816,7 @@ function broadcastState(){
   _pruneTombs(delOrders,2*86400000); _pruneTombs(delClients,30*86400000); _pruneTombs(delBooks,30*86400000);
   for(const k in delOrderUids)if(!delOrders[k])delete delOrderUids[k];
   _stampOrders();       /* versionar los pedidos/productos modificados localmente */
+  _stampMenu();         /* versionar los productos de la Carta editados en este equipo */
   const payload=getSerializableState();
   /* Capa 1: BroadcastChannel (misma máquina) */
   if(bc)bc.postMessage({type:'STATE_UPDATE',payload});
@@ -6882,17 +6977,32 @@ function applyRemoteState(data,force){
        los productos que no aparecen en él se CONSERVAN. Las eliminaciones reales llegan por
        el handler DELETE de la tabla `menu`. Esto evita que un dispositivo con el menú viejo
        borre los productos nuevos de todos. */
+    /* Productos ELIMINADOS de la Carta: la lista de borrados se comparte SIEMPRE (incluso desde un
+       estado más antiguo) para que un borrado nunca se deshaga. */
+    if(s.delMenu&&typeof s.delMenu==='object'){ const _n0=JSON.stringify(delMenu); _mergeMaxMap(delMenu,s.delMenu); if(JSON.stringify(delMenu)!==_n0)_saveDelMenu(); }
     if(!_older&&s.menu&&typeof s.menu==='object'){
       const incoming={};
       for(const cat in s.menu)for(const sub in s.menu[cat]){const arr=s.menu[cat][sub];if(Array.isArray(arr))arr.forEach(it=>{if(it&&it.name)incoming[it.name]={cat,sub,it};});}
-      /* Quitar de su ubicación local cualquier ítem presente en el entrante (para relocalizar/actualizar) */
-      for(const cat in menuData)for(const sub in menuData[cat]){menuData[cat][sub]=menuData[cat][sub].filter(x=>!(x&&incoming[x.name]));}
-      /* Insertar los entrantes en su ubicación */
-      for(const name in incoming){const {cat,sub,it}=incoming[name];if(!menuData[cat])menuData[cat]={};if(!menuData[cat][sub])menuData[cat][sub]=[];menuData[cat][sub].push(it);}
+      /* Se aplica SOLO lo que no está eliminado y lo que sea MÁS NUEVO que la versión local del
+         mismo producto (antes ganaba el último equipo que publicaba, y por eso volvían los
+         precios viejos de la lista inicial de la app). */
+      const apply={};
+      for(const name in incoming){
+        const inc=incoming[name];
+        if(_menuGone(inc.it))continue;                         /* eliminado a propósito → no revive */
+        const loc=_menuLoc(name);
+        if(loc&&(loc.it._pts||0)>(inc.it._pts||0))continue;    /* lo local es más nuevo → se conserva */
+        apply[name]=inc;
+      }
+      /* Quitar de su ubicación local los que se van a reemplazar (permite relocalizarlos) */
+      for(const cat in menuData)for(const sub in menuData[cat]){menuData[cat][sub]=menuData[cat][sub].filter(x=>!(x&&apply[x.name]));}
+      for(const name in apply){const {cat,sub,it}=apply[name];if(!menuData[cat])menuData[cat]={};if(!menuData[cat][sub])menuData[cat][sub]=[];menuData[cat][sub].push(it);}
       /* Limpiar subcategorías/categorías vacías */
       for(const cat in menuData){for(const sub in menuData[cat])if(!menuData[cat][sub].length)delete menuData[cat][sub];if(!Object.keys(menuData[cat]).length)delete menuData[cat];}
       _migrateMenu(); /* normaliza nombres/estructura aunque el estado guarde versiones viejas */
     }
+    _applyMenuTombs();  /* aplicar borrados (también si el estado entrante era antiguo) */
+    _resetMenuSig();    /* lo sincronizado no cuenta como edición local */
     if(!_older){
       if(s.cartaButtons!==undefined)cartaButtons=Array.isArray(s.cartaButtons)?s.cartaButtons:null;
       if(s.invButtons!==undefined)invButtons=Array.isArray(s.invButtons)?s.invButtons:null;
