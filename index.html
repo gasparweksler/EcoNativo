@@ -2322,8 +2322,14 @@ function cobrarYCerrar(){
   modal.innerHTML=`<div class="mb" style="max-width:360px;width:100%">
     <h3 style="margin-bottom:.8rem"><i class="ti ti-receipt" style="color:var(--bm)"></i> Cobrar ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
     <div style="margin-bottom:.6rem">
-      ${_pend.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
-      ${_yaPag>0?`<div class="dir" style="color:var(--ok);font-size:11px;margin-top:4px;border-top:1px dashed var(--br);padding-top:4px"><span>✓ Ya pagado (división)</span><span>${fmt(_yaPag)}</span></div>`:''}
+      ${(o.items||[]).map(it=>{
+        const _pg=_paidQtyOf(o,it.uid), _pd=_pendQtyOf(o,it); let h='';
+        /* Ya pagados: se MUESTRAN con su nombre, en gris y tachados, pero NO suman al total */
+        if(_pg>0)h+=`<div class="dir" style="opacity:.55"><span style="text-decoration:line-through;color:var(--tl)">${_pg>1?_pg+'× ':''}${it.name} <span style="font-size:10px;text-decoration:none">· ya pagado</span></span><span style="text-decoration:line-through;color:var(--tl)">${fmt(_pg*it.price)}</span></div>`;
+        if(_pd>0)h+=`<div class="dir"><span>${_pd>1?_pd+'× ':''} ${it.name}</span><span style="font-weight:700">${fmt(_pd*it.price)}</span></div>`;
+        return h;
+      }).join('')}
+      ${_yaPag>0?`<div class="dir" style="color:var(--ok);font-size:11px;margin-top:4px;border-top:1px dashed var(--br);padding-top:4px"><span>✓ Ya pagado (no se cobra)</span><span>${fmt(_yaPag)}</span></div>`:''}
     </div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem;margin-bottom:.8rem">
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span id="cobrarSubAmt">${fmt(sub)}</span></div>
