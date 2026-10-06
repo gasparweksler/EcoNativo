@@ -1186,6 +1186,34 @@ function fdate(ts){return new Date(ts).toLocaleDateString('es-CL')}
 function getTable(id){return tables.find(t=>t.id===id)}
 function getOrder(id){return orders.find(o=>o.id===id)}
 function oTotal(o){return o.items.reduce((s,i)=>s+i.price*i.qty,0)}
+/* ── PAGOS PARCIALES POR DIVISIÓN DE CUENTA ──────────────────────────────────────
+   Cada pago registrado al dividir queda GUARDADO en el pedido (o.splitPays), por lo que
+   sobrevive a cerrar la ventana, recargar y se ve igual en todos los dispositivos.
+   Cada pago: {ref, nombre, medio, monto (sin propina), propina, ts, items:[{uid,qty}]}
+   (items va vacío en el modo "partes iguales", donde se paga un monto, no productos). */
+function _splitPays(o){ return (o&&Array.isArray(o.splitPays))?o.splitPays:[]; }
+/* Unidades ya pagadas de un producto concreto */
+function _paidQtyOf(o,uid){ let n=0; _splitPays(o).forEach(p=>(p.items||[]).forEach(x=>{ if(x&&x.uid===uid)n+=(+x.qty||0); })); return n; }
+/* Dinero ya cobrado por división (sin propinas) */
+function _paidMonto(o){ return _splitPays(o).reduce((s,p)=>s+(+p.monto||0),0); }
+/* Lo que QUEDA por cobrar del pedido */
+function oUnpaid(o){ return Math.max(0,oTotal(o)-_paidMonto(o)); }
+/* Productos que se registran en la venta FINAL de un pedido con pagos parciales.
+   Si todos los pagos previos fueron por productos, se listan los productos pendientes.
+   Si hubo pagos por MONTO ("partes iguales"), no hay productos identificables: se registra
+   una sola línea con el saldo, para que la venta del día cuadre exactamente con lo cobrado. */
+function _saleItemsFor(o,sub){
+  const pend=_unpaidItems(o);
+  const suma=pend.reduce((s,i)=>s+i.price*i.qty,0);
+  if(Math.abs(suma-(+sub||0))<1)return pend.map(i=>({...i}));
+  return [{name:'Saldo pendiente (división de cuenta)',price:Math.max(0,+sub||0),qty:1}];
+}
+/* Productos pendientes de pago (con la cantidad que falta por cobrar de cada uno) */
+function _unpaidItems(o){
+  const out=[];
+  ((o&&o.items)||[]).forEach(it=>{ if(!it)return; const rest=(+it.qty||0)-_paidQtyOf(o,it.uid); if(rest>0)out.push({...it,qty:rest}); });
+  return out;
+}
 /* Total NETO de la venta = subtotal menos descuento aplicado (para estadísticas/informes/Excel). */
 function oNet(o){return Math.max(0,oTotal(o)-((o&&o.discount)||0))}
 function openMod(id){$(id).classList.add('open')}
@@ -1753,7 +1781,7 @@ function renderTables(){
       ${accounts.map(n=>`<div style="font-size:10px;color:var(--ts);margin-top:2px">${n}</div>`).join('')}
       ${primary&&primary.items.length?`<div style="font-size:10px;color:var(--inf);margin-top:1px"><i class="ti ti-clock" style="font-size:9px" aria-hidden="true"></i> ${elapsed(primary.time)}</div>`:``}
       ${detailHTML}
-      ${primary&&primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:3px">Total: ${fmt(ords.concat(canceledOrders).reduce((s,o)=>s+oTotal(o),0))}</div>`:``}
+      ${primary&&primary.items.length?`<div style="font-size:11px;color:var(--bm);font-weight:700;margin-top:3px">Total: ${fmt(ords.concat(canceledOrders).reduce((s,o)=>s+oUnpaid(o),0))}${ords.concat(canceledOrders).some(o=>_splitPays(o).length)?' <span style="font-size:9px;color:var(--ok);font-weight:600">(pendiente)</span>':''}</div>`:``}
       ${canceledOrders.length?`<div style="font-size:10px;color:var(--er);margin-top:2px"><i class="ti ti-x-circle" style="font-size:9px"></i> cobro pendiente</div>`:''}
     </div>`;
   }).join('');
@@ -2280,7 +2308,12 @@ function cobrarYCerrar(){
   const o=(isMC&&window._mcOrder)?window._mcOrder:(currentAccountId?getOrder(currentAccountId):orders.find(ord=>ord.tableId===cTable?.id&&ord.status!=='closed'&&ord.status!=='canceled'));
   if(!o||!o.items.length){showToast('Sin productos en el pedido');return;}
   window._cobrarTempOid=(o&&o._mcTemp)?o.id:null;
-  const sub=o.items.reduce((s,i)=>s+i.price*i.qty,0);
+  /* Con pagos parciales de una división, se cobra SOLO lo que falta (nunca lo ya pagado). */
+  const _yaPag=_paidMonto(o), _pend=_unpaidItems(o);
+  const sub=oUnpaid(o);
+  if(_yaPag>0&&sub<=0){ /* ya está todo pagado por la división → solo corresponde cerrar la mesa */
+    _splitCloseTable(o.id); return;
+  }
   /* La PROPINA existe SOLO al cobrar mesas. En Mostrador no hay propina. */
   const esMesa=!!o.tableId;
   const defaultTip=esMesa?Math.round(sub*0.1):0;
@@ -2290,7 +2323,8 @@ function cobrarYCerrar(){
   modal.innerHTML=`<div class="mb" style="max-width:360px;width:100%">
     <h3 style="margin-bottom:.8rem"><i class="ti ti-receipt" style="color:var(--bm)"></i> Cobrar ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
     <div style="margin-bottom:.6rem">
-      ${o.items.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
+      ${_pend.map(i=>`<div class="dir"><span>${i.qty>1?i.qty+'× ':''} ${i.name}</span><span style="font-weight:700">${fmt(i.price*i.qty)}</span></div>`).join('')}
+      ${_yaPag>0?`<div class="dir" style="color:var(--ok);font-size:11px;margin-top:4px;border-top:1px dashed var(--br);padding-top:4px"><span>✓ Ya pagado (división)</span><span>${fmt(_yaPag)}</span></div>`:''}
     </div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem;margin-bottom:.8rem">
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span id="cobrarSubAmt">${fmt(sub)}</span></div>
@@ -2515,13 +2549,13 @@ function confirmarCobro(oid,sub){
     if(card+cash<total){showToast('El pago no cubre el total (falta '+fmt(total-card-cash)+')','del');return;}
     _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
     o.tip=tip;o.pago='mixto';o.status='closed';o.closedAt=Date.now();
-    closedSales.push({...o,items:o.items.map(i=>({...i}))});
+    closedSales.push({...o,items:_saleItemsFor(o,sub)}); /* solo lo pendiente: lo ya pagado en la división ya tiene su propia venta */
     if(card>0)addCajaMov(card,'tarjeta',lugar+' (mixto)');
     if(total-card>0)addCajaMov(total-card,'efectivo',lugar+' (mixto)'); /* parte en efectivo que cuenta (sin vuelto) */
   }else{
   _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
-  closedSales.push({...o,items:o.items.map(i=>({...i}))});
+  closedSales.push({...o,items:_saleItemsFor(o,sub)}); /* solo lo pendiente: lo ya pagado en la división ya tiene su propia venta */
   /* Stock ya se descontó al enviar a cocina (order.stockDescontado) — NO descontar de nuevo al cobrar */
   addCajaMov(total,pago,lugar);
   }
@@ -2947,13 +2981,20 @@ function _rebuildEqualPeople(){
 /* Monto de cada persona en partes iguales (el resto se reparte en las primeras) */
 function _equalShare(pi){
   const o=getOrder(splitOrderId);if(!o)return 0;
-  const sub=o.items.reduce((s,it)=>s+it.price*it.qty,0);
+  const sub=oUnpaid(o); /* se reparte SOLO lo que falta por cobrar */
   const base=Math.floor(sub/splitEqualN), rem=sub-base*splitEqualN;
   return base+(pi<rem?1:0);
 }
 function getSplitItems(){
   const o=getOrder(splitOrderId);let items=[];
-  o.items.forEach(item=>{for(let q=0;q<item.qty;q++)items.push({...item,qty:1});}); return items; } function getItemOwner(ii){return splitPeople.findIndex(p=>p.items.includes(ii));}
+  /* Cada unidad por separado. Las unidades YA PAGADAS quedan marcadas (pagado:true) para
+     mostrarlas en gris y sin casilla: no se pueden volver a seleccionar ni cobrar. */
+  (o?o.items:[]).forEach(item=>{
+    const ya=_paidQtyOf(o,item.uid);
+    for(let q=0;q<item.qty;q++)items.push({...item,qty:1,pagado:q<ya});
+  });
+  return items; }
+function getItemOwner(ii){return splitPeople.findIndex(p=>p.items.includes(ii));}
 
 function renderSplitModal(){
   const o=getOrder(splitOrderId);const items=getSplitItems();
@@ -2966,6 +3007,21 @@ function renderSplitModal(){
       <button onclick="setSplitMode('equal')" style="flex:1;padding:7px;border:1px solid ${splitMode==='equal'?'var(--bm)':'var(--br)'};background:${splitMode==='equal'?'var(--bm)':'transparent'};color:${splitMode==='equal'?'#fff':'var(--ts)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700">Partes iguales</button>
     </div>
   </div>`;
+
+  /* Resumen de lo YA COBRADO en esta mesa (queda guardado en el pedido, no se pierde) */
+  const _ya=_splitPays(o);
+  if(_ya.length){
+    html+=`<div style="background:var(--cr2);border:1px solid var(--ok);border-radius:var(--r);padding:.7rem;margin-bottom:.7rem">
+      <div style="font-size:11px;font-weight:700;color:var(--ok);margin-bottom:6px">✓ Ya pagado</div>
+      ${_ya.map(p=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ts);padding:2px 0">
+        <span>${p.nombre||'Persona'} · ${p.medio||'efectivo'}</span>
+        <span style="font-weight:700;color:var(--tm)">${fmt((+p.monto||0)+(+p.propina||0))}</span>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-top:5px;border-top:1px solid var(--br);padding-top:5px">
+        <span>Falta por cobrar</span><span style="color:var(--bm)">${fmt(oUnpaid(o))}</span>
+      </div>
+    </div>`;
+  }
 
   /* ── MODO PARTES IGUALES ── */
   if(splitMode==='equal'){
@@ -3008,16 +3064,21 @@ function renderSplitModal(){
       const ownerIdx=getItemOwner(ii);
       const assignedToMe=p.items.includes(ii);
       const assignedToOther=ownerIdx>=0&&ownerIdx!==pi;
-      const isPaidItem=splitPeople[ownerIdx]?.paid&&assignedToMe;
-      /* If assigned to another person and that person hasn't paid yet, hide from this person's list */
-      /* Show: unassigned OR assigned to me OR paid by owner (struck through) */
-      if(assignedToOther)return; /* not shown in other people's lists once assigned */
-
-      const style=isPaidItem?'text-decoration:line-through;color:var(--tl)':'';
+      /* YA PAGADO: solo se muestra en la primera persona, en gris y tachado, SIN casilla.
+         No se puede volver a seleccionar ni cobrar. */
+      if(item.pagado){
+        if(pi===0)html+=`<div class="split-item-row" style="opacity:.55">
+          <span style="width:16px;flex-shrink:0;text-align:center;color:var(--ok);font-weight:700">✓</span>
+          <span class="split-item-name" style="text-decoration:line-through;color:var(--tl)">${item.name}${item.note?' ('+item.note+')':''}</span>
+          <span class="split-item-price" style="text-decoration:line-through;color:var(--tl)">${fmt(item.price)}</span>
+        </div>`;
+        return;
+      }
+      if(assignedToOther)return; /* asignado a otra persona → no aparece en esta lista */
       html+=`<div class="split-item-row">
         <input type="checkbox" ${assignedToMe?'checked':''} ${p.paid?'disabled':''} onchange="toggleSplitItem(${pi},${ii})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
-        <span class="split-item-name" style="${style}">${item.name}${item.note?' ('+item.note+')':''}</span>
-        <span class="split-item-price" style="${style}">${fmt(item.price)}</span>
+        <span class="split-item-name">${item.name}${item.note?' ('+item.note+')':''}</span>
+        <span class="split-item-price">${fmt(item.price)}</span>
       </div>`;
     });
 
@@ -3038,7 +3099,7 @@ function renderSplitModal(){
   });
 
   /* Unassigned items panel */
-  const unassigned=items.filter((_,ii)=>getItemOwner(ii)<0);
+  const unassigned=items.filter((it,ii)=>!it.pagado&&getItemOwner(ii)<0);
   if(unassigned.length){
     html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.7rem;margin-top:4px">
       <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Sin asignar (${unassigned.length} ítem${unassigned.length>1?'s':''})</div>
@@ -3052,6 +3113,8 @@ function renderSplitModal(){
 
 function addSplitPerson(){splitPeople.push({name:`Persona ${splitPeople.length+1}`,items:[],tip:0,paid:false,pago:'efectivo'});renderSplitModal();}
 function toggleSplitItem(pi,ii){
+  const it=getSplitItems()[ii];
+  if(!it||it.pagado){ showToast('Ese producto ya está pagado','del'); renderSplitModal(); return; } /* no se puede cobrar dos veces */
   const p=splitPeople[pi];const idx=p.items.indexOf(ii);
   if(idx>=0)p.items.splice(idx,1);else p.items.push(ii);
   renderSplitModal();
@@ -3112,25 +3175,71 @@ function _splitTipRow(pi){
   </div>`;
 }
 function paySplitPerson(pi){
-  splitPeople[pi].paid=true;
-  const total=calcPersonTotal(pi),pago=splitPeople[pi].pago||'efectivo';
-  const o=getOrder(splitOrderId);
-  addCajaMov(total,pago,`Split ${o.tableId?'Mesa '+o.tableId:'MC'} P${pi+1}`);
-  showToast(`Persona ${pi+1} pagó ${fmt(total)} ✓`,'ok');
-  if(splitPeople.every(p=>p.paid)){
-    _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
-    o.status='closed';o.closedAt=Date.now();
-    closedSales.push({...o,items:o.items.map(i=>({...i}))});
-    /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al dividir/cerrar */
-    const t=getTable(o.tableId);
-    if(t){
-      const remaining=orders.filter(ord=>ord.tableId===o.tableId&&ord.status!=='closed');
-      if(!remaining.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
-    }
-    closeMod('splitModal');showToast(`${o.tableId?'Mesa '+o.tableId:'Mostrador'} cerrada ✓`,'ok');
-    renderDashboard();renderTables();broadcastState();return;
+  const o=getOrder(splitOrderId); if(!o)return;
+  const per=splitPeople[pi]; if(!per||per.paid)return;
+  const medio=per.pago||'efectivo', propina=+per.tip||0;
+  let monto=0, itemsPagados=[], detalle=[];
+  if(splitMode==='equal'){
+    monto=_equalShare(pi);
+  }else{
+    const units=getSplitItems();
+    const sel=(per.items||[]).filter(ii=>units[ii]&&!units[ii].pagado); /* nunca unidades ya pagadas */
+    if(!sel.length){ showToast('Selecciona al menos un producto','del'); return; }
+    const porUid={};
+    sel.forEach(ii=>{ const u=units[ii]; monto+=u.price; porUid[u.uid]=(porUid[u.uid]||0)+1;
+      const d={...u,qty:1}; delete d.pagado; detalle.push(d); });
+    itemsPagados=Object.keys(porUid).map(uid=>({uid,qty:porUid[uid]}));
   }
+  if(monto<=0&&propina<=0){ showToast('Nada que cobrar','del'); return; }
+  /* 1) El pago queda GUARDADO en el pedido: sobrevive a cerrar la ventana, recargar y se ve
+        igual en todos los dispositivos. Esos productos ya no se pueden volver a cobrar. */
+  const ref=o.id+'-S'+(_splitPays(o).length+1)+'-'+_dSfx();
+  if(!Array.isArray(o.splitPays))o.splitPays=[];
+  o.splitPays.push({ref,nombre:per.name||('Persona '+(pi+1)),medio,monto,propina,ts:_nextTs(),items:itemsPagados});
+  /* 2) Caja y 3) venta del día: se registran AHORA, así el día cuadra aunque la mesa siga abierta. */
+  addCajaMov(monto+propina,medio,`Split ${o.tableId?'Mesa '+o.tableId:'MC'} ${per.name||('P'+(pi+1))}`);
+  closedSales.push({id:ref,tableId:o.tableId,type:o.type||(o.tableId?'mesa':'mostrador'),waiter:o.waiter||cUser,
+    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,discount:0,splitOf:o.id,
+    items:(splitMode==='equal')?[{name:'Parte igual · '+(per.name||('Persona '+(pi+1))),price:monto,qty:1}]:detalle});
+  per.paid=true;
+  showToast(`${per.name||('Persona '+(pi+1))} pagó ${fmt(monto+propina)} ✓`,'ok');
+  broadcastState(); renderDashboard(); renderTables();
   renderSplitModal();
+  /* Si ya no queda nada por cobrar, se PREGUNTA antes de cerrar (solo al dividir) */
+  if(oUnpaid(o)<=0)_askCloseAfterSplit(o.id);
+}
+/* Confirmación exclusiva de la división: permite que la mesa siga abierta si quedan comensales. */
+function _askCloseAfterSplit(oid){
+  const o=getOrder(oid); if(!o)return;
+  if(document.getElementById('splitCloseModal'))return;
+  const lugar=o.tableId?('Mesa '+o.tableId):'Mostrador';
+  const m=document.createElement('div');
+  m.className='ov'; m.id='splitCloseModal'; m.style.cssText='display:flex;z-index:10000';
+  m.innerHTML=`<div class="mb" style="max-width:360px;width:100%">
+    <h3 style="margin-bottom:.6rem"><i class="ti ti-help-circle" style="color:var(--bm)" aria-hidden="true"></i> ¿Confirma que desea Cerrar la Mesa?</h3>
+    <div style="font-size:12px;color:var(--ts);margin-bottom:1rem">Todo lo consumido en <b>${lugar}</b> ya está pagado.<br>Si alguien pagó su parte y se retiró, puedes mantener la mesa abierta para los comensales que quedan.</div>
+    <button class="bs2" style="width:100%;margin-bottom:8px;padding:11px" onclick="_splitKeepOpen()">Mantener mesa abierta</button>
+    <button class="bc2" style="width:100%;padding:11px" onclick="_splitCloseTable('${oid}')">Cerrar la mesa</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+function _splitKeepOpen(){
+  document.getElementById('splitCloseModal')?.remove();
+  closeMod('splitModal');
+  showToast('La mesa sigue abierta · lo consumido ya está pagado','ok');
+  renderTables(); if(typeof renderDashboard==='function')renderDashboard();
+}
+function _splitCloseTable(oid){
+  document.getElementById('splitCloseModal')?.remove();
+  const o=getOrder(oid); if(!o){closeMod('splitModal');return;}
+  _normOrder(o); o.closedUids=o.items.map(i=>i.uid);
+  o.status='closed'; o.closedAt=Date.now();
+  /* OJO: NO se agrega otra venta — cada pago de la división ya quedó registrado como venta. */
+  const t=getTable(o.tableId);
+  if(t){ const rem=orders.filter(x=>x.tableId===o.tableId&&x.status!=='closed'); if(!rem.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';} }
+  closeMod('splitModal');
+  showToast(`${o.tableId?'Mesa '+o.tableId:'Mostrador'} cerrada ✓`,'ok');
+  renderDashboard(); renderTables(); broadcastState();
 }
 
 /* ════════ EMERGENCIAS DE STOCK (Alertas de Inventario) ════════
@@ -3306,12 +3415,14 @@ function setOP(id,p,el){const o=getOrder(id);if(o)o.pago=p;el.closest('.pay-opts
 function chkSt(id,s){const o=getOrder(id);if(o)o.status=s;showToast('Estado actualizado','ok');}
 function closeOrd(id){
   const o=getOrder(id);if(!o)return;
-  const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(oTotal(o)*.1):Math.round(oTotal(o)*.1);
+  /* Con pagos parciales de una división se cobra SOLO lo que falta (lo ya pagado no se re-cobra) */
+  const _pend=oUnpaid(o);
+  const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(_pend*.1):Math.round(_pend*.1);
   _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
   o.tip=tip;o.status='closed';o.closedAt=Date.now();
-  closedSales.push({...o,items:o.items.map(i=>({...i}))});
+  if(_pend>0)closedSales.push({...o,items:_saleItemsFor(o,_pend)}); /* lo ya pagado ya tiene su venta */
   /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al cobrar y cerrar */
-  addCajaMov(oTotal(o)+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
+  if(_pend+tip>0)addCajaMov(_pend+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
   /* Free table only if no other non-closed orders remain */
   const t=getTable(o.tableId);
   if(t){
@@ -6632,6 +6743,11 @@ function _mergeOrder(lo,ro){
   const m=Object.assign({},base,{items,rmItems:rm});
   m.kitchenSeenCount=Math.max(lo.kitchenSeenCount||0,ro.kitchenSeenCount||0);
   m._kv=2;
+  /* Pagos por división: UNIÓN por referencia — un pago registrado en un equipo jamás se pierde
+     ni se duplica, aunque dos personas paguen a la vez en dispositivos distintos. */
+  { const sp={}; [..._splitPays(lo),..._splitPays(ro)].forEach(p=>{ if(p&&p.ref&&!sp[p.ref])sp[p.ref]=p; });
+    const arr=Object.values(sp).sort((a,b)=>((a.ts||0)-(b.ts||0)));
+    if(arr.length)m.splitPays=arr; else delete m.splitPays; }
   /* COBRO en paralelo con un producto nuevo: si el pedido quedó cerrado (cobrado), solo le
      pertenecen los productos que ESTABAN en el cobro. Un producto agregado al mismo tiempo desde
      otro equipo no se cobró: se separa (__orphans) y se rescata a una cuenta abierta de la mesa,
@@ -6776,7 +6892,7 @@ async function _syncHistory(){
 /* Versión de NIVEL PEDIDO (_mts) y de NIVEL PRODUCTO (_its), por separado: un cambio de Cocina
    en un producto y un producto nuevo agregado por el garzón son cambios independientes. */
 let _ordSig={}, _itemSig={};
-function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.type,o.waiter,o.tip,o.discount,o.discountInfo,o.pago,o.clientName,o.clientId,o.kitchenHidden,o.kitchenStartTime,o.stockDescontado,o.closedAt]); }catch(e){ return 'x'+Math.random(); } }
+function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.type,o.waiter,o.tip,o.discount,o.discountInfo,o.pago,o.clientName,o.clientId,o.kitchenHidden,o.kitchenStartTime,o.stockDescontado,o.closedAt,_splitPays(o).map(p=>p&&p.ref).sort()]); }catch(e){ return 'x'+Math.random(); } }
 function _itemSigOf(it){ try{ return JSON.stringify([it.name,it.qty,it.price,it.detail,it.note,it.noteKitchen,it.kstate,it.kStart,it.kEnd,it.kdone,it.kdisp]); }catch(e){ return 'x'+Math.random(); } }
 function _stampOrders(){
   const ids={}, iks={};
