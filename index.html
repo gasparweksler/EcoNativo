@@ -1322,8 +1322,7 @@ function isItemAvailable(itemName){
 let selPay='efectivo';
 let kDone={};
 let noteItemIdx=-1;
-let splitPeople=[],splitOrderId=null;
-let splitMode='items',splitEqualN=2;   /* 'items' = por productos · 'equal' = partes iguales */
+let splitOrderId=null;   /* mesa/pedido que se está dividiendo (ver "DIVIDIR CUENTA" más abajo) */
 let currentClientId=null,editingPendingIdx=-1;
 let currentWaiterId=null,currentRecipeName=null;
 let totalOrdsIn=0,prevOrderCount=0;
@@ -2959,252 +2958,197 @@ function confirmToast(){
 /* ── SPLIT BILL ── 
    Items assigned to a person are removed from unassigned pool.
    Once paid, items show as struck-through (paid). */
+/* ═══════════════════════════════════════════════════════════════
+   DIVIDIR CUENTA — selección directa de productos
+   Se marcan con casillas los productos pendientes de la mesa y se cobran en grupo
+   (subtotal + propina por % o por monto). Cada cobro queda GUARDADO en el pedido
+   (o.splitPays) con su propio detalle, por lo que lo cobrado aparece en gris, tachado
+   y SIN casilla: no se puede volver a cobrar, ni siquiera desde otro dispositivo.
+   Los productos originales de la mesa NO se eliminan ni se modifican.
+   ═══════════════════════════════════════════════════════════════ */
+let splitSel={};                                  /* uid del producto → unidades seleccionadas */
+let splitPayTipMode='pct', splitPayTipVal=0, splitPayMedio='efectivo';
+
 function openSplitBill(oid){
-  splitOrderId=oid;splitMode='items';splitEqualN=2;
-  splitPeople=[{name:'Persona 1',items:[],tip:0,paid:false,pago:'efectivo'},{name:'Persona 2',items:[],tip:0,paid:false,pago:'efectivo'}];
-  renderSplitModal();openMod('splitModal');
+  splitOrderId=oid; splitSel={};
+  renderSplitModal(); openMod('splitModal');
 }
-/* Cambiar entre modo por-productos y partes-iguales */
-function setSplitMode(m){
-  splitMode=m;
-  if(m==='equal'){ splitEqualN=Math.max(2,splitPeople.length||2); _rebuildEqualPeople(); }
+/* Unidades que faltan por cobrar de un producto (cantidad total menos lo ya cobrado) */
+function _pendQtyOf(o,it){ return Math.max(0,(+it.qty||0)-_paidQtyOf(o,it.uid)); }
+function _splitSelTotal(o){ let t=0; ((o&&o.items)||[]).forEach(it=>{ t+=Math.min(splitSel[it.uid]||0,_pendQtyOf(o,it))*it.price; }); return t; }
+function _splitSelCount(o){ let n=0; ((o&&o.items)||[]).forEach(it=>{ n+=Math.min(splitSel[it.uid]||0,_pendQtyOf(o,it)); }); return n; }
+/* Aviso si dos dispositivos alcanzaron a cobrar el mismo producto (no se pierde dinero: se avisa) */
+function _splitOverpaid(o){
+  const out=[];
+  ((o&&o.items)||[]).forEach(it=>{ const ex=_paidQtyOf(o,it.uid)-(+it.qty||0); if(ex>0)out.push({name:it.name,ex}); });
+  return out;
+}
+function toggleSplitSel(uid){
+  const o=getOrder(splitOrderId); if(!o)return;
+  const it=(o.items||[]).find(x=>x&&x.uid===uid); if(!it)return;
+  const pend=_pendQtyOf(o,it);
+  if(pend<=0){ showToast('Ese producto ya fue cobrado','del'); renderSplitModal(); return; }
+  if(splitSel[uid])delete splitSel[uid]; else splitSel[uid]=pend;   /* por defecto, todas sus unidades pendientes */
   renderSplitModal();
 }
-function setEqualN(n){ splitEqualN=Math.max(2,Math.min(20,n)); _rebuildEqualPeople(); renderSplitModal(); }
-function _rebuildEqualPeople(){
-  const prev=splitPeople;
-  splitPeople=[];
-  for(let i=0;i<splitEqualN;i++){
-    splitPeople.push((prev[i]&&prev[i].paid)?prev[i]:{name:'Persona '+(i+1),items:[],tip:0,paid:false,pago:'efectivo'});
-  }
+function setSplitSelQty(uid,q){
+  const o=getOrder(splitOrderId); if(!o)return;
+  const it=(o.items||[]).find(x=>x&&x.uid===uid); if(!it)return;
+  const n=Math.max(0,Math.min(parseInt(q)||0,_pendQtyOf(o,it)));
+  if(n<=0)delete splitSel[uid]; else splitSel[uid]=n;
+  renderSplitModal();
 }
-/* Monto de cada persona en partes iguales (el resto se reparte en las primeras) */
-function _equalShare(pi){
-  const o=getOrder(splitOrderId);if(!o)return 0;
-  const sub=oUnpaid(o); /* se reparte SOLO lo que falta por cobrar */
-  const base=Math.floor(sub/splitEqualN), rem=sub-base*splitEqualN;
-  return base+(pi<rem?1:0);
-}
-function getSplitItems(){
-  const o=getOrder(splitOrderId);let items=[];
-  /* Cada unidad por separado. Las unidades YA PAGADAS quedan marcadas (pagado:true) para
-     mostrarlas en gris y sin casilla: no se pueden volver a seleccionar ni cobrar. */
-  (o?o.items:[]).forEach(item=>{
-    const ya=_paidQtyOf(o,item.uid);
-    for(let q=0;q<item.qty;q++)items.push({...item,qty:1,pagado:q<ya});
-  });
-  return items; }
-function getItemOwner(ii){return splitPeople.findIndex(p=>p.items.includes(ii));}
+function splitSelAll(){ const o=getOrder(splitOrderId); if(!o)return; splitSel={}; (o.items||[]).forEach(it=>{ const p=_pendQtyOf(o,it); if(p>0)splitSel[it.uid]=p; }); renderSplitModal(); }
+function splitSelNone(){ splitSel={}; renderSplitModal(); }
 
 function renderSplitModal(){
-  const o=getOrder(splitOrderId);const items=getSplitItems();
-  const subTotal=o.items.reduce((s,it)=>s+it.price*it.qty,0);
-  /* Selector de modo */
-  let html=`<div style="margin-bottom:.7rem">
-    <h3 style="margin-bottom:.6rem">Dividir cuenta · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
-    <div style="display:flex;gap:6px">
-      <button onclick="setSplitMode('items')" style="flex:1;padding:7px;border:1px solid ${splitMode==='items'?'var(--bm)':'var(--br)'};background:${splitMode==='items'?'var(--bm)':'transparent'};color:${splitMode==='items'?'#fff':'var(--ts)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700">Por productos</button>
-      <button onclick="setSplitMode('equal')" style="flex:1;padding:7px;border:1px solid ${splitMode==='equal'?'var(--bm)':'var(--br)'};background:${splitMode==='equal'?'var(--bm)':'transparent'};color:${splitMode==='equal'?'#fff':'var(--ts)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700">Partes iguales</button>
-    </div>
+  const o=getOrder(splitOrderId); if(!o){ closeMod('splitModal'); return; }
+  const pagos=_splitPays(o), ya=_paidMonto(o), falta=oUnpaid(o), total=oTotal(o);
+  const btn='padding:3px 9px;border-radius:20px;cursor:pointer;font-size:10px;font-weight:700;background:transparent';
+  let html=`<h3 style="margin-bottom:.7rem"><i class="ti ti-users" style="color:var(--bm)" aria-hidden="true"></i> Dividir cuenta · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>`;
+  html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.6rem .7rem;margin-bottom:.7rem;font-size:12px">
+    <div class="dir"><span style="color:var(--ts)">Total de la mesa</span><span style="font-weight:700">${fmt(total)}</span></div>
+    ${ya>0?`<div class="dir"><span style="color:var(--ok)">✓ Ya cobrado</span><span style="color:var(--ok);font-weight:700">${fmt(ya)}</span></div>`:''}
+    <div class="dir" style="border-top:1px solid var(--br);margin-top:4px;padding-top:4px"><span style="font-weight:700">Falta por cobrar</span><span style="font-weight:700;color:var(--bm)">${fmt(falta)}</span></div>
+  </div>`;
+  const dup=_splitOverpaid(o);
+  if(dup.length)html+=`<div style="background:var(--er);color:#fff;border-radius:var(--r);padding:.5rem .7rem;margin-bottom:.7rem;font-size:11px;font-weight:700">⚠ Atención: ${dup.map(d=>d.name+' (+'+d.ex+')').join(', ')} aparece cobrado más veces que su cantidad. Revisa los cobros.</div>`;
+
+  /* ── Lista de productos de la mesa ── */
+  html+=`<div class="split-person">
+    <h4><span>Productos de la mesa</span>
+      <span style="font-weight:400">
+        <button onclick="splitSelAll()" style="${btn};border:1px solid var(--bm);color:var(--bm)">Todos</button>
+        <button onclick="splitSelNone()" style="${btn};border:1px solid var(--br);color:var(--ts)">Ninguno</button>
+      </span>
+    </h4>`;
+  let hayPendientes=false;
+  (o.items||[]).forEach(it=>{
+    const pagada=_paidQtyOf(o,it.uid), pend=_pendQtyOf(o,it), sel=Math.min(splitSel[it.uid]||0,pend);
+    /* YA COBRADO → gris, tachado, sin casilla y no seleccionable */
+    if(pagada>0){
+      html+=`<div class="split-item-row" style="opacity:.55">
+        <span style="width:16px;flex-shrink:0;text-align:center;color:var(--ok);font-weight:700">✓</span>
+        <span class="split-item-name" style="text-decoration:line-through;color:var(--tl)">${pagada}× ${it.name}${it.note?' ('+it.note+')':''} <span style="font-size:10px">· ${fmt(it.price)} c/u</span></span>
+        <span class="split-item-price" style="text-decoration:line-through;color:var(--tl)">${fmt(pagada*it.price)}</span>
+      </div>`;
+    }
+    /* PENDIENTE → con casilla (y selector de cantidad si hay más de una unidad) */
+    if(pend>0){
+      hayPendientes=true;
+      html+=`<div class="split-item-row">
+        <input type="checkbox" ${sel>0?'checked':''} onchange="toggleSplitSel('${it.uid}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
+        <span class="split-item-name">${pend>1?pend+'× ':''}${it.name}${it.note?' ('+it.note+')':''} <span style="font-size:10px;color:var(--ts)">· ${fmt(it.price)} c/u</span></span>
+        ${(pend>1&&sel>0)?`<input type="number" min="1" max="${pend}" value="${sel}" onchange="setSplitSelQty('${it.uid}',this.value)" title="¿Cuántas unidades cobrar?" style="width:46px;padding:3px;border:1px solid var(--br);border-radius:6px;font-size:12px;text-align:center">`:''}
+        <span class="split-item-price">${fmt((sel>0?sel:pend)*it.price)}</span>
+      </div>`;
+    }
+  });
+  if(!hayPendientes)html+=`<div style="font-size:12px;color:var(--ok);font-weight:700;padding:6px 0">Todos los productos de esta mesa están cobrados ✓</div>`;
+  html+='</div>';
+
+  /* ── Selección + botón de cobro ── */
+  const selTot=_splitSelTotal(o), selN=_splitSelCount(o);
+  html+=`<div class="split-person">
+    <div class="split-total-row" style="border-top:none;margin-top:0;padding-top:0"><span>Seleccionado (${selN} ${selN===1?'producto':'productos'})</span><span>${fmt(selTot)}</span></div>
+    <button class="bpay" ${selN?'':'disabled'} style="${selN?'':'opacity:.5;cursor:not-allowed'}" onclick="splitCobrarSeleccionados()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> Cobrar seleccionados</button>
   </div>`;
 
-  /* Resumen de lo YA COBRADO en esta mesa (queda guardado en el pedido, no se pierde) */
-  const _ya=_splitPays(o);
-  if(_ya.length){
-    html+=`<div style="background:var(--cr2);border:1px solid var(--ok);border-radius:var(--r);padding:.7rem;margin-bottom:.7rem">
-      <div style="font-size:11px;font-weight:700;color:var(--ok);margin-bottom:6px">✓ Ya pagado</div>
-      ${_ya.map(p=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ts);padding:2px 0">
-        <span>${p.nombre||'Persona'} · ${p.medio||'efectivo'}</span>
-        <span style="font-weight:700;color:var(--tm)">${fmt((+p.monto||0)+(+p.propina||0))}</span>
-      </div>`).join('')}
-      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-top:5px;border-top:1px solid var(--br);padding-top:5px">
-        <span>Falta por cobrar</span><span style="color:var(--bm)">${fmt(oUnpaid(o))}</span>
-      </div>
-    </div>`;
-  }
-
-  /* ── MODO PARTES IGUALES ── */
-  if(splitMode==='equal'){
-    html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.7rem;margin-bottom:.7rem">
-      <div style="font-size:12px;color:var(--ts);margin-bottom:6px">Total a dividir: <strong style="color:var(--bd)">${fmt(subTotal)}</strong></div>
-      <div style="font-size:11px;color:var(--ts);margin-bottom:6px">¿Entre cuántas personas?</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${[2,3,4,5,6,7,8].map(n=>`<button onclick="setEqualN(${n})" style="width:38px;height:38px;border:1px solid ${splitEqualN===n?'var(--bm)':'var(--br)'};background:${splitEqualN===n?'var(--bm)':'var(--wh)'};color:${splitEqualN===n?'#fff':'var(--bd)'};border-radius:var(--r);cursor:pointer;font-size:14px;font-weight:700">${n}</button>`).join('')}
-      </div>
-      <div style="font-size:15px;font-weight:700;color:var(--bm);margin-top:8px">${fmt(_equalShare(0))} por persona <span style="font-size:11px;color:var(--ts);font-weight:400">(${splitEqualN} personas)</span></div>
-    </div>`;
-    splitPeople.forEach((p,pi)=>{
-      html+=`<div class="split-person">
-        <h4><span>${p.name}</span>${p.paid?'<span style="color:var(--ok);font-size:11px">✓ Pagado</span>':''}</h4>
-        ${_splitTipRow(pi)}
-        <div class="split-total-row"><span>Le toca</span><span>${fmt(calcPersonTotal(pi))}</span></div>`;
-      if(!p.paid){
-        html+=`<div class="pay-opts" style="margin-top:6px">
-          <div class="pb2 ${(p.pago||'efectivo')==='efectivo'?'active':''}" onclick="setSplitPago(${pi},'efectivo',this)"><i class="ti ti-cash"></i>Efectivo</div>
-          <div class="pb2 ${(p.pago||'')==='tarjeta'?'active':''}" onclick="setSplitPago(${pi},'tarjeta',this)"><i class="ti ti-credit-card"></i>Tarjeta</div>
-          <div class="pb2 ${(p.pago||'')==='transferencia'?'active':''}" onclick="setSplitPago(${pi},'transferencia',this)"><i class="ti ti-building-bank"></i>Transfer.</div>
-        </div>
-        ${_splitCashHtml(pi)}<button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
-      }else{ html+=`<button class="bpay paid" disabled="">Pagado ✓</button>`; }
-      html+='</div>';
-    });
-    html+=`<button class="bs2" style="width:100%;margin-top:8px" onclick="closeMod('splitModal')">Cerrar</button>`;
-    $('splitContent').innerHTML=html;
-    return;
-  }
-
-  /* ── MODO POR PRODUCTOS ── */
-  html+=`<div style="text-align:right;margin-bottom:.5rem"><button onclick="addSplitPerson()" style="padding:4px 10px;border:1px solid var(--inf);color:var(--inf);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600">+ Persona</button></div>`;
-
-  splitPeople.forEach((p,pi)=>{
-    html+=`<div class="split-person">
-      <h4><span>${p.name}</span>${p.paid?'<span style="color:var(--ok);font-size:11px">✓ Pagado</span>':''}</h4>`;
-
-    items.forEach((item,ii)=>{
-      const ownerIdx=getItemOwner(ii);
-      const assignedToMe=p.items.includes(ii);
-      const assignedToOther=ownerIdx>=0&&ownerIdx!==pi;
-      /* YA PAGADO: solo se muestra en la primera persona, en gris y tachado, SIN casilla.
-         No se puede volver a seleccionar ni cobrar. */
-      if(item.pagado){
-        if(pi===0)html+=`<div class="split-item-row" style="opacity:.55">
-          <span style="width:16px;flex-shrink:0;text-align:center;color:var(--ok);font-weight:700">✓</span>
-          <span class="split-item-name" style="text-decoration:line-through;color:var(--tl)">${item.name}${item.note?' ('+item.note+')':''}</span>
-          <span class="split-item-price" style="text-decoration:line-through;color:var(--tl)">${fmt(item.price)}</span>
-        </div>`;
-        return;
-      }
-      if(assignedToOther)return; /* asignado a otra persona → no aparece en esta lista */
-      html+=`<div class="split-item-row">
-        <input type="checkbox" ${assignedToMe?'checked':''} ${p.paid?'disabled':''} onchange="toggleSplitItem(${pi},${ii})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
-        <span class="split-item-name">${item.name}${item.note?' ('+item.note+')':''}</span>
-        <span class="split-item-price">${fmt(item.price)}</span>
+  /* ── Historial: cada cobro con su propio detalle, subtotal, propina y total ── */
+  if(pagos.length){
+    html+=`<div class="split-person"><h4><span>Cobros realizados (${pagos.length})</span></h4>`;
+    pagos.forEach((p,i)=>{
+      const det=(p.items||[]).map(x=>{ const it=(o.items||[]).find(y=>y&&y.uid===x.uid); return ((+x.qty||1)>1?x.qty+'× ':'')+(it?it.name:'producto'); }).join(', ');
+      html+=`<div style="font-size:11px;color:var(--ts);padding:5px 0;border-bottom:1px solid var(--cr2)">
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:700;color:var(--tm)">Cobro ${i+1} · ${p.medio||'efectivo'}</span><span style="font-weight:700;color:var(--bm)">${fmt((+p.monto||0)+(+p.propina||0))}</span></div>
+        <div>${det||'Parte de la cuenta'}</div>
+        <div>Subtotal ${fmt(+p.monto||0)}${(+p.propina||0)?' · Propina '+fmt(+p.propina||0):''}${p.ts?' · '+ftime(p.ts):''}</div>
       </div>`;
     });
-
-    html+=`${_splitTipRow(pi)}
-    <div class="split-total-row"><span>Total persona ${pi+1}</span><span>${fmt(calcPersonTotal(pi))}</span></div>`;
-
-    if(!p.paid){
-      html+=`<div class="pay-opts" style="margin-top:6px">
-        <div class="pb2 ${(p.pago||'efectivo')==='efectivo'?'active':''}" onclick="setSplitPago(${pi},'efectivo',this)"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
-        <div class="pb2 ${(p.pago||'')==='tarjeta'?'active':''}" onclick="setSplitPago(${pi},'tarjeta',this)"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
-        <div class="pb2 ${(p.pago||'')==='transferencia'?'active':''}" onclick="setSplitPago(${pi},'transferencia',this)"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
-      </div>
-      ${_splitCashHtml(pi)}<button class="bpay" onclick="paySplitPerson(${pi})">Registrar pago persona ${pi+1}</button>`;
-    }else{
-      html+=`<button class="bpay paid" disabled="">Pagado ✓</button>`;
-    }
     html+='</div>';
-  });
-
-  /* Unassigned items panel */
-  const unassigned=items.filter((it,ii)=>!it.pagado&&getItemOwner(ii)<0);
-  if(unassigned.length){
-    html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.7rem;margin-top:4px">
-      <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Sin asignar (${unassigned.length} ítem${unassigned.length>1?'s':''})</div>
-      ${unassigned.map(item=>`<div style="font-size:12px;display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--br)"><span style="color:var(--wn)">${item.name}</span><span style="color:var(--wn);font-weight:700">${fmt(item.price)}</span></div>`).join('')}
-    </div>`;
   }
-
   html+=`<button class="bs2" style="width:100%;margin-top:8px" onclick="closeMod('splitModal')">Cerrar</button>`;
   $('splitContent').innerHTML=html;
 }
 
-function addSplitPerson(){splitPeople.push({name:`Persona ${splitPeople.length+1}`,items:[],tip:0,paid:false,pago:'efectivo'});renderSplitModal();}
-function toggleSplitItem(pi,ii){
-  const it=getSplitItems()[ii];
-  if(!it||it.pagado){ showToast('Ese producto ya está pagado','del'); renderSplitModal(); return; } /* no se puede cobrar dos veces */
-  const p=splitPeople[pi];const idx=p.items.indexOf(ii);
-  if(idx>=0)p.items.splice(idx,1);else p.items.push(ii);
-  renderSplitModal();
-}
-function setSplitPago(pi,pago,el){splitPeople[pi].pago=pago;renderSplitModal();}
-/* Vuelto para una persona al pagar en efectivo */
-function _splitCalcChange(pi){
-  const el=$('splitChange-'+pi);if(!el)return;
-  const total=calcPersonTotal(pi),given=parseInt($('splitCash-'+pi)?.value)||0;
-  if(!given){el.textContent='';return;}
-  const ch=given-total;
-  el.style.color=ch>=0?'var(--ok)':'var(--er)';
-  el.textContent=ch>=0?('Vuelto: '+fmt(ch)):('Falta: '+fmt(-ch));
-}
-/* Bloque de efectivo (¿con cuánto paga? + vuelto) para una persona */
-function _splitCashHtml(pi){
-  if((splitPeople[pi].pago||'efectivo')!=='efectivo')return '';
-  return `<div style="background:var(--cr2);border-radius:var(--r);padding:6px 8px;margin-top:6px">
-    <label style="font-size:10px;color:var(--ts)">¿Con cuánto paga?</label>
-    <input type="number" id="splitCash-${pi}" placeholder="${calcPersonTotal(pi)}" oninput="_splitCalcChange(${pi})" style="width:100%;padding:6px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;box-sizing:border-box;margin-top:2px">
-    <div id="splitChange-${pi}" style="font-size:12px;font-weight:700;margin-top:3px"></div>
-  </div>`;
-}
-function calcPersonTotal(pi){
-  if(splitMode==='equal')return _equalShare(pi)+(splitPeople[pi]?.tip||0);
-  const items=getSplitItems();const p=splitPeople[pi];
-  return p.items.reduce((s,ii)=>s+(items[ii]?.price||0),0)+(p.tip||0);
-}
-function autoSplitTip(pi){
-  const base=(splitMode==='equal')
-    ? _equalShare(pi)
-    : splitPeople[pi].items.reduce((s,ii)=>s+(getSplitItems()[ii]?.price||0),0);
-  splitPeople[pi].tip=Math.round(base*.1);renderSplitModal();
-}
-function noSplitTip(pi){ splitPeople[pi].tip=0; renderSplitModal(); }
-/* Base sobre la que se calcula la propina de una persona (productos o parte igual, sin propina) */
-function _splitPersonBase(pi){
-  if(splitMode==='equal')return _equalShare(pi);
-  const items=getSplitItems();
-  return splitPeople[pi].items.reduce((s,ii)=>s+(items[ii]?.price||0),0);
-}
-/* Propina por porcentaje → calcula el monto sobre la base de la persona */
-function setSplitTipPct(pi,pct){
-  const p=parseFloat(pct)||0;
-  splitPeople[pi].tip=Math.round(_splitPersonBase(pi)*p/100);
-  renderSplitModal();
-}
-/* Fila de propina: por % (editable) o por monto ($) + Sin propina, para cada persona */
-function _splitTipRow(pi){
-  if(splitPeople[pi].paid)return '';
-  const base=_splitPersonBase(pi), tip=splitPeople[pi].tip||0;
-  const pct=base>0?Math.round(tip/base*100):0;
-  return `<div class="split-tip-row"><label>Propina:</label>
-    <input type="number" value="${pct}" min="0" onchange="setSplitTipPct(${pi},this.value)" style="width:46px" title="Por porcentaje"><span style="font-size:11px;color:var(--ts)">%</span>
-    <input type="number" value="${tip}" min="0" onchange="splitPeople[${pi}].tip=parseInt(this.value)||0;renderSplitModal()" style="width:76px" title="Por monto en $"><span style="font-size:11px;color:var(--ts)">$</span>
-    <button onclick="autoSplitTip(${pi})" style="padding:2px 8px;border:1px solid var(--ol);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:700">10%</button>
-    <button onclick="noSplitTip(${pi})" style="padding:2px 7px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600">Sin propina</button>
-  </div>`;
-}
-function paySplitPerson(pi){
+/* ── Ventana de cobro de los productos seleccionados (subtotal + propina + total) ── */
+function splitCobrarSeleccionados(){
   const o=getOrder(splitOrderId); if(!o)return;
-  const per=splitPeople[pi]; if(!per||per.paid)return;
-  const medio=per.pago||'efectivo', propina=+per.tip||0;
-  let monto=0, itemsPagados=[], detalle=[];
-  if(splitMode==='equal'){
-    monto=_equalShare(pi);
-  }else{
-    const units=getSplitItems();
-    const sel=(per.items||[]).filter(ii=>units[ii]&&!units[ii].pagado); /* nunca unidades ya pagadas */
-    if(!sel.length){ showToast('Selecciona al menos un producto','del'); return; }
-    const porUid={};
-    sel.forEach(ii=>{ const u=units[ii]; monto+=u.price; porUid[u.uid]=(porUid[u.uid]||0)+1;
-      const d={...u,qty:1}; delete d.pagado; detalle.push(d); });
-    itemsPagados=Object.keys(porUid).map(uid=>({uid,qty:porUid[uid]}));
-  }
-  if(monto<=0&&propina<=0){ showToast('Nada que cobrar','del'); return; }
-  /* 1) El pago queda GUARDADO en el pedido: sobrevive a cerrar la ventana, recargar y se ve
-        igual en todos los dispositivos. Esos productos ya no se pueden volver a cobrar. */
-  const ref=o.id+'-S'+(_splitPays(o).length+1)+'-'+_dSfx();
+  /* Revalidar contra cobros simultáneos: otro dispositivo pudo cobrar algo mientras seleccionabas */
+  let ajustado=false;
+  Object.keys(splitSel).forEach(uid=>{
+    const it=(o.items||[]).find(x=>x&&x.uid===uid); const pend=it?_pendQtyOf(o,it):0;
+    if(pend<=0){ delete splitSel[uid]; ajustado=true; }
+    else if(splitSel[uid]>pend){ splitSel[uid]=pend; ajustado=true; }
+  });
+  if(ajustado)showToast('Un producto ya fue cobrado en otro dispositivo · se ajustó la selección','del');
+  if(_splitSelTotal(o)<=0){ renderSplitModal(); showToast('Selecciona al menos un producto','del'); return; }
+  splitPayTipMode='pct'; splitPayTipVal=0; splitPayMedio='efectivo';
+  renderSplitModal(); _renderSplitPayModal();
+}
+function _splitPayTip(sub){ return splitPayTipMode==='pct'?Math.max(0,Math.round(sub*(+splitPayTipVal||0)/100)):Math.max(0,Math.round(+splitPayTipVal||0)); }
+function setSplitPayTipPct(v){ splitPayTipMode='pct'; splitPayTipVal=Math.max(0,parseFloat(v)||0); _renderSplitPayModal(); }
+function setSplitPayTipAmt(v){ splitPayTipMode='amt'; splitPayTipVal=Math.max(0,parseInt(v)||0); _renderSplitPayModal(); }
+function setSplitPayMedio(m){ splitPayMedio=m; _renderSplitPayModal(); }
+function _renderSplitPayModal(){
+  const o=getOrder(splitOrderId); if(!o)return;
+  const sub=_splitSelTotal(o), tip=_splitPayTip(sub), tot=sub+tip;
+  const pct=(splitPayTipMode==='pct')?(+splitPayTipVal||0):(sub>0?Math.round(tip/sub*100):0);
+  let m=document.getElementById('splitPayModal');
+  if(!m){ m=document.createElement('div'); m.className='ov'; m.id='splitPayModal'; m.style.cssText='display:flex;z-index:10001'; document.body.appendChild(m); }
+  const det=(o.items||[]).map(it=>{ const q=Math.min(splitSel[it.uid]||0,_pendQtyOf(o,it)); if(q<=0)return '';
+    return `<div class="dir"><span>${q>1?q+'× ':''}${it.name}<span style="font-size:10px;color:var(--ts)"> · ${fmt(it.price)} c/u</span></span><span style="font-weight:700">${fmt(q*it.price)}</span></div>`; }).join('');
+  const tipBtn=p=>`<button onclick="setSplitPayTipPct(${p})" style="padding:4px 11px;border:1px solid ${(splitPayTipMode==='pct'&&(+splitPayTipVal)===p)?'var(--ok)':'var(--br)'};background:${(splitPayTipMode==='pct'&&(+splitPayTipVal)===p)?'var(--ok)':'transparent'};color:${(splitPayTipMode==='pct'&&(+splitPayTipVal)===p)?'#fff':'var(--ok)'};border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">${p}%</button>`;
+  m.innerHTML=`<div class="mb" style="max-width:380px;width:100%">
+    <h3 style="margin-bottom:.7rem"><i class="ti ti-receipt" style="color:var(--bm)" aria-hidden="true"></i> Cobrar seleccionados · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
+    <div style="margin-bottom:.6rem">${det}</div>
+    <div style="border-top:1px solid var(--br);padding-top:.6rem">
+      <div class="dir"><span style="color:var(--ts)">Subtotal</span><span style="font-weight:700">${fmt(sub)}</span></div>
+      <div class="split-tip-row" style="margin-top:8px">
+        <label style="font-weight:700;color:var(--tm)">Propina:</label>
+        <input type="number" min="0" value="${pct}" onchange="setSplitPayTipPct(this.value)" title="Propina por porcentaje" style="width:52px"><span>%</span>
+        <input type="number" min="0" value="${tip}" onchange="setSplitPayTipAmt(this.value)" title="Propina por monto fijo" style="width:84px"><span>$</span>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
+        ${[10,15,20].map(tipBtn).join('')}
+        <button onclick="setSplitPayTipAmt(0)" style="padding:4px 11px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600">Sin propina</button>
+      </div>
+      <div class="dir" style="margin-top:8px"><span style="color:var(--ts)">Propina</span><span style="font-weight:700">${fmt(tip)}</span></div>
+      <div class="split-total-row"><span>Total a cobrar</span><span style="color:var(--bm)">${fmt(tot)}</span></div>
+    </div>
+    <div class="pay-opts" style="margin-top:10px">
+      <div class="pb2 ${splitPayMedio==='efectivo'?'active':''}" onclick="setSplitPayMedio('efectivo')"><i class="ti ti-cash" aria-hidden="true"></i>Efectivo</div>
+      <div class="pb2 ${splitPayMedio==='tarjeta'?'active':''}" onclick="setSplitPayMedio('tarjeta')"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjeta</div>
+      <div class="pb2 ${splitPayMedio==='transferencia'?'active':''}" onclick="setSplitPayMedio('transferencia')"><i class="ti ti-building-bank" aria-hidden="true"></i>Transfer.</div>
+    </div>
+    <button class="bpay" style="margin-top:10px;padding:11px;font-size:13px" onclick="splitConfirmPago()">Confirmar pago · ${fmt(tot)}</button>
+    <button class="bs2" style="width:100%;margin-top:6px" onclick="document.getElementById('splitPayModal').remove()">Cancelar</button>
+  </div>`;
+}
+function splitConfirmPago(){
+  const o=getOrder(splitOrderId); if(!o)return;
+  /* Revalidación FINAL: nunca se cobra una unidad que ya fue cobrada (aquí o en otro dispositivo) */
+  const items=[], detalle=[]; let sub=0;
+  (o.items||[]).forEach(it=>{
+    const q=Math.min(splitSel[it.uid]||0,_pendQtyOf(o,it)); if(q<=0)return;
+    sub+=q*it.price; items.push({uid:it.uid,qty:q});
+    const d={...it,qty:q}; delete d.pagado; detalle.push(d);
+  });
+  const mp=document.getElementById('splitPayModal'); if(mp)mp.remove();
+  if(sub<=0){ splitSel={}; renderSplitModal(); showToast('Esos productos ya fueron cobrados','del'); return; }
+  const propina=_splitPayTip(sub), medio=splitPayMedio||'efectivo';
+  const n=_splitPays(o).length+1;
+  const ref=o.id+'-S'+n+'-'+_dSfx();
   if(!Array.isArray(o.splitPays))o.splitPays=[];
-  o.splitPays.push({ref,nombre:per.name||('Persona '+(pi+1)),medio,monto,propina,ts:_nextTs(),items:itemsPagados});
-  /* 2) Caja y 3) venta del día: se registran AHORA, así el día cuadra aunque la mesa siga abierta. */
-  addCajaMov(monto+propina,medio,`Split ${o.tableId?'Mesa '+o.tableId:'MC'} ${per.name||('P'+(pi+1))}`);
+  /* El cobro queda GUARDADO en el pedido con su propio detalle (productos, subtotal, propina) */
+  o.splitPays.push({ref,nombre:'Cobro '+n,medio,monto:sub,propina,ts:_nextTs(),items});
+  /* Caja y venta del día se registran al instante: el día cuadra aunque la mesa siga abierta */
+  addCajaMov(sub+propina,medio,`División ${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
   closedSales.push({id:ref,tableId:o.tableId,type:o.type||(o.tableId?'mesa':'mostrador'),waiter:o.waiter||cUser,
-    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,discount:0,splitOf:o.id,
-    items:(splitMode==='equal')?[{name:'Parte igual · '+(per.name||('Persona '+(pi+1))),price:monto,qty:1}]:detalle});
-  per.paid=true;
-  showToast(`${per.name||('Persona '+(pi+1))} pagó ${fmt(monto+propina)} ✓`,'ok');
-  broadcastState(); renderDashboard(); renderTables();
-  renderSplitModal();
+    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,discount:0,splitOf:o.id,items:detalle});
+  splitSel={};
+  showToast(`Cobrado ${fmt(sub+propina)} ✓`,'ok');
+  broadcastState(); renderDashboard(); renderTables(); renderSplitModal();
   /* Si ya no queda nada por cobrar, se PREGUNTA antes de cerrar (solo al dividir) */
   if(oUnpaid(o)<=0)_askCloseAfterSplit(o.id);
 }
