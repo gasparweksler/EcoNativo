@@ -729,7 +729,7 @@ body.dark .info-note b{color:#7fb0e0}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
           <div class="pt" style="margin-bottom:0">Estadísticas</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button onclick="downloadExcel()" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Excel</button>
+            <button onclick="openExportModal()" title="Descargar el Excel del día actual o de un rango de fechas" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Excel</button>
             <button onclick="eliminarHistorial()" style="padding:5px 10px;border:1px solid var(--er);color:var(--er);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-trash" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Eliminar Historial</button>
             <button onclick="nuevoDia()" style="padding:5px 10px;border:1px solid var(--ol);color:var(--ol);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-sun" style="font-size:11px;vertical-align:-1px" aria-hidden="true"></i> Nuevo Día</button>
           </div>
@@ -902,6 +902,21 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="form-item"><label>Instrucción especial</label><textarea id="noteText" rows="3" placeholder="Ej: sin azúcar, sin cebolla, extra caliente, preparar aparte..." style="resize:none"></textarea></div>
   <div id="noteKitchenHint" style="display:none;font-size:11px;color:var(--wn);background:#FDF5E0;border-radius:6px;padding:6px 9px;margin-bottom:8px"><i class="ti ti-info-circle" style="font-size:12px;vertical-align:-1px"></i> Este producto ya está <b>Listo</b> y salió de Cocina: la nota será visible solo para Administrador y Garzón.</div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;noteModal&#39;)">Cancelar</button><button id="noteDelBtn" class="bs2" style="display:none;border-color:var(--er);color:var(--er)" onclick="delNote()">Eliminar nota</button><button class="bc2" onclick="saveNote()">Guardar</button></div>
+</div></div>
+
+<style>#xpGo:disabled,#chGo:disabled{opacity:.45;cursor:not-allowed}</style>
+<!-- EXCEL: elegir qué período descargar -->
+<div class="ov" id="exportModal"><div class="mb" style="max-width:430px;width:100%">
+  <h3 style="margin-bottom:.6rem"><i class="ti ti-file-spreadsheet" style="color:var(--ok)"></i> Descargar Excel de ventas</h3>
+  <div id="xpBody"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;exportModal&#39;)">Cancelar</button><button class="bc2" id="xpGo" onclick="doExportExcel()"><i class="ti ti-download" style="font-size:13px"></i> Descargar Excel</button></div>
+</div></div>
+
+<!-- ELIMINAR HISTORIAL -->
+<div class="ov" id="clearHistModal"><div class="mb" style="max-width:450px;width:100%">
+  <h3 style="margin-bottom:.6rem;color:var(--er)"><i class="ti ti-trash"></i> Eliminar Historial</h3>
+  <div id="chBody"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;clearHistModal&#39;)">Cancelar</button><button class="bc2" id="chGo" style="background:var(--er);border-color:var(--er)" onclick="confirmClearHist()"><i class="ti ti-trash" style="font-size:13px"></i> Eliminar definitivamente</button></div>
 </div></div>
 
 <div class="ov" id="bookModal"><div class="mb">
@@ -1335,6 +1350,19 @@ let dayEpoch=0;
    a propósito: pedido cancelado/cerrado sin cobro/trasladado, cliente eliminado, venta de libro
    borrada (bookClearTs = "borrar todo el historial de libros"). id → marca de tiempo. */
 let delOrders={}, delClients={}, delBooks={}, bookClearTs=0;
+/* «Eliminar Historial»: marca de tiempo a partir de la cual TODA venta anterior queda
+   borrada en todos los equipos y en la nube (ninguna puede revivir desde un equipo apagado). */
+let salesClearTs=(()=>{try{return +localStorage.getItem('econativo_histclear')||0;}catch(e){return 0;}})();
+/* Lápidas por id: cubren las ventas con fecha FUTURA (equipo con el reloj adelantado), que la
+   marca de tiempo por sí sola no alcanzaría. En el caso normal este mapa queda vacío. */
+let delSales=(()=>{try{const r=JSON.parse(localStorage.getItem('econativo_delsales')||'{}');return (r&&typeof r==='object')?r:{};}catch(e){return {};}})();
+function _saveDelSales(){try{localStorage.setItem('econativo_delsales',JSON.stringify(delSales));}catch(e){}}
+function _saleCleared(s){ if(!s)return false; if(s.id&&delSales[s.id])return true; return salesClearTs>0&&_saleTs(s)<=salesClearTs; }
+function _histDayCleared(d){
+  if(!(salesClearTs>0))return false;
+  let m=0;((d&&d.sales)||[]).forEach(x=>{const t=_saleTs(x);if(t>m)m=t;});
+  return m<=salesClearTs;
+}
 /* Para cada pedido eliminado: qué productos (uid) CONOCÍA quien lo eliminó. Un producto que
    otro equipo agregó EN PARALELO (no está en esta lista) no se pierde: se rescata a una cuenta
    nueva de la misma mesa. pedidoId → {uid:1,...} */
@@ -2554,6 +2582,7 @@ function confirmarCobro(oid,sub){
     if(card+cash<total){showToast('El pago no cubre el total (falta '+fmt(total-card-cash)+')','del');return;}
     _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
     o.tip=tip;o.pago='mixto';o.status='closed';o.closedAt=Date.now();
+    o.pagoMix={tarjeta:card,efectivo:Math.max(0,total-card)}; /* desglose real del cobro (para el Excel) */
     closedSales.push({...o,items:_saleItemsFor(o,sub)}); /* solo lo pendiente: lo ya pagado en la división ya tiene su propia venta */
     if(card>0)addCajaMov(card,'tarjeta',lugar+' (mixto)');
     if(total-card>0)addCajaMov(total-card,'efectivo',lugar+' (mixto)'); /* parte en efectivo que cuenta (sin vuelto) */
@@ -2974,9 +3003,24 @@ function confirmToast(){
    ═══════════════════════════════════════════════════════════════ */
 let splitSel={};                                  /* uid del producto → unidades seleccionadas */
 let splitPayTipMode='pct', splitPayTipVal=0, splitPayMedio='efectivo';
+/* Dos formas de dividir, en la MISMA ventana:
+   • 'prod'    → se eligen productos (cada cobro queda atado a sus productos: quedan tachados)
+   • 'iguales' → se reparte en partes iguales lo que FALTA por cobrar (sin detalle de productos) */
+let splitMode='prod', splitEqN=2, splitEqK=1;
+/* Valor de cada parte: lo que falta dividido entre las personas que aún no pagan.
+   Así el redondeo nunca descuadra: la última persona paga exactamente el saldo. */
+function _splitEqParte(o){ const f=oUnpaid(o), N=Math.max(1,splitEqN|0); return N<=1?f:Math.round(f/N); }
+function _splitEqMonto(o){
+  const f=oUnpaid(o), N=Math.max(1,splitEqN|0), k=Math.max(1,Math.min(splitEqK|0,N));
+  return k>=N?f:Math.min(f,_splitEqParte(o)*k);     /* la última parte se lleva el saldo exacto */
+}
+function setSplitMode(m){ splitMode=(m==='iguales')?'iguales':'prod'; if(splitMode==='iguales')splitSel={}; renderSplitModal(); }
+function setSplitEqN(v){ splitEqN=Math.max(1,Math.min(50,parseInt(v)||1)); if(splitEqK>splitEqN)splitEqK=splitEqN; renderSplitModal(); }
+function splitEqStep(d){ setSplitEqN(splitEqN+d); }
+function setSplitEqK(v){ splitEqK=Math.max(1,Math.min(splitEqN,parseInt(v)||1)); renderSplitModal(); }
 
 function openSplitBill(oid){
-  splitOrderId=oid; splitSel={};
+  splitOrderId=oid; splitSel={}; splitMode='prod'; splitEqN=2; splitEqK=1;
   renderSplitModal(); openMod('splitModal');
 }
 /* Unidades que faltan por cobrar de un producto (cantidad total menos lo ya cobrado) */
@@ -3020,13 +3064,17 @@ function renderSplitModal(){
   const dup=_splitOverpaid(o);
   if(dup.length)html+=`<div style="background:var(--er);color:#fff;border-radius:var(--r);padding:.5rem .7rem;margin-bottom:.7rem;font-size:11px;font-weight:700">⚠ Atención: ${dup.map(d=>d.name+' (+'+d.ex+')').join(', ')} aparece cobrado más veces que su cantidad. Revisa los cobros.</div>`;
 
+  /* ── Cómo se divide: por productos o en partes iguales ── */
+  const mb=(m,ic,txt)=>`<button onclick="setSplitMode('${m}')" style="flex:1;padding:8px 6px;border:1px solid ${splitMode===m?'var(--bm)':'var(--br)'};background:${splitMode===m?'var(--bm)':'transparent'};color:${splitMode===m?'#fff':'var(--tm)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600"><i class="ti ti-${ic}" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> ${txt}</button>`;
+  html+=`<div style="display:flex;gap:6px;margin-bottom:.7rem">${mb('prod','list-check','Por productos')}${mb('iguales','divide','Partes iguales')}</div>`;
+
   /* ── Lista de productos de la mesa ── */
   html+=`<div class="split-person">
     <h4><span>Productos de la mesa</span>
-      <span style="font-weight:400">
+      ${splitMode==='prod'?`<span style="font-weight:400">
         <button onclick="splitSelAll()" style="${btn};border:1px solid var(--bm);color:var(--bm)">Todos</button>
         <button onclick="splitSelNone()" style="${btn};border:1px solid var(--br);color:var(--ts)">Ninguno</button>
-      </span>
+      </span>`:''}
     </h4>`;
   let hayPendientes=false;
   (o.items||[]).forEach(it=>{
@@ -3043,10 +3091,12 @@ function renderSplitModal(){
     if(pend>0){
       hayPendientes=true;
       html+=`<div class="split-item-row">
-        <input type="checkbox" ${sel>0?'checked':''} onchange="toggleSplitSel('${it.uid}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">
+        ${splitMode==='prod'
+          ?`<input type="checkbox" ${sel>0?'checked':''} onchange="toggleSplitSel('${it.uid}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--bm)">`
+          :`<span style="width:16px;flex-shrink:0;text-align:center;color:var(--tl)">·</span>`}
         <span class="split-item-name">${pend>1?pend+'× ':''}${it.name}${it.note?' ('+it.note+')':''} <span style="font-size:10px;color:var(--ts)">· ${fmt(it.price)} c/u</span></span>
-        ${(pend>1&&sel>0)?`<input type="number" min="1" max="${pend}" value="${sel}" onchange="setSplitSelQty('${it.uid}',this.value)" title="¿Cuántas unidades cobrar?" style="width:46px;padding:3px;border:1px solid var(--br);border-radius:6px;font-size:12px;text-align:center">`:''}
-        <span class="split-item-price">${fmt((sel>0?sel:pend)*it.price)}</span>
+        ${(splitMode==='prod'&&pend>1&&sel>0)?`<input type="number" min="1" max="${pend}" value="${sel}" onchange="setSplitSelQty('${it.uid}',this.value)" title="¿Cuántas unidades cobrar?" style="width:46px;padding:3px;border:1px solid var(--br);border-radius:6px;font-size:12px;text-align:center">`:''}
+        <span class="split-item-price">${fmt(((splitMode==='prod'&&sel>0)?sel:pend)*it.price)}</span>
       </div>`;
     }
   });
@@ -3054,17 +3104,45 @@ function renderSplitModal(){
   html+='</div>';
 
   /* ── Selección + botón de cobro ── */
-  const selTot=_splitSelTotal(o), selN=_splitSelCount(o);
-  html+=`<div class="split-person">
-    <div class="split-total-row" style="border-top:none;margin-top:0;padding-top:0"><span>Seleccionado (${selN} ${selN===1?'producto':'productos'})</span><span>${fmt(selTot)}</span></div>
-    <button class="bpay" ${selN?'':'disabled'} style="${selN?'':'opacity:.5;cursor:not-allowed'}" onclick="splitCobrarSeleccionados()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> Cobrar seleccionados</button>
-  </div>`;
+  if(splitMode==='prod'){
+    const selTot=_splitSelTotal(o), selN=_splitSelCount(o);
+    const excede=selTot>falta+1;   /* solo puede ocurrir si además hubo pagos en partes iguales */
+    html+=`<div class="split-person">
+      <div class="split-total-row" style="border-top:none;margin-top:0;padding-top:0"><span>Seleccionado (${selN} ${selN===1?'producto':'productos'})</span><span>${fmt(selTot)}</span></div>
+      ${excede?`<div style="font-size:11px;color:var(--er);font-weight:700;margin-bottom:6px">Lo seleccionado supera lo que falta por cobrar (${fmt(falta)}). Quita productos o usa «Partes iguales».</div>`:''}
+      <button class="bpay" ${(selN&&!excede)?'':'disabled'} style="${(selN&&!excede)?'':'opacity:.5;cursor:not-allowed'}" onclick="splitCobrarSeleccionados()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> Cobrar seleccionados</button>
+    </div>`;
+  }else{
+    /* ── PARTES IGUALES: se reparte lo que falta por cobrar ── */
+    const parte=_splitEqParte(o), monto=_splitEqMonto(o), N=Math.max(1,splitEqN|0), k=Math.max(1,Math.min(splitEqK|0,N));
+    const mini='width:30px;height:30px;border:1px solid var(--br);background:transparent;color:var(--tm);border-radius:50%;cursor:pointer;font-size:15px;font-weight:700;flex-shrink:0';
+    html+=`<div class="split-person">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:.5rem">
+        <span style="font-size:12px;color:var(--ts);flex:1;min-width:150px">¿Entre cuántas personas se reparte lo que falta?</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onclick="splitEqStep(-1)" style="${mini}" title="Una persona menos">−</button>
+          <input type="number" min="1" max="50" value="${N}" onchange="setSplitEqN(this.value)" style="width:56px;padding:5px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;text-align:center;font-weight:700">
+          <button onclick="splitEqStep(1)" style="${mini}" title="Una persona más">+</button>
+        </div>
+      </div>
+      ${falta>0?`<div class="dir" style="font-size:12px"><span style="color:var(--ts)">Cada parte paga</span><span style="font-weight:700">${fmt(parte)}</span></div>`:''}
+      ${(falta>0&&N>1)?`<div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--ts);flex:1;min-width:150px">¿Cuántas partes paga esta persona?</span>
+        <input type="number" min="1" max="${N}" value="${k}" onchange="setSplitEqK(this.value)" style="width:56px;padding:5px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;text-align:center;font-weight:700">
+      </div>`:''}
+      <div class="split-total-row"><span>A cobrar ahora</span><span style="color:var(--bm)">${fmt(monto)}</span></div>
+      <button class="bpay" ${falta>0?'':'disabled'} style="${falta>0?'':'opacity:.5;cursor:not-allowed'}" onclick="splitCobrarIguales()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> Cobrar ${k===1?'1 parte':k+' partes'} · ${fmt(monto)}</button>
+      <div style="font-size:10px;color:var(--ts);margin-top:6px;line-height:1.5">Al repartir en partes iguales no se sabe quién consumió qué: la venta queda registrada como «División de cuenta», sin detalle de productos. Si necesitas ese detalle, usa «Por productos».</div>
+    </div>`;
+  }
 
   /* ── Historial: cada cobro con su propio detalle, subtotal, propina y total ── */
   if(pagos.length){
     html+=`<div class="split-person"><h4><span>Cobros realizados (${pagos.length})</span></h4>`;
     pagos.forEach((p,i)=>{
-      const det=(p.items||[]).map(x=>{ const it=(o.items||[]).find(y=>y&&y.uid===x.uid); return ((+x.qty||1)>1?x.qty+'× ':'')+(it?it.name:'producto'); }).join(', ');
+      const det=p.eq
+        ? ('Partes iguales · '+((+p.partes||1)===1?'1 parte':(+p.partes)+' partes')+(p.deN?' de '+p.deN:''))
+        : (p.items||[]).map(x=>{ const it=(o.items||[]).find(y=>y&&y.uid===x.uid); return ((+x.qty||1)>1?x.qty+'× ':'')+(it?it.name:'producto'); }).join(', ');
       html+=`<div style="font-size:11px;color:var(--ts);padding:5px 0;border-bottom:1px solid var(--cr2)">
         <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:700;color:var(--tm)">Cobro ${i+1} · ${p.medio||'efectivo'}</span><span style="font-weight:700;color:var(--bm)">${fmt((+p.monto||0)+(+p.propina||0))}</span></div>
         <div>${det||'Parte de la cuenta'}</div>
@@ -3092,21 +3170,33 @@ function splitCobrarSeleccionados(){
   splitPayTipMode='pct'; splitPayTipVal=0; splitPayMedio='efectivo';
   renderSplitModal(); _renderSplitPayModal();
 }
+/* ── Cobro de una o varias partes iguales ── */
+function splitCobrarIguales(){
+  const o=getOrder(splitOrderId); if(!o)return;
+  if(oUnpaid(o)<=0){ renderSplitModal(); showToast('Esta cuenta ya está pagada','del'); return; }
+  if(_splitEqMonto(o)<=0){ renderSplitModal(); showToast('El monto a cobrar es cero','del'); return; }
+  splitPayTipMode='pct'; splitPayTipVal=0; splitPayMedio='efectivo';
+  renderSplitModal(); _renderSplitPayModal();
+}
 function _splitPayTip(sub){ return splitPayTipMode==='pct'?Math.max(0,Math.round(sub*(+splitPayTipVal||0)/100)):Math.max(0,Math.round(+splitPayTipVal||0)); }
 function setSplitPayTipPct(v){ splitPayTipMode='pct'; splitPayTipVal=Math.max(0,parseFloat(v)||0); _renderSplitPayModal(); }
 function setSplitPayTipAmt(v){ splitPayTipMode='amt'; splitPayTipVal=Math.max(0,parseInt(v)||0); _renderSplitPayModal(); }
 function setSplitPayMedio(m){ splitPayMedio=m; _renderSplitPayModal(); }
 function _renderSplitPayModal(){
   const o=getOrder(splitOrderId); if(!o)return;
-  const sub=_splitSelTotal(o), tip=_splitPayTip(sub), tot=sub+tip;
+  const esIg=(splitMode==='iguales');
+  const sub=esIg?_splitEqMonto(o):_splitSelTotal(o), tip=_splitPayTip(sub), tot=sub+tip;
   const pct=(splitPayTipMode==='pct')?(+splitPayTipVal||0):(sub>0?Math.round(tip/sub*100):0);
   let m=document.getElementById('splitPayModal');
   if(!m){ m=document.createElement('div'); m.className='ov'; m.id='splitPayModal'; m.style.cssText='display:flex;z-index:10001'; document.body.appendChild(m); }
-  const det=(o.items||[]).map(it=>{ const q=Math.min(splitSel[it.uid]||0,_pendQtyOf(o,it)); if(q<=0)return '';
-    return `<div class="dir"><span>${q>1?q+'× ':''}${it.name}<span style="font-size:10px;color:var(--ts)"> · ${fmt(it.price)} c/u</span></span><span style="font-weight:700">${fmt(q*it.price)}</span></div>`; }).join('');
+  const kIg=Math.max(1,Math.min(splitEqK|0,Math.max(1,splitEqN|0)));
+  const det=esIg
+    ? `<div class="dir"><span>${kIg===1?'1 parte':kIg+' partes'} de ${Math.max(1,splitEqN|0)}<span style="font-size:10px;color:var(--ts)"> · ${fmt(_splitEqParte(o))} cada una</span></span><span style="font-weight:700">${fmt(sub)}</span></div>`
+    : (o.items||[]).map(it=>{ const q=Math.min(splitSel[it.uid]||0,_pendQtyOf(o,it)); if(q<=0)return '';
+        return `<div class="dir"><span>${q>1?q+'× ':''}${it.name}<span style="font-size:10px;color:var(--ts)"> · ${fmt(it.price)} c/u</span></span><span style="font-weight:700">${fmt(q*it.price)}</span></div>`; }).join('');
   const tipBtn=p=>`<button onclick="setSplitPayTipPct(${p})" style="padding:4px 11px;border:1px solid ${(splitPayTipMode==='pct'&&(+splitPayTipVal)===p)?'var(--ok)':'var(--br)'};background:${(splitPayTipMode==='pct'&&(+splitPayTipVal)===p)?'var(--ok)':'transparent'};color:${(splitPayTipMode==='pct'&&(+splitPayTipVal)===p)?'#fff':'var(--ok)'};border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">${p}%</button>`;
   m.innerHTML=`<div class="mb" style="max-width:380px;width:100%">
-    <h3 style="margin-bottom:.7rem"><i class="ti ti-receipt" style="color:var(--bm)" aria-hidden="true"></i> Cobrar seleccionados · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
+    <h3 style="margin-bottom:.7rem"><i class="ti ti-receipt" style="color:var(--bm)" aria-hidden="true"></i> ${esIg?'Cobrar partes iguales':'Cobrar seleccionados'} · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>
     <div style="margin-bottom:.6rem">${det}</div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem">
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span style="font-weight:700">${fmt(sub)}</span></div>
@@ -3133,6 +3223,7 @@ function _renderSplitPayModal(){
 }
 function splitConfirmPago(){
   const o=getOrder(splitOrderId); if(!o)return;
+  if(splitMode==='iguales')return _splitConfirmIguales(o);
   /* Revalidación FINAL: nunca se cobra una unidad que ya fue cobrada (aquí o en otro dispositivo) */
   const items=[], detalle=[]; let sub=0;
   (o.items||[]).forEach(it=>{
@@ -3142,6 +3233,7 @@ function splitConfirmPago(){
   });
   const mp=document.getElementById('splitPayModal'); if(mp)mp.remove();
   if(sub<=0){ splitSel={}; renderSplitModal(); showToast('Esos productos ya fueron cobrados','del'); return; }
+  if(sub>oUnpaid(o)+1){ renderSplitModal(); showToast('Lo seleccionado supera lo que falta por cobrar','del'); return; }
   const propina=_splitPayTip(sub), medio=splitPayMedio||'efectivo';
   const n=_splitPays(o).length+1;
   const ref=o.id+'-S'+n+'-'+_dSfx();
@@ -3156,6 +3248,29 @@ function splitConfirmPago(){
   showToast(`Cobrado ${fmt(sub+propina)} ✓`,'ok');
   broadcastState(); renderDashboard(); renderTables(); renderSplitModal();
   /* Si ya no queda nada por cobrar, se PREGUNTA antes de cerrar (solo al dividir) */
+  if(oUnpaid(o)<=0)_askCloseAfterSplit(o.id);
+}
+/* Cobro en PARTES IGUALES: el monto manda (no hay productos atados a este pago).
+   La revalidación es contra lo que falta AHORA, por si otro dispositivo cobró en paralelo. */
+function _splitConfirmIguales(o){
+  const mp=document.getElementById('splitPayModal'); if(mp)mp.remove();
+  const falta=oUnpaid(o);
+  if(falta<=0){ renderSplitModal(); showToast('Esta cuenta ya fue pagada en otro dispositivo','del'); return; }
+  const sub=Math.min(_splitEqMonto(o),falta);
+  if(sub<=0){ renderSplitModal(); return; }
+  const propina=_splitPayTip(sub), medio=splitPayMedio||'efectivo';
+  const N=Math.max(1,splitEqN|0), partes=Math.max(1,Math.min(splitEqK|0,N));
+  const n=_splitPays(o).length+1;
+  const ref=o.id+'-S'+n+'-'+_dSfx();
+  if(!Array.isArray(o.splitPays))o.splitPays=[];
+  o.splitPays.push({ref,nombre:'Parte igual '+n,medio,monto:sub,propina,ts:_nextTs(),items:[],eq:true,partes,deN:N});
+  addCajaMov(sub+propina,medio,`División ${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
+  closedSales.push({id:ref,tableId:o.tableId,type:o.type||(o.tableId?'mesa':'mostrador'),waiter:o.waiter||cUser,
+    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,discount:0,splitOf:o.id,
+    items:[{name:'División de cuenta (parte igual)',price:sub,qty:1}]});
+  splitEqN=Math.max(1,N-partes); splitEqK=1;   /* quedan menos personas por pagar */
+  showToast(`Cobrado ${fmt(sub+propina)} ✓`,'ok');
+  broadcastState(); renderDashboard(); renderTables(); renderSplitModal();
   if(oUnpaid(o)<=0)_askCloseAfterSplit(o.id);
 }
 /* Confirmación exclusiva de la división: permite que la mesa siga abierta si quedan comensales. */
@@ -3615,13 +3730,13 @@ let _statsPeriod='hoy', _statsDate='';
 function _archivedSales(){
   try{const h=JSON.parse(localStorage.getItem('econativo_history')||'[]');
     if(!Array.isArray(h))return [];
-    const out=[];h.forEach(d=>{(d&&Array.isArray(d.sales)?d.sales:[]).forEach(s=>out.push(s));});
-    return out;
+    const out=[];h.forEach(d=>{if(_histDayCleared(d))return;(d&&Array.isArray(d.sales)?d.sales:[]).forEach(s=>out.push(s));});
+    return out.filter(s=>!_saleCleared(s));
   }catch(e){return [];}
 }
 function _salesPool(){
   const map={};let k=0;
-  closedSales.forEach(s=>{const id=(s&&s.id!=null)?s.id:('_c'+(k++));map[id]=s;});
+  closedSales.forEach(s=>{if(_saleCleared(s))return;const id=(s&&s.id!=null)?s.id:('_c'+(k++));map[id]=s;});
   _archivedSales().forEach(s=>{const id=(s&&s.id!=null)?s.id:('_a'+(k++));if(!(id in map))map[id]=s;});
   return Object.values(map);
 }
@@ -3657,8 +3772,8 @@ function renderStats(){
   if(di){
     const pool=_salesPool();
     const ts=pool.map(o=>(o&&(o.closedAt||o.time))||0).filter(Boolean);
-    di.max=new Date().toISOString().slice(0,10);
-    if(ts.length)di.min=new Date(Math.min(...ts)).toISOString().slice(0,10);
+    di.max=_ymd();
+    if(ts.length)di.min=_ymd(Math.min(...ts));
   }
   const rng=_statsRange();
   const all=_statsSales();
@@ -3750,28 +3865,7 @@ function renderStats(){
     </div>`;
 }
 
-/* Eliminar historial: borra ventas anteriores y días archivados (libera espacio).
-   NO toca datos operativos: pedidos activos, mesas, caja, carta, inventario, clientes. */
-function eliminarHistorial(){
-  if(!confirm(
-    '⚠️ ELIMINAR HISTORIAL — ACCIÓN PERMANENTE\n\n'+
-    'Se eliminarán DEFINITIVAMENTE y sin posibilidad de recuperar:\n'+
-    '• Todo el historial de ventas (ventas anteriores)\n'+
-    '• Las estadísticas de los días archivados\n\n'+
-    'Ya no podrás consultar ni descargar Excel de esos períodos.\n\n'+
-    'NO se afectan: pedidos activos, mesas, caja, carta, inventario ni clientes.\n\n'+
-    '¿Confirmar eliminación permanente del historial?'
-  ))return;
-  closedSales.length=0;      /* ventas históricas (sincronizado a todos los dispositivos) */
-  totalOrdsIn=0;             /* contador de estadística */
-  try{localStorage.removeItem('econativo_history');}catch(e){} /* días archivados (este dispositivo) */
-  _statsPeriod='hoy';_statsDate='';
-  const di=$('statsDate');if(di)di.value='';
-  document.querySelectorAll('.st2').forEach((t,i)=>t.classList.toggle('active',i===0));
-  broadcastState();
-  showToast('Historial eliminado','del');
-  renderStats();
-}
+/* «Eliminar Historial» vive junto al Excel (sección EXPORTAR VENTAS). */
 
 /* ════════ VENTA DE LIBROS — sección propia (independiente de mesas/cafetería) ════════ */
 let _bookEditId=null;  /* id del libro que se está editando (null = nueva venta) */
@@ -4480,101 +4574,312 @@ function _xlSetMoney(ws,cells){
   cells.forEach(([r,c])=>{const a=XLSX.utils.encode_cell({r,c});const cell=ws[a];if(cell&&typeof cell.v==='number'){cell.t='n';cell.z=_XL_MONEY;}});
 }
 function _xlMoneyCol(ws,col,fromRow,toRow){const cells=[];for(let r=fromRow;r<=toRow;r++)cells.push([r,col]);_xlSetMoney(ws,cells);}
-function downloadExcel(){
-  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible');return;}
-  /* MISMA fuente que la pantalla: el período/fecha seleccionado */
-  const sales=_statsSales();
-  const rng=_statsRange();
-  const books=_booksInRange();
-  if(!sales.length&&!books.length){showToast('Sin ventas para exportar en «'+rng.label+'»','del');return;}
-  const wb=XLSX.utils.book_new();
-  /* ── Cálculos (todos sobre el conjunto filtrado) ── */
-  const tv=sales.reduce((s,o)=>s+oNet(o),0); /* neto: descuentos ya aplicados */
+/* ════════ EXCEL: EXPORTAR VENTAS (día actual · rango de fechas · todo el historial) ════════
+   El reporte se arma SIEMPRE sobre el mismo conjunto de ventas que muestra la pantalla
+   (_salesPool = ventas actuales + días archivados, sin duplicados y sin lo eliminado),
+   de modo que lo que se ve y lo que se descarga coincidan exactamente. */
+const _XL_DATEF='dd-mm-yyyy hh:mm';
+const _XL_DAYF='dd-mm-yyyy';
+function _xlSetFmt(ws,cells,z){
+  cells.forEach(([r,c])=>{const a=XLSX.utils.encode_cell({r,c});const cell=ws[a];if(cell)cell.z=z;});
+}
+function _xlFmtCol(ws,col,fromRow,toRow,z){const c=[];for(let r=fromRow;r<=toRow;r++)c.push([r,col]);_xlSetFmt(ws,c,z);}
+/* Número de serie de Excel (1900) para una fecha-hora LOCAL, redondeada al segundo. */
+function _xlDate(t){const ms=Math.round(new Date(t).getTime()/1000)*1000;return 25569+(ms-new Date(ms).getTimezoneOffset()*60000)/86400000;}
+function _xlDay(t){return Math.floor(_xlDate(_dayStart(t)));}
+/* Fecha LOCAL en formato aaaa-mm-dd (new Date().toISOString() usa UTC y de noche adelanta el día) */
+function _ymd(d){const x=(d===undefined||d===null)?new Date():new Date(d);const p=n=>String(n).padStart(2,'0');return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate());}
+function _dmy(ymd){const s=String(ymd||'').split('-');return s.length===3?(s[2]+'-'+s[1]+'-'+s[0]):String(ymd||'');}
+function _dayStart(d){const x=new Date(d);x.setHours(0,0,0,0);return x.getTime();}
+function _dayEnd(d){const x=new Date(d);x.setHours(23,59,59,999);return x.getTime();}
+function _saleTs(s){return (s&&(s.closedAt||s.time))||0;}
+function _bookTs(b){return (b&&(b.ts||(b.date?new Date(b.date+'T12:00:00').getTime():0)))||0;}
+function _salesBetween(from,to){return _salesPool().filter(s=>{const t=_saleTs(s);return t>=from&&t<=to;});}
+function _booksBetween(from,to){return bookSales.filter(b=>{const t=_bookTs(b);return t>=from&&t<=to;});}
+/* Ventas de libros dentro del período/fecha seleccionado en Estadísticas */
+function _booksInRange(){const {from,to}=_statsRange();return _booksBetween(from,to);}
+
+/* ── Selector de período para el Excel ── */
+let _xpMode='hoy',_xpFrom='',_xpTo='';
+function downloadExcel(){openExportModal();}   /* el botón «Excel» abre el selector */
+function openExportModal(){
+  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible','del');return;}
+  const ts=_salesPool().map(_saleTs).filter(Boolean);
+  window._xpMinD=ts.length?_ymd(Math.min.apply(null,ts)):_ymd();
+  const hoy=new Date();
+  if(!_xpFrom)_xpFrom=_ymd(new Date(hoy.getFullYear(),hoy.getMonth(),1));
+  if(!_xpTo)_xpTo=_ymd();
+  openMod('exportModal');renderExportModal();
+}
+function setXpMode(m){_xpMode=m;renderExportModal();}
+function setXpFrom(v){_xpFrom=v;renderExportModal();}
+function setXpTo(v){_xpTo=v;renderExportModal();}
+function _xpRange(){
+  if(_xpMode==='rango'){
+    if(!_xpFrom||!_xpTo)return null;
+    let a=_xpFrom,b=_xpTo;
+    if(a>b){const t=a;a=b;b=t;}                       /* si las invierte, se ordenan solas */
+    return {from:_dayStart(new Date(a+'T00:00:00')),to:_dayEnd(new Date(b+'T00:00:00')),
+            label:(a===b)?('Día '+_dmy(a)):('Del '+_dmy(a)+' al '+_dmy(b)),tag:(a===b)?a:(a+'_a_'+b)};
+  }
+  if(_xpMode==='todo'){
+    const ts=_salesPool().map(_saleTs).filter(Boolean).concat(bookSales.map(_bookTs).filter(Boolean));
+    return {from:ts.length?_dayStart(new Date(Math.min.apply(null,ts))):0,to:_dayEnd(new Date()),
+            label:'Todo el historial',tag:'historial_'+_ymd()};
+  }
+  return {from:_dayStart(new Date()),to:_dayEnd(new Date()),label:'Hoy · '+_dmy(_ymd()),tag:_ymd()};
+}
+function renderExportModal(){
+  const box=$('xpBody');if(!box)return;
+  const r=_xpRange();
+  const sales=r?_salesBetween(r.from,r.to):[];
+  const books=r?_booksBetween(r.from,r.to):[];
+  const neto=sales.reduce((s,o)=>s+oNet(o),0);
   const tips=sales.reduce((s,o)=>s+(o.tip||0),0);
-  const descTot=sales.reduce((s,o)=>s+((o.discount)||0),0);
-  const ticket=Math.round(tv/(sales.length||1));
-  const ventasPago=p=>sales.filter(s=>s.pago===p).reduce((s,o)=>s+oNet(o),0);
-  /* Propinas por método: efectivo recoge también 'mixto'/otros → la suma coincide con el total */
-  let tipsEf=0,tipsTa=0,tipsTr=0;
-  sales.forEach(o=>{const t=o.tip||0;if(!t)return;if(o.pago==='tarjeta')tipsTa+=t;else if(o.pago==='transferencia')tipsTr+=t;else tipsEf+=t;});
-  /* ── Hoja Resumen ── */
-  const resumen=[
-    ['EcoNativo — Reporte de Ventas','',new Date().toLocaleString('es-CL')], //0
-    ['Período',rng.label],                       //1
-    [],                                          //2
-    ['RESUMEN GENERAL'],                         //3
-    ['Total Ventas (neto)',tv],                  //4  money B
-    ['Descuentos aplicados',descTot],            //5  money B
-    ['Propinas Totales',tips],                   //6  money B
-    ['   Propinas en Efectivo',tipsEf],          //7  money B
-    ['   Propinas con Tarjeta',tipsTa],          //8  money B
-    ['   Propinas por Transferencia',tipsTr],    //9  money B
-    ['Transacciones',sales.length],              //10 (número, no moneda)
-    ['Ticket Promedio',ticket],                  //11 money B
-    [],                                          //12
-    ['VENTAS POR MÉTODO DE PAGO'],               //13
-    ['Efectivo',ventasPago('efectivo')],         //14 money B
-    ['Tarjeta',ventasPago('tarjeta')],           //15 money B
-    ['Transferencia',ventasPago('transferencia')],//16 money B
-    [],                                          //17
-    ['Fondo inicial caja',caja.fondo],           //18 money B
-    ['Efectivo en caja',caja.fondo+cajaByPago('efectivo')], //19 money B
-    [],                                          //20
-    ['VENTA DE LIBROS (del período)'],           //21
-    ['Libros vendidos',books.length],            //22 (número)
-    ['Total venta de libros',books.reduce((s,b)=>s+(b.price||0),0)], //23 money B
-  ];
-  const wsR=XLSX.utils.aoa_to_sheet(resumen);
-  _xlSetMoney(wsR,[[4,1],[5,1],[6,1],[7,1],[8,1],[9,1],[11,1],[14,1],[15,1],[16,1],[18,1],[19,1],[23,1]]);
-  wsR['!cols']=[{wch:26},{wch:16}];
+  const lib=books.reduce((s,b)=>s+(b.price||0),0);
+  const dset={};sales.forEach(s=>{dset[_ymd(_saleTs(s))]=1;});
+  const op=(m,ic,txt)=>`<button onclick="setXpMode('${m}')" style="flex:1;min-width:104px;padding:9px 8px;border:1px solid ${_xpMode===m?'var(--bm)':'var(--br)'};background:${_xpMode===m?'var(--bm)':'transparent'};color:${_xpMode===m?'#fff':'var(--tm)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600"><i class="ti ti-${ic}" style="font-size:13px;vertical-align:-2px"></i> ${txt}</button>`;
+  box.innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.7rem">
+      ${op('hoy','sun','Día actual')}${op('rango','calendar-event','Desde / hasta')}${op('todo','archive','Todo')}
+    </div>
+    ${_xpMode==='rango'?`<div style="display:flex;gap:8px;margin-bottom:.7rem;flex-wrap:wrap">
+      <label style="flex:1;min-width:130px;font-size:11px;color:var(--ts)">Desde<input type="date" value="${_xpFrom}" min="${window._xpMinD||''}" max="${_ymd()}" onchange="setXpFrom(this.value)" style="width:100%;padding:7px 9px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);color:var(--tm);margin-top:3px"></label>
+      <label style="flex:1;min-width:130px;font-size:11px;color:var(--ts)">Hasta<input type="date" value="${_xpTo}" min="${window._xpMinD||''}" max="${_ymd()}" onchange="setXpTo(this.value)" style="width:100%;padding:7px 9px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);color:var(--tm);margin-top:3px"></label>
+    </div>`:''}
+    <div style="background:var(--cr);border-radius:var(--r);padding:10px 12px;font-size:12px">
+      <div style="font-weight:700;color:var(--tm);margin-bottom:5px"><i class="ti ti-calendar-stats" style="color:var(--bm);font-size:13px;vertical-align:-2px"></i> ${r?r.label:'—'}</div>
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Cobros registrados</span><span style="font-weight:700">${sales.length}</span></div>
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Días con ventas</span><span style="font-weight:700">${Object.keys(dset).length}</span></div>
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Ventas netas</span><span style="font-weight:700">${fmt(neto)}</span></div>
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Propinas</span><span style="font-weight:700">${fmt(tips)}</span></div>
+      ${books.length?`<div class="dir" style="font-size:12px"><span style="color:var(--ts)">Venta de libros (${books.length})</span><span style="font-weight:700">${fmt(lib)}</span></div>`:''}
+      ${(!sales.length&&!books.length)?`<div style="color:var(--er);font-size:11px;margin-top:5px">No hay ventas en este período.</div>`:''}
+    </div>`;
+  const go=$('xpGo');if(go)go.disabled=(!sales.length&&!books.length);
+}
+function doExportExcel(){
+  const r=_xpRange();
+  if(!r){showToast('Elige las dos fechas','del');return;}
+  const sales=_salesBetween(r.from,r.to),books=_booksBetween(r.from,r.to);
+  if(!sales.length&&!books.length){showToast('No hay ventas en «'+r.label+'»','del');return;}
+  closeMod('exportModal');
+  _buildExcel(r,sales,books);
+}
+
+/* ── Construcción del libro de Excel ── */
+function _buildExcel(rng,sales,books){
+  if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible','del');return;}
+  const wb=XLSX.utils.book_new();
+  /* Importes: BRUTO = suma de productos · NETO = bruto − descuentos · COBRADO = neto + propinas */
+  const bruto=sales.reduce((s,o)=>s+oTotal(o),0);
+  const desc=sales.reduce((s,o)=>s+(o.discount||0),0);
+  const neto=sales.reduce((s,o)=>s+oNet(o),0);
+  const tips=sales.reduce((s,o)=>s+(o.tip||0),0);
+  const cobrado=neto+tips;
+  /* Un pedido dividido genera varios cobros: para el ticket promedio cuentan los PEDIDOS. */
+  const pedSet={};sales.forEach((s,i)=>{pedSet[s.splitOf||s.id||('x'+i)]=1;});
+  const pedidos=Object.keys(pedSet).length;
+  const ticket=pedidos?Math.round(neto/pedidos):0;
+  const MET=['efectivo','tarjeta','transferencia','mixto'];
+  const NOM={efectivo:'Efectivo',tarjeta:'Tarjeta',transferencia:'Transferencia',mixto:'Mixto (tarjeta + efectivo)',otros:'Otros / sin método'};
+  const netoP={},tipP={};
+  sales.forEach(o=>{const p=MET.indexOf(o.pago)>=0?o.pago:'otros';netoP[p]=(netoP[p]||0)+oNet(o);tipP[p]=(tipP[p]||0)+(o.tip||0);});
+  const libTot=books.reduce((s,b)=>s+(b.price||0),0);
+  const incluyeHoy=(rng.to>=_dayStart(new Date()));
+
+  /* ── Hoja «Resumen» (los índices de moneda se calculan solos: no se desalinean) ── */
+  const R=[],mon=[],dts=[];
+  const row=(a,b,kind)=>{R.push(b===undefined?[a]:[a,b]);if(kind==='$')mon.push([R.length-1,1]);if(kind==='d')dts.push([R.length-1,1]);};
+  row('EcoNativo — Reporte de Ventas');
+  row('Generado',_xlDate(Date.now()),'d');
+  row('Período',rng.label);
+  if(rng.from>0)row('Desde',_xlDate(rng.from),'d');
+  row('Hasta',_xlDate(rng.to),'d');
+  row('');
+  row('RESUMEN DE VENTAS (cafetería)');
+  row('Ventas brutas (suma de productos)',bruto,'$');
+  row('Descuentos aplicados',-desc,'$');
+  row('VENTAS NETAS',neto,'$');
+  row('Propinas',tips,'$');
+  row('TOTAL COBRADO (netas + propinas)',cobrado,'$');
+  row('');
+  row('Cobros registrados',sales.length);
+  row('Pedidos / mesas atendidas',pedidos);
+  row('Ticket promedio por pedido',ticket,'$');
+  row('');
+  row('VENTAS NETAS POR MÉTODO DE PAGO');
+  MET.concat(['otros']).forEach(p=>{if(netoP[p])row(NOM[p],netoP[p],'$');});
+  row('Suma por método (debe igualar VENTAS NETAS)',MET.concat(['otros']).reduce((s,p)=>s+(netoP[p]||0),0),'$');
+  row('');
+  row('PROPINAS POR MÉTODO DE PAGO');
+  MET.concat(['otros']).forEach(p=>{if(tipP[p])row(NOM[p],tipP[p],'$');});
+  row('Total propinas',tips,'$');
+  row('');
+  row('VENTA DE LIBROS (Biblioteca)');
+  row('Libros vendidos',books.length);
+  row('Total venta de libros',libTot,'$');
+  row('');
+  row('TOTAL GENERAL DEL PERÍODO (cobrado + libros)',cobrado+libTot,'$');
+  if(incluyeHoy){
+    row('');
+    row('CAJA — jornada actual (no depende del período elegido)');
+    row('Fondo inicial',caja.fondo,'$');
+    row('Efectivo en caja',caja.fondo+cajaByPago('efectivo'),'$');
+  }
+  const wsR=XLSX.utils.aoa_to_sheet(R);
+  _xlSetMoney(wsR,mon);_xlSetFmt(wsR,dts,_XL_DATEF);
+  wsR['!cols']=[{wch:44},{wch:18}];
   XLSX.utils.book_append_sheet(wb,wsR,'Resumen');
-  /* ── Hoja Ventas detalle ── */
-  const header=['ID','Tipo','Mesa/Mostrador','Garzón','Fecha','Productos','Subtotal','Descuento','Propina','Total','Método Pago'];
-  const rows=sales.map(s=>[s.id,s.type,s.tableId||'Mostrador',s.waiter,new Date(s.closedAt||s.time).toLocaleString('es-CL'),s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),oTotal(s),(s.discount||0),s.tip||0,oNet(s)+(s.tip||0),s.pago]);
-  const wsD=XLSX.utils.aoa_to_sheet([header,...rows]);
-  _xlMoneyCol(wsD,6,1,rows.length); _xlMoneyCol(wsD,7,1,rows.length); _xlMoneyCol(wsD,8,1,rows.length); _xlMoneyCol(wsD,9,1,rows.length); /* Subtotal, Descuento, Propina, Total */
-  wsD['!cols']=[{wch:10},{wch:10},{wch:14},{wch:14},{wch:18},{wch:40},{wch:12},{wch:11},{wch:10},{wch:12},{wch:12}];
+
+  /* ── Hoja «Ventas detalle» (una fila por cobro + fila de TOTALES para cuadrar) ── */
+  const ordenadas=[...sales].sort((a,b)=>_saleTs(a)-_saleTs(b));
+  const dHead=['Fecha y hora','Día','Tipo','Mesa','Garzón','Cliente','Productos','Unidades','Venta bruta','Descuento','Venta neta','Propina','Total cobrado','Método de pago','Detalle del pago','ID del cobro','Parte del pedido'];
+  const dRows=ordenadas.map(s=>{
+    const uds=(s.items||[]).reduce((n,i)=>n+(+((i&&i.qty))||0),0);
+    const mix=s.pagoMix?('Tarjeta '+fmt(s.pagoMix.tarjeta||0)+' + Efectivo '+fmt(s.pagoMix.efectivo||0)):(s.discountInfo||'');
+    return [_xlDate(_saleTs(s)),_xlDay(_saleTs(s)),
+      s.type==='mesa'?'Mesa':'Mostrador',s.tableId||'',s.waiter||'',s.clientName||'',
+      (s.items||[]).map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),uds,
+      oTotal(s),(s.discount||0),oNet(s),(s.tip||0),oNet(s)+(s.tip||0),
+      NOM[MET.indexOf(s.pago)>=0?s.pago:'otros'],mix,s.id||'',s.splitOf||''];
+  });
+  dRows.push(['TOTALES','','','','','','',dRows.reduce((n,r)=>n+(+r[7]||0),0),bruto,desc,neto,tips,cobrado,'','','','']);
+  const wsD=XLSX.utils.aoa_to_sheet([dHead,...dRows]);
+  _xlFmtCol(wsD,0,1,dRows.length-1,_XL_DATEF);_xlFmtCol(wsD,1,1,dRows.length-1,_XL_DAYF);
+  [8,9,10,11,12].forEach(c=>_xlMoneyCol(wsD,c,1,dRows.length));
+  wsD['!cols']=[{wch:18},{wch:12},{wch:10},{wch:7},{wch:14},{wch:16},{wch:42},{wch:9},{wch:13},{wch:12},{wch:12},{wch:11},{wch:14},{wch:22},{wch:26},{wch:20},{wch:18}];
+  wsD['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:dRows.length,c:dHead.length-1}})};
   XLSX.utils.book_append_sheet(wb,wsD,'Ventas detalle');
-  /* ── Hoja Productos ── */
-  const prodC={};sales.forEach(o=>o.items.forEach(i=>{if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=i.qty;prodC[i.name].total+=i.price*i.qty;}));
-  const prodRows=Object.entries(prodC).sort((a,b)=>b[1].qty-a[1].qty).map(([n,d])=>[n,d.qty,d.total]);
-  const wsP=XLSX.utils.aoa_to_sheet([['Producto','Unidades vendidas','Ingresos'],...prodRows]);
-  _xlMoneyCol(wsP,2,1,prodRows.length); /* Ingresos */
-  wsP['!cols']=[{wch:30},{wch:16},{wch:14}];
+
+  /* ── Hoja «Por día» (cuando el período abarca más de un día) ── */
+  const porDia={};
+  sales.forEach(s=>{const k=_ymd(_saleTs(s));if(!porDia[k])porDia[k]={n:0,neto:0,desc:0,tip:0,lib:0,libN:0};
+    porDia[k].n++;porDia[k].neto+=oNet(s);porDia[k].desc+=(s.discount||0);porDia[k].tip+=(s.tip||0);});
+  books.forEach(b=>{const k=_ymd(_bookTs(b));if(!porDia[k])porDia[k]={n:0,neto:0,desc:0,tip:0,lib:0,libN:0};
+    porDia[k].lib+=(b.price||0);porDia[k].libN++;});
+  const diasK=Object.keys(porDia).sort();
+  if(diasK.length>1){
+    const hH=['Día','Cobros','Ventas netas','Descuentos','Propinas','Total cobrado','Libros vendidos','Total libros','TOTAL DEL DÍA'];
+    const hR=diasK.map(k=>{const d=porDia[k];return [_xlDay(new Date(k+'T00:00:00').getTime()),d.n,d.neto,d.desc,d.tip,d.neto+d.tip,d.libN,d.lib,d.neto+d.tip+d.lib];});
+    const sum=i=>hR.reduce((s,r)=>s+(+r[i]||0),0);
+    hR.push(['TOTALES',sum(1),sum(2),sum(3),sum(4),sum(5),sum(6),sum(7),sum(8)]);
+    const wsH=XLSX.utils.aoa_to_sheet([hH,...hR]);
+    _xlFmtCol(wsH,0,1,hR.length-1,_XL_DAYF);
+    [2,3,4,5,7,8].forEach(c=>_xlMoneyCol(wsH,c,1,hR.length));
+    wsH['!cols']=[{wch:13},{wch:9},{wch:14},{wch:13},{wch:11},{wch:15},{wch:15},{wch:13},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,wsH,'Por día');
+  }
+
+  /* ── Hoja «Productos» ── */
+  const prodC={};sales.forEach(o=>(o.items||[]).forEach(i=>{if(!i)return;if(!prodC[i.name])prodC[i.name]={qty:0,total:0};prodC[i.name].qty+=(+i.qty||0);prodC[i.name].total+=(+i.price||0)*(+i.qty||0);}));
+  const pRows=Object.keys(prodC).map(n=>[n,prodC[n].qty,prodC[n].total,prodC[n].qty?Math.round(prodC[n].total/prodC[n].qty):0]).sort((a,b)=>b[1]-a[1]);
+  pRows.push(['TOTALES',pRows.reduce((s,r)=>s+r[1],0),pRows.reduce((s,r)=>s+r[2],0),'']);
+  const wsP=XLSX.utils.aoa_to_sheet([['Producto','Unidades vendidas','Ingresos (antes de descuentos)','Precio promedio'],...pRows,
+    [],['Nota: los descuentos se aplican al pedido completo, por eso no se descuentan producto por producto.']]);
+  _xlMoneyCol(wsP,2,1,pRows.length);_xlMoneyCol(wsP,3,1,pRows.length-1);
+  wsP['!cols']=[{wch:34},{wch:17},{wch:28},{wch:16}];
   XLSX.utils.book_append_sheet(wb,wsP,'Productos');
-  /* ── Hoja Ventas de Libros (Biblioteca) — mismo período ── */
+
+  /* ── Hoja «Por garzón» ── */
+  const gz={};sales.forEach(s=>{const w=s.waiter||'(sin garzón)';if(!gz[w])gz[w]={n:0,neto:0,tip:0};gz[w].n++;gz[w].neto+=oNet(s);gz[w].tip+=(s.tip||0);});
+  const gRows=Object.keys(gz).map(w=>[w,gz[w].n,gz[w].neto,gz[w].tip]).sort((a,b)=>b[2]-a[2]);
+  gRows.push(['TOTALES',gRows.reduce((s,r)=>s+r[1],0),gRows.reduce((s,r)=>s+r[2],0),gRows.reduce((s,r)=>s+r[3],0)]);
+  const wsG=XLSX.utils.aoa_to_sheet([['Garzón','Cobros','Ventas netas','Propinas'],...gRows]);
+  _xlMoneyCol(wsG,2,1,gRows.length);_xlMoneyCol(wsG,3,1,gRows.length);
+  wsG['!cols']=[{wch:22},{wch:10},{wch:15},{wch:13}];
+  XLSX.utils.book_append_sheet(wb,wsG,'Por garzón');
+
+  /* ── Hoja «Ventas de Libros» ── */
   if(books.length){
-    const bHeader=['Fecha y hora','Tipo','Libro','Comprador','Precio'];
-    const bRows=[...books].sort((a,b)=>(b.ts||0)-(a.ts||0)).map(b=>[
-      b.ts?new Date(b.ts).toLocaleString('es-CL'):_bookDateFmt(b.date),
-      'Venta de Libro',
-      b.book,b.buyer,b.price||0
-    ]);
-    const bTotal=books.reduce((s,b)=>s+(b.price||0),0);
-    const wsB=XLSX.utils.aoa_to_sheet([
-      bHeader,...bRows,
-      [],
-      ['Libros vendidos',books.length],
-      ['Total venta de libros',bTotal]
-    ]);
-    _xlMoneyCol(wsB,4,1,bRows.length);                 /* Precio */
-    _xlSetMoney(wsB,[[bRows.length+2,1]]);              /* Total venta de libros (monto) */
-    wsB['!cols']=[{wch:20},{wch:14},{wch:34},{wch:22},{wch:14}];
+    const bRows=[...books].sort((a,b)=>_bookTs(a)-_bookTs(b)).map(b=>[_xlDate(_bookTs(b)),b.book||'',b.buyer||'',b.price||0]);
+    bRows.push(['TOTALES','','',libTot]);
+    const wsB=XLSX.utils.aoa_to_sheet([['Fecha y hora','Libro','Comprador','Precio'],...bRows]);
+    _xlFmtCol(wsB,0,1,bRows.length-1,_XL_DATEF);_xlMoneyCol(wsB,3,1,bRows.length);
+    wsB['!cols']=[{wch:18},{wch:36},{wch:24},{wch:14}];
     XLSX.utils.book_append_sheet(wb,wsB,'Ventas de Libros');
   }
-  /* Nombre de archivo según el período/fecha */
-  const tag=(_statsPeriod==='fecha'&&_statsDate)?_statsDate:_statsPeriod+'_'+new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb,'EcoNativo_'+tag+'.xlsx');
-  showToast('Excel descargado ✓','ok');
+  XLSX.writeFile(wb,'EcoNativo_'+rng.tag+'.xlsx');
+  showToast('Excel descargado ✓ ('+sales.length+' cobros)','ok');
 }
-/* Ventas de libros dentro del período/fecha seleccionado en Estadísticas */
-function _booksInRange(){
-  const {from,to}=_statsRange();
-  return bookSales.filter(b=>{const t=(b&&(b.ts||(b.date?new Date(b.date+'T12:00:00').getTime():0)))||0;return t>=from&&t<=to;});
+
+/* ════════ ELIMINAR HISTORIAL (reinicia el historial de ventas y libera espacio) ════════
+   Borra: ventas cerradas + días archivados, en ESTE equipo, en los DEMÁS equipos y en la NUBE.
+   Usa una marca de tiempo (salesClearTs) para que ninguna venta anterior pueda "revivir"
+   desde un equipo que estaba apagado — el mismo mecanismo probado de la Biblioteca.
+   NO toca: pedidos activos, mesas, caja, carta, inventario, recetas, clientes ni libros. */
+function _histDays(){
+  try{const h=JSON.parse(localStorage.getItem('econativo_history')||'[]');return Array.isArray(h)?h:[];}catch(e){return [];}
+}
+function _histStats(){
+  const days=_histDays();
+  let arch=0;days.forEach(d=>{arch+=(d&&Array.isArray(d.sales))?d.sales.length:0;});
+  let bytes=0;try{bytes=(localStorage.getItem('econativo_history')||'').length;}catch(e){}
+  return {dias:days.length,archivadas:arch,actuales:closedSales.length,bytes};
+}
+function eliminarHistorial(){openClearHistModal();}
+function openClearHistModal(){
+  const st=_histStats();
+  const total=st.actuales+st.archivadas;
+  const kb=Math.round(st.bytes/1024);
+  const b=$('chBody');
+  if(b)b.innerHTML=`
+    <div style="background:var(--cr);border-radius:var(--r);padding:10px 12px;font-size:12px;margin-bottom:.7rem">
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Ventas del día actual</span><span style="font-weight:700">${st.actuales}</span></div>
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Ventas de días archivados</span><span style="font-weight:700">${st.archivadas}</span></div>
+      <div class="dir" style="font-size:12px"><span style="color:var(--ts)">Días guardados</span><span style="font-weight:700">${st.dias}</span></div>
+      <div class="dir" style="font-size:12px;border-top:1px dashed var(--br);margin-top:4px;padding-top:4px"><span style="font-weight:700">Se eliminarán en total</span><span style="font-weight:700;color:var(--er)">${total} venta(s)</span></div>
+      ${kb>0?`<div class="dir" style="font-size:11px"><span style="color:var(--ts)">Espacio que se libera (aprox.)</span><span>${kb} KB</span></div>`:''}
+    </div>
+    <div style="font-size:12px;color:var(--tm);line-height:1.6;margin-bottom:.7rem">
+      Se borra <b>en todos los equipos y también en la nube</b>, de forma permanente y sin posibilidad de recuperar.<br>
+      <span style="color:var(--ok)">No se tocan:</span> pedidos activos, mesas, caja, carta, inventario, recetas, clientes ni la venta de libros.
+    </div>
+    <button onclick="doExportExcel()" style="width:100%;padding:9px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700;margin-bottom:.7rem"><i class="ti ti-file-spreadsheet" style="font-size:13px;vertical-align:-2px"></i> Descargar respaldo en Excel antes de borrar</button>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--tm);cursor:pointer">
+      <input type="checkbox" id="chAck" onchange="chToggleAck(this)" style="margin-top:2px;width:16px;height:16px;cursor:pointer">
+      <span>Entiendo que esta acción es permanente y que ya no podré consultar ni descargar el Excel de esos períodos.</span>
+    </label>`;
+  const go=$('chGo');if(go)go.disabled=true;
+  /* El respaldo usa el selector del Excel: por defecto, todo el historial */
+  _xpMode='todo';
+  openMod('clearHistModal');
+}
+function chToggleAck(el){const go=$('chGo');if(go)go.disabled=!(el&&el.checked);}
+async function confirmClearHist(){
+  const st=_histStats();
+  const total=st.actuales+st.archivadas;
+  salesClearTs=_nextTs();                  /* marca: nada anterior a este instante puede revivir */
+  try{localStorage.setItem('econativo_histclear',String(salesClearTs));}catch(e){}
+  /* Las ventas con fecha POSTERIOR a este instante (equipo con el reloj adelantado) se marcan
+     una por una por su id, para que tampoco puedan revivir desde otro equipo. */
+  _salesPool().forEach(v=>{ if(v&&v.id&&_saleTs(v)>salesClearTs)delSales[v.id]=_saleTs(v)+1; });
+  _saveDelSales();
+  closedSales.length=0;
+  totalOrdsIn=0;
+  try{localStorage.removeItem('econativo_history');}catch(e){}   /* días archivados (este equipo) */
+  _statsPeriod='hoy';_statsDate='';
+  const di=$('statsDate');if(di)di.value='';
+  document.querySelectorAll('.st2').forEach((t,i)=>t.classList.toggle('active',i===0));
+  broadcastState();                        /* avisa a los demás equipos (con la marca) */
+  closeMod('clearHistModal');
+  showToast('Historial eliminado · '+total+' venta(s)','del');
+  renderStats();
+  if(typeof renderDashboard==='function')renderDashboard();
+  /* Nube: vaciar el registro de días archivados (es lo que ocupa espacio en Supabase) */
+  if(_sb){
+    try{
+      const ts=new Date().toISOString();
+      await _sb.from('econativo_state').upsert({key:'sales_history',payload:{v:1,updated:ts,clearedTs:salesClearTs,days:[]},updated_at:ts});
+    }catch(e){
+      console.warn('[Historial] no se pudo vaciar en la nube',e&&e.message);
+      showToast('Historial borrado aquí; la nube se limpiará al reconectar','del');
+    }
+  }
 }
 
 /* ── EXCEL: CARTA e INVENTARIO (exportar / importar) ── */
-const _xlsxDate=()=>new Date().toISOString().slice(0,10);
+const _xlsxDate=()=>_ymd();
 const _norm=s=>String(s==null?'':s).trim();
 const _boolCell=v=>{const s=_norm(v).toLowerCase();return !(s==='no'||s==='false'||s==='0'||s==='');};
 /* Lee un archivo .xlsx/.csv y devuelve las filas de la primera hoja como objetos */
@@ -6795,7 +7100,7 @@ function getSerializableState(){
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
     dayEpoch,
-    delOrders,delClients,delBooks,bookClearTs,delOrderUids,delMenu,
+    delOrders,delClients,delBooks,bookClearTs,salesClearTs,delSales,delOrderUids,delMenu,
     ts:_nextTs()
   });
 }
@@ -6821,17 +7126,21 @@ function _pruneClosedOrders(){
    deduplicando por día. Así las estadísticas históricas son consistentes entre dispositivos. */
 async function _syncHistory(){
   if(!_sb)return;
-  let cloud=[];
-  try{ const {data}=await _sb.from('econativo_state').select('payload').eq('key','sales_history').maybeSingle(); if(data&&data.payload&&Array.isArray(data.payload.days))cloud=data.payload.days; }catch(e){ return; }
+  let cloud=[],cloudClear=0;
+  try{ const {data}=await _sb.from('econativo_state').select('payload').eq('key','sales_history').maybeSingle();
+       if(data&&data.payload){ if(Array.isArray(data.payload.days))cloud=data.payload.days; cloudClear=+data.payload.clearedTs||0; } }catch(e){ return; }
+  /* La nube también guarda la marca de «Eliminar Historial»: un equipo que estaba apagado la adopta. */
+  if(cloudClear>salesClearTs){ salesClearTs=cloudClear; try{localStorage.setItem('econativo_histclear',String(salesClearTs));}catch(e){}
+    for(let i=closedSales.length-1;i>=0;i--){ if(_saleCleared(closedSales[i]))closedSales.splice(i,1); } }
   let local=[]; try{ const r=JSON.parse(localStorage.getItem('econativo_history')||'[]'); if(Array.isArray(r))local=r; }catch(e){}
   const sig=d=>[d&&d.date,d&&d.transacciones,d&&d.ventas,d&&d.propinas].join('|');
   const seen=new Set(),merged=[];
   [...cloud,...local].forEach(d=>{ if(!d)return; const k=sig(d); if(!seen.has(k)){seen.add(k);merged.push(d);} });
-  const capped=merged.slice(-90);
+  const capped=merged.filter(d=>!_histDayCleared(d)).slice(-90);
   try{ localStorage.setItem('econativo_history',JSON.stringify(capped)); }catch(e){}
-  if(JSON.stringify(capped)!==JSON.stringify(cloud)){
+  if(JSON.stringify(capped)!==JSON.stringify(cloud)||cloudClear!==salesClearTs){
     const ts=new Date().toISOString();
-    try{ await _sb.from('econativo_state').upsert({key:'sales_history',payload:{v:1,updated:ts,days:capped},updated_at:ts}); }catch(e){console.warn('[Historial] nube',e&&e.message);}
+    try{ await _sb.from('econativo_state').upsert({key:'sales_history',payload:{v:1,updated:ts,clearedTs:salesClearTs,days:capped},updated_at:ts}); }catch(e){console.warn('[Historial] nube',e&&e.message);}
   }
   const ap=document.querySelector('.page.active'); if(ap&&ap.id==='page-stats'&&typeof renderStats==='function')renderStats();
 }
@@ -6864,11 +7173,11 @@ function _resetOrdSig(){ _ordSig={}; _itemSig={}; orders.forEach(o=>{ if(!o||!o.
 function _convDigest(st){
   try{
     const o=(st.orders||[]).filter(x=>x&&x.id&&x.status!=='closed'&&!delOrders[x.id]).map(x=>x.id+':'+(x._mts||0)+':'+(x.status||'')+':'+(x.items||[]).filter(it=>it&&!(x.rmItems&&x.rmItems[it.uid])).map(it=>(it.uid||'?')+'.'+(it._its||0)+'.'+(it.kdisp?1:0)).sort().join(',')+':'+Object.keys(x.rmItems||{}).sort().join(',')).sort().join('|');
-    const cs=(st.closedSales||[]).map(x=>x&&x.id).filter(Boolean).sort().join(',');
+    const cs=(st.closedSales||[]).filter(x=>!_saleCleared(x)).map(x=>x&&x.id).filter(Boolean).sort().join(',');
     const cl=(st.clients||[]).map(x=>x&&x.id).filter(id=>id&&!delClients[id]).sort().join(',');
     const bk=(st.bookSales||[]).filter(b=>b&&b.id&&!delBooks[b.id]&&!((b.ts||0)<=bookClearTs)).map(b=>b.id).sort().join(',');
     const cm=st.caja?((st.caja.openTime||0)+'#'+(st.caja.open?1:0)+'#'+(st.caja.movements||[]).length):'';
-    const tb=[Object.keys(st.delOrders||{}).length,Object.keys(st.delClients||{}).length,Object.keys(st.delBooks||{}).length,st.bookClearTs||0].join('/');
+    const tb=[Object.keys(st.delOrders||{}).length,Object.keys(st.delClients||{}).length,Object.keys(st.delBooks||{}).length,st.bookClearTs||0,st.salesClearTs||0,Object.keys(st.delSales||{}).length].join('/');
     return [o,cs,cl,bk,cm,tb].join('~');
   }catch(e){ console.warn('[Sync] digest',e); return 'err'+Math.random(); }
 }
@@ -6879,7 +7188,7 @@ const _seenSnaps=new Set();
 function _seenSnap(s){ const k=(s&&s.src)+'|'+(s&&s.ts); if(_seenSnaps.has(k))return true; _seenSnaps.add(k); if(_seenSnaps.size>300){ const it=_seenSnaps.values(); for(let i=0;i<100;i++)_seenSnaps.delete(it.next().value); } return false; }
 function broadcastState(){
   _pruneClosedOrders(); /* no transmitir pedidos cerrados antiguos */
-  _pruneTombs(delOrders,2*86400000); _pruneTombs(delClients,30*86400000); _pruneTombs(delBooks,30*86400000);
+  _pruneTombs(delOrders,2*86400000); _pruneTombs(delClients,30*86400000); _pruneTombs(delBooks,30*86400000); _pruneTombs(delSales,45*86400000);
   for(const k in delOrderUids)if(!delOrders[k])delete delOrderUids[k];
   _stampOrders();       /* versionar los pedidos/productos modificados localmente */
   _stampMenu();         /* versionar los productos de la Carta editados en este equipo */
@@ -6920,6 +7229,9 @@ function applyRemoteState(data,force){
        época igual → MISMO día → fusión segura por id: nunca se pierde nada. */
     const _rEpoch=s.dayEpoch||0;
     const _newDay=_rEpoch>dayEpoch, _staleDay=_rEpoch<dayEpoch;
+    /* «Eliminar Historial»: se adopta la marca más nueva ANTES de fusionar ventas. */
+    if((+s.salesClearTs||0)>salesClearTs){ salesClearTs=+s.salesClearTs; try{localStorage.setItem('econativo_histclear',String(salesClearTs));}catch(e){} }
+    if(s.delSales&&typeof s.delSales==='object'){ const a=JSON.stringify(delSales); _mergeMaxMap(delSales,s.delSales); if(JSON.stringify(delSales)!==a)_saveDelSales(); }
 
     if(_newDay){
       /* Adoptar la jornada nueva tal cual (pedidos, mesas, ventas, contadores, caja). */
@@ -6927,7 +7239,7 @@ function applyRemoteState(data,force){
       delOrderUids={}; _mergeUidMap(delOrderUids,s.delOrderUids);
       orders.length=0;(s.orders||[]).forEach(o=>{ if(o&&!(o.id&&delOrders[o.id]))orders.push(_normOrder(o)); });
       tables.forEach(t=>{ const rt=(s.tables||[]).find(x=>x.id===t.id); if(rt){t.status=rt.status;t.waiter=rt.waiter||'';t.clientId=rt.clientId||null;t.clientName=rt.clientName||'';t.startTime=rt.startTime||null;} });
-      closedSales.length=0;(s.closedSales||[]).forEach(x=>closedSales.push(x));
+      closedSales.length=0;(s.closedSales||[]).forEach(x=>{if(!_saleCleared(x))closedSales.push(x);});
       if(s.ordCnt!==undefined)ordCnt=s.ordCnt;
       if(s.totalOrdsIn!==undefined)totalOrdsIn=s.totalOrdsIn;
       if(s.caja){ caja.open=s.caja.open;caja.openTime=s.caja.openTime;caja.fondo=s.caja.fondo;caja.movements=[...(s.caja.movements||[])];caja.log=[...(s.caja.log||[])]; }
@@ -6971,10 +7283,11 @@ function applyRemoteState(data,force){
       });
       /* Ventas cerradas: UNIÓN por id — una venta jamás se pierde por una carrera. */
       { const have={}; closedSales.forEach(x=>{ if(x&&x.id)have[x.id]=1; });
-        (s.closedSales||[]).forEach(x=>{ if(x&&x.id&&!have[x.id]){ closedSales.push(x); have[x.id]=1; } }); }
+        (s.closedSales||[]).forEach(x=>{ if(x&&x.id&&!have[x.id]&&!_saleCleared(x)){ closedSales.push(x); have[x.id]=1; } }); }
       /* Contadores: MÁXIMO monótono → nunca retroceden → no se reutilizan ids (no duplicados). */
       if(s.ordCnt!==undefined)ordCnt=Math.max(ordCnt||0,s.ordCnt);
-      if(s.totalOrdsIn!==undefined)totalOrdsIn=Math.max(totalOrdsIn||0,s.totalOrdsIn);
+      /* Si ESTE equipo borró el historial después que el emisor, su contador no debe resucitar. */
+      if(s.totalOrdsIn!==undefined)totalOrdsIn=((+s.salesClearTs||0)<salesClearTs)?totalOrdsIn:Math.max(totalOrdsIn||0,s.totalOrdsIn);
       /* Caja por SESIÓN (identificada por openTime):
          • sesión entrante más nueva (reapertura) → se adopta completa;
          • misma sesión → movimientos y bitácora por UNIÓN (no se pierde dinero) y la caja solo
@@ -7083,6 +7396,8 @@ function applyRemoteState(data,force){
     if(!_older&&Array.isArray(s.subcatUser))_SUBCAT_USER=s.subcatUser.slice();
     /* Ventas de libros: UNIÓN por id — nunca se pierde una venta registrada; pero una venta
        borrada (lápida) o anterior a "Eliminar historial" (bookClearTs) no revive. */
+    /* Ventas borradas por «Eliminar Historial»: se podan siempre, venga de donde venga. */
+    for(let i=closedSales.length-1;i>=0;i--){ if(_saleCleared(closedSales[i]))closedSales.splice(i,1); }
     _mergeMaxMap(delBooks,s.delBooks);
     if((+s.bookClearTs||0)>bookClearTs)bookClearTs=+s.bookClearTs;
     const _bookGone=b=>!b||(b.id&&delBooks[b.id])||(bookClearTs>0&&(b.ts||0)<=bookClearTs);
@@ -7103,7 +7418,7 @@ function applyRemoteState(data,force){
     /* CONVERGENCIA: si este equipo tiene algo que el snapshot entrante no tenía (un producto
        agregado en paralelo, una venta, una lápida…), re-publica el estado YA FUSIONADO para que
        la nube lo tenga también. Si ya son iguales, no escribe nada (sin bucles). */
-    if(_staleDay||_convDigest({orders,closedSales,clients,bookSales,caja,delOrders,delClients,delBooks,bookClearTs})!==_convDigest(s))_scheduleRebroadcast();
+    if(_staleDay||_convDigest({orders,closedSales,clients,bookSales,caja,delOrders,delClients,delBooks,bookClearTs,salesClearTs,delSales})!==_convDigest(s))_scheduleRebroadcast();
     _refreshActiveView();
   }catch(e){console.warn('[EcoNativo] Sync error:',e);}
 }
@@ -7343,7 +7658,7 @@ function nuevoDia(){
   /* 1. Save today's stats to history before reset */
   const yesterday={
     date:new Date().toLocaleDateString('es-CL'),
-    ventas:closedSales.reduce((s,o)=>s+oTotal(o),0),
+    ventas:closedSales.reduce((s,o)=>s+oNet(o),0),  /* neto: descuentos ya aplicados */
     propinas:closedSales.reduce((s,o)=>s+(o.tip||0),0),
     transacciones:closedSales.length
   };
