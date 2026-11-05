@@ -651,6 +651,7 @@ body.dark .info-note b{color:#7fb0e0}
               <button id="btnAddClient" onclick="addClientToOrder()" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-user-plus" style="font-size:9px"></i> Cliente</button>
               <button id="btnChangeTable" onclick="openChangeTable()" title="Trasladar el pedido (completo o parte) a otra mesa" style="font-size:10px;padding:2px 8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;cursor:pointer;color:var(--ts);display:none"><i class="ti ti-arrows-exchange" style="font-size:9px"></i> Cambiar Mesa</button>
             </div>
+            <div id="haberStrip" style="display:none"></div>
             <div class="ci" id="cartItems"><div class="ec"><i class="ti ti-shopping-cart" aria-hidden="true"></i><p>Selecciona productos</p></div></div>
             <div class="cf">
               <div id="cartSummary"></div>
@@ -1006,9 +1007,18 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="form-item"><label>Email</label><input type="email" id="cliEmail"></div>
   <div class="form-item"><label>Notas / preferencias</label><input type="text" id="cliNotes" placeholder="Ej: alérgico a nueces..."></div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;addClientModal&#39;)">Cancelar</button><button class="bc2" onclick="saveClient()">Guardar</button></div>
+  <button class="bs2" style="width:100%;margin-top:7px;border-color:var(--bm);color:var(--bm)" onclick="saveClient(true)"><i class="ti ti-wallet" style="font-size:13px"></i> Guardar y cargar Haber</button>
 </div></div>
 
 <div class="ov" id="clientDetailModal"><div class="mb" id="clientDetailContent"></div></div>
+
+<!-- HABER DEL CLIENTE — crédito a favor en productos (por categoría) y/o en dinero -->
+<div class="ov" id="haberModal"><div class="mb">
+  <h3><i class="ti ti-wallet" style="color:var(--bm)" aria-hidden="true"></i> Haber del cliente</h3>
+  <p class="sub">Crédito a favor: productos por categoría de la Carta y/o dinero abonado.</p>
+  <div id="haberBody"></div>
+  <button class="bs2" style="width:100%;margin-top:9px" onclick="closeMod(&#39;haberModal&#39;)">Cerrar</button>
+</div></div>
 
 <!-- PENDING MODAL — buscador con cantidad y cálculo automático -->
 <div class="ov" id="pendingModal"><div class="mb">
@@ -1229,8 +1239,9 @@ function _unpaidItems(o){
   ((o&&o.items)||[]).forEach(it=>{ if(!it)return; const rest=(+it.qty||0)-_paidQtyOf(o,it.uid); if(rest>0)out.push({...it,qty:rest}); });
   return out;
 }
-/* Total NETO de la venta = subtotal menos descuento aplicado (para estadísticas/informes/Excel). */
-function oNet(o){return Math.max(0,oTotal(o)-((o&&o.discount)||0))}
+/* Total NETO de la venta = subtotal, menos el descuento y menos el haber del cliente usado
+   (es el dinero que realmente entró; de aquí salen estadísticas, informes, Excel y caja). */
+function oNet(o){return Math.max(0,oTotal(o)-((o&&o.discount)||0)-((o&&o.haber)||0))}
 function openMod(id){$(id).classList.add('open')}
 function closeMod(id){$(id).classList.remove('open')}
 
@@ -2011,6 +2022,7 @@ function cancelarPedido(){
   /* Reponer stock si el pedido ya había descontado inventario (fue enviado a cocina).
      Se usa el flag stockDescontado para no reponer de más. */
   if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
+  _haberDevolverPedido(order);   /* el crédito usado en esta mesa vuelve al cliente */
   /* Eliminar orden completamente (con lápida: ningún equipo atrasado la revive) */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
   _tombOrder(order); /* registra qué productos se cancelaron: uno agregado en paralelo se rescata */
@@ -2038,6 +2050,7 @@ function cerrarSinCobrar(){
   if(!confirm('¿Cerrar Mesa '+mesa+' sin cobrar? El pedido no pasará a caja ni a historial.'))return;
   /* Cierre sin cobro = descarte: reponer stock si ya se había descontado al enviar a cocina */
   if(order.stockDescontado){ reponerInventario(order.items); order.stockDescontado=false; }
+  _haberDevolverPedido(order);   /* el crédito usado en esta mesa vuelve al cliente */
   /* Eliminar orden completamente del array — no queda rastro (con lápida: no revive) */
   const idx=orders.findIndex(o=>o.id===currentAccountId);
   _tombOrder(order); /* registra qué productos se cancelaron: uno agregado en paralelo se rescata */
@@ -2251,6 +2264,7 @@ function removeSentItem(oid,key){
   /* Lápida: esta eliminación es intencional → ningún otro equipo lo re-agrega al fusionar */
   if(!o.rmItems||typeof o.rmItems!=='object')o.rmItems={};
   o.rmItems[it.uid]=_nextTs();
+  _haberDevolverItem(o,it);   /* si estaba cubierto con el haber, el crédito vuelve al cliente */
   o.items.splice(idx,1);
   broadcastState();
   renderCart();
@@ -2264,6 +2278,7 @@ function removeSentItem(oid,key){
 function renderCart(){
   const el=$('cartItems');
   if(!el)return;
+  _renderHaberStrip();   /* haber del cliente asignado a la mesa */
   /* ── Historial: ítems YA enviados a cocina (gris, detalle completo, pendiente de cobro) ── */
   const activeOrder=currentAccountId?getOrder(currentAccountId):null;
   if(activeOrder)_normOrder(activeOrder);
@@ -2278,7 +2293,7 @@ function renderCart(){
       ${sentItems.map((it,idx)=>`<div style="padding:4px 0;border-bottom:1px solid var(--br)">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--ts)">
           <span style="flex:1;min-width:0">${it.qty>1?'<strong>'+it.qty+'×</strong> ':''}${it.name}${it.detail?` <span style="font-size:9px">(${it.detail})</span>`:''}</span>
-          <span style="white-space:nowrap">${fmt(it.price*it.qty)}</span>
+          <span style="white-space:nowrap">${it.cred?'<span style="color:var(--ok);font-weight:700" title="Cubierto con el haber del cliente">Haber</span>':fmt(it.price*it.qty)}</span>
           <button onclick="removeSentItem('${activeOrder.id}','${it.uid}')" title="Eliminar del pedido (ingresado por error)" style="background:none;border:none;color:var(--er);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0"><i class="ti ti-trash" aria-hidden="true"></i></button>
         </div>
         ${it.note?`<div style="font-size:10px;color:var(--bm);font-style:italic;background:var(--cr);border-radius:6px;padding:3px 7px;margin-top:3px;display:flex;align-items:center;gap:4px"><i class="ti ti-note" style="font-size:11px"></i> ${it.note}</div>`:''}
@@ -2341,9 +2356,14 @@ function cobrarYCerrar(){
   if(_yaPag>0&&sub<=0){ /* ya está todo pagado por la división → solo corresponde cerrar la mesa */
     _splitCloseTable(o.id); return;
   }
+  /* ── Haber EN DINERO del cliente: se usa por defecto y se puede desactivar ── */
+  const _hbCli=_haberClienteDe(o), _hbMax=_hbCli?_haberDinero(_hbCli):0, _hbUso=Math.min(_hbMax,sub);
+  /* Si al dividir se puso un descuento «a toda la mesa», lo que falta de ese descuento
+     se aplica aquí (así no se pierde si el resto se cobra desde «Cobrar y Cerrar»). */
+  const _dMesaPend=Math.max(0,Math.min(_splitDiscParaParte(o,sub),Math.max(0,sub-_hbUso)));
   /* La PROPINA existe SOLO al cobrar mesas. En Mostrador no hay propina. */
   const esMesa=!!o.tableId;
-  const defaultTip=esMesa?Math.round(sub*0.1):0;
+  const defaultTip=esMesa?Math.round(Math.max(0,sub-_hbUso-_dMesaPend)*0.1):0;
   /* Mostrar modal de cobro con propina */
   const modal=document.createElement('div');
   modal.className='ov';modal.id='cobrarModal';modal.style.cssText='display:flex;z-index:9999';
@@ -2361,10 +2381,18 @@ function cobrarYCerrar(){
     </div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem;margin-bottom:.8rem">
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span id="cobrarSubAmt">${fmt(sub)}</span></div>
+      ${_hbMax>0?`<div class="dir" style="align-items:center;margin-top:6px">
+        <span style="color:var(--ts)">Haber de ${_hbCli.name}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="cobrarHaberAmt" style="font-size:12px;color:var(--ok);font-weight:700">−${fmt(_hbUso)}</span>
+          <button id="cobrarHaberBtn" onclick="toggleCobrarHaber()" style="padding:3px 9px;border:1px solid var(--ok);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap">No usar</button>
+        </div>
+      </div>
+      <div id="cobrarHaberRest" style="font-size:10px;color:var(--ts);margin-top:1px;text-align:right">Saldo del cliente ${fmt(_hbMax)} · queda ${fmt(_hbMax-_hbUso)}</div>`:''}
       <div class="dir" style="align-items:center;margin-top:6px">
         <span style="color:var(--ts)">Descuento</span>
         <div style="display:flex;align-items:center;gap:6px">
-          <span id="cobrarDescAmt" style="font-size:12px;color:var(--er);font-weight:700">−${fmt(0)}</span>
+          <span id="cobrarDescAmt" style="font-size:12px;color:var(--er);font-weight:700">−${fmt(_dMesaPend)}</span>
           <button onclick="openDescuento(${sub})" style="padding:3px 9px;border:1px solid var(--bm);background:transparent;color:var(--bm);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap"><i class="ti ti-discount-2" style="font-size:11px;vertical-align:-1px"></i> Hacer descuento</button>
         </div>
       </div>
@@ -2390,7 +2418,8 @@ function cobrarYCerrar(){
           <button onclick="setNoTip(${sub})" title="Dejar propina en 0" style="padding:3px 8px;border:1px solid var(--er);background:transparent;color:var(--er);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap">Sin propina</button>
         </div>
       </div>`:''}
-      <div class="dir" style="margin-top:6px;font-weight:700;font-size:15px"><span>Total</span><span id="cobrarTotalAmt" style="color:var(--bm)">${fmt(sub+defaultTip)}</span></div>
+      ${_dMesaPend>0?`<div style="font-size:10px;color:var(--ts);margin-top:1px;text-align:right">Descuento puesto a toda la mesa al dividir la cuenta</div>`:''}
+      <div class="dir" style="margin-top:6px;font-weight:700;font-size:15px"><span>Total</span><span id="cobrarTotalAmt" style="color:var(--bm)">${fmt(Math.max(0,sub-_hbUso-_dMesaPend)+defaultTip)}</span></div>
     </div>
     <div style="font-size:11px;color:var(--ts);font-weight:600;margin-bottom:6px">Método de pago</div>
     <div class="pay-opts" id="cobrarPayOpts" style="grid-template-columns:repeat(2,1fr)">
@@ -2412,9 +2441,10 @@ function cobrarYCerrar(){
   modal.onclick=e=>{if(e.target===modal)_closeCobrar();};
   window._cobrarPago='efectivo';
   window._cobrarSub=sub;
+  window._cobrarHaberMax=_hbMax;window._cobrarHaber=_hbUso;   /* haber en dinero aplicado */
   window._cobrarTipMode='pct';
   window._cobrarTip=defaultTip;
-  window._cobrarDiscount=0;window._cobrarDiscInfo='';window._cobrarDiscMode='pct';
+  window._cobrarDiscount=_dMesaPend;window._cobrarDiscInfo=_dMesaPend>0?((o.splitDisc&&o.splitDisc.info?o.splitDisc.info+' de la mesa':'Descuento de mesa')):'';window._cobrarDiscMode='pct';
   _renderCobrarDetail();
 }
 /* ── Descuento en el cobro ── */
@@ -2428,23 +2458,42 @@ function setDescMode(mode,sub){
   const inp=$('descInput');if(inp)inp.placeholder=mode==='pct'?'Ej: 10 (=10%)':'Ej: 2000';
   previewDescuento(sub);
 }
+/* Base del descuento: lo que queda por pagar DESPUÉS de usar el haber del cliente
+   (primero se descuenta su crédito y el descuento se calcula sobre el resto). */
+function _cobrarDescBase(sub){ return Math.max(0,(+sub||0)-(window._cobrarHaber||0)); }
 /* Calcula el monto de descuento a partir del input, validando límites */
 function _calcDescuento(sub){
+  const base=_cobrarDescBase(sub);
   const v=parseFloat($('descInput')?.value)||0;
   if(v<=0)return {amount:0,info:'',error:''};
   if(window._cobrarDiscMode==='pct'){
     if(v>100)return {amount:0,info:'',error:'El porcentaje no puede superar 100%'};
-    return {amount:Math.round(sub*v/100),info:v+'%'};
+    return {amount:Math.round(base*v/100),info:v+'%'};
   }
-  if(v>sub)return {amount:0,info:'',error:'El descuento supera el subtotal ('+fmt(sub)+')'};
+  if(v>base)return {amount:0,info:'',error:'El descuento supera lo que queda por pagar ('+fmt(base)+')'};
   return {amount:Math.round(v),info:fmt(Math.round(v))};
 }
 function previewDescuento(sub){
   const el=$('descPreview');if(!el)return;
+  const base=_cobrarDescBase(sub);
   const r=_calcDescuento(sub);
   if(r.error){el.style.color='var(--er)';el.textContent=r.error;return;}
   el.style.color='var(--ts)';
-  el.innerHTML=r.amount>0?`Subtotal ${fmt(sub)} · Descuento −${fmt(r.amount)} · <b style="color:var(--tm)">Nuevo subtotal ${fmt(sub-r.amount)}</b>`:'Ingresa un valor de descuento';
+  el.innerHTML=r.amount>0?`A pagar ${fmt(base)} · Descuento −${fmt(r.amount)} · <b style="color:var(--tm)">Queda ${fmt(base-r.amount)}</b>`:'Ingresa un valor de descuento';
+}
+/* Usar / no usar el haber en dinero del cliente en este cobro */
+function toggleCobrarHaber(){
+  const max=window._cobrarHaberMax||0; if(max<=0)return;
+  const usar=!((window._cobrarHaber||0)>0);
+  const sub=window._cobrarSub||0;
+  window._cobrarHaber=usar?Math.min(max,sub):0;
+  const base=_cobrarDescBase(sub);
+  if((window._cobrarDiscount||0)>base)window._cobrarDiscount=base;   /* el descuento nunca supera lo que se paga */
+  const a=$('cobrarHaberAmt');if(a)a.textContent='−'+fmt(window._cobrarHaber);
+  const b=$('cobrarHaberBtn');if(b)b.textContent=usar?'No usar':'Usar haber';
+  const r=$('cobrarHaberRest');if(r)r.textContent='Saldo del cliente '+fmt(max)+' · queda '+fmt(max-(window._cobrarHaber||0));
+  _syncCobrarTotals(sub); previewDescuento(sub);
+  showToast(usar?('Se usará el haber: −'+fmt(window._cobrarHaber)):'Este cobro no usará el haber','ok');
 }
 function aplicarDescuento(sub){
   const r=_calcDescuento(sub);
@@ -2493,8 +2542,8 @@ function setTipMode(mode,sub){
   cobrarUpdateTip(sub);
 }
 function cobrarUpdateTip(sub){
-  /* La propina en % se calcula sobre el subtotal YA CON descuento aplicado. */
-  const base=Math.max(0,(window._cobrarSub||sub||0)-(window._cobrarDiscount||0));
+  /* La propina en % se calcula sobre lo que realmente paga (sin haber y con descuento). */
+  const base=Math.max(0,(window._cobrarSub||sub||0)-(window._cobrarHaber||0)-(window._cobrarDiscount||0));
   const v=parseInt($('cobrarTipPct').value)||0;
   const tip=(window._cobrarTipMode==='amt')?v:Math.round(base*v/100);
   window._cobrarTip=tip;
@@ -2513,9 +2562,9 @@ function setCobrarPago(pago,el){
   el.classList.add('active');
   _renderCobrarDetail();
 }
-/* Total actual del modal de cobro = (subtotal − descuento) + propina */
+/* Total actual del modal de cobro = (subtotal − haber del cliente − descuento) + propina */
 function _cobrarTotalNow(){
-  return Math.max(0,(window._cobrarSub||0)-(window._cobrarDiscount||0))+(window._cobrarTip||0);
+  return Math.max(0,(window._cobrarSub||0)-(window._cobrarHaber||0)-(window._cobrarDiscount||0))+(window._cobrarTip||0);
 }
 /* Detalle según método: efectivo (vuelto) o mixto (tarjeta+efectivo con "falta") */
 function _renderCobrarDetail(){
@@ -2569,11 +2618,15 @@ function confirmarCobro(oid,sub){
   /* Mostrador directo (no pasó por cocina): descontar stock ahora. Las mesas ya lo hicieron al enviar. */
   if(!o.stockDescontado){descontarInventario(o.items);o.stockDescontado=true;}
   const tip=window._cobrarTip||0;
-  const disc=Math.max(0,Math.min(window._cobrarDiscount||0,sub)); /* nunca mayor al subtotal */
-  const netSub=sub-disc;
-  const total=netSub+tip;
   const pago=window._cobrarPago||'efectivo';
   const lugar=(o.tableId?'Mesa '+o.tableId:'Mostrador');
+  /* HABER: se descuenta primero el crédito en dinero del cliente (lo que realmente queda
+     en su saldo ahora mismo, por si se usó en otro equipo), y el descuento va sobre el resto. */
+  const hab=(window._cobrarHaber||0)>0?_haberUsarDinero(o,Math.min(window._cobrarHaber||0,sub),'C-'+o.id,'Pago de '+lugar):0;
+  o.haber=hab;o.haberInfo=hab>0?fmt(hab):'';
+  const disc=Math.max(0,Math.min(window._cobrarDiscount||0,sub-hab)); /* nunca mayor a lo que se paga */
+  const netSub=sub-hab-disc;
+  const total=netSub+tip;
   /* Guardar el descuento en el pedido para historial/estadísticas/Excel */
   o.discount=disc;o.discountInfo=disc>0?(window._cobrarDiscInfo||fmt(disc)):'';
   if(pago==='mixto'){
@@ -2584,14 +2637,14 @@ function confirmarCobro(oid,sub){
     o.tip=tip;o.pago='mixto';o.status='closed';o.closedAt=Date.now();
     o.pagoMix={tarjeta:card,efectivo:Math.max(0,total-card)}; /* desglose real del cobro (para el Excel) */
     closedSales.push({...o,items:_saleItemsFor(o,sub)}); /* solo lo pendiente: lo ya pagado en la división ya tiene su propia venta */
-    if(card>0)addCajaMov(card,'tarjeta',lugar+' (mixto)');
+    if(card>0)addCajaMov(Math.min(card,total),'tarjeta',lugar+' (mixto)');
     if(total-card>0)addCajaMov(total-card,'efectivo',lugar+' (mixto)'); /* parte en efectivo que cuenta (sin vuelto) */
   }else{
   _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
   o.tip=tip;o.pago=pago;o.status='closed';o.closedAt=Date.now();
   closedSales.push({...o,items:_saleItemsFor(o,sub)}); /* solo lo pendiente: lo ya pagado en la división ya tiene su propia venta */
   /* Stock ya se descontó al enviar a cocina (order.stockDescontado) — NO descontar de nuevo al cobrar */
-  addCajaMov(total,pago,lugar);
+  if(total>0)addCajaMov(total,pago,lugar);   /* si el haber cubrió todo, no entra dinero a la caja */
   }
   /* Liberar mesa */
   const t=getTable(o.tableId);
@@ -2606,7 +2659,7 @@ function confirmarCobro(oid,sub){
   {const _bct=$('btnChangeTable');if(_bct)_bct.style.display='none';}
   const ma=$('mesaActions');if(ma)ma.style.display='none';
   cart=[];isMC=false;cTable=null;currentAccountId=null;
-  showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(total)+(disc>0?' (desc. −'+fmt(disc)+')':''),'ok');
+  showToast((o.tableId?'Mesa '+o.tableId:'Mostrador')+' cobrada · '+fmt(total)+(hab>0?' (haber −'+fmt(hab)+')':'')+(disc>0?' (desc. −'+fmt(disc)+')':''),'ok');
   updateOCBadge();renderDashboard();renderTables();broadcastState();
   goPage('tables');
 }
@@ -2738,6 +2791,11 @@ function gestionarPedidoCocina(items, tableId){
      el pedido de la mesa correcta. Así el envío SIEMPRE va a la mesa que eligió el usuario. */
   if(order && order.tableId!==targetTable) order=null;
   if(!order) order = orders.find(o=>o.tableId===targetTable&&o.status!=='closed'&&o.status!=='canceled');
+  /* ── HABER DEL CLIENTE ──
+     Si la mesa tiene un cliente con crédito en productos, los productos de esas categorías
+     entran en $0 (si el crédito solo alcanza para algunas unidades, el producto se divide:
+     las cubiertas en $0 y el resto a precio normal). */
+  { const _hc=_haberClienteDe(order,targetTable); if(_hc)_haberAplicarAItems(itemsToSend,_hc); }
   if(order&&order.status!=='closed'){
     _normOrder(order);
     const _prevCount=order.items.length; /* ítems que la cocina YA tenía antes de agregar */
@@ -2777,6 +2835,7 @@ function gestionarPedidoCocina(items, tableId){
      sea pedido nuevo o adición a una mesa ya abierta en cocina. */
   kitchenBellSeq++;
   bellKitchen('🔔 Pedido enviado a cocina'+(order.tableId?' · Mesa '+order.tableId:''));
+  _haberRegistrarUsos(order);   /* anota en el haber del cliente los productos cubiertos */
   currentAccountId=order.id;
   cart=[];
   updateOCBadge();
@@ -3007,6 +3066,89 @@ let splitPayTipMode='pct', splitPayTipVal=0, splitPayMedio='efectivo';
    • 'prod'    → se eligen productos (cada cobro queda atado a sus productos: quedan tachados)
    • 'iguales' → se reparte en partes iguales lo que FALTA por cobrar (sin detalle de productos) */
 let splitMode='prod', splitEqN=2, splitEqK=1;
+/* ── DESCUENTOS AL DIVIDIR ────────────────────────────────────────────────────
+   Dos formas, en la misma ventana:
+   • A TODA LA MESA  → un solo descuento (% o monto) que se reparte entre las partes
+                       EN PROPORCIÓN a lo que consume cada una. Queda guardado en el
+                       pedido (o.splitDisc), así todos los equipos reparten igual.
+   • SOLO A UNA PARTE→ el descuento se pide al cobrar cada parte, en su ventana de pago.
+   En los dos casos el descuento queda registrado en el cobro y en su venta (discount),
+   por lo que aparece en estadísticas, Excel y cierre de caja igual que un cobro normal.
+   Si la parte usa el HABER del cliente, primero se descuenta su crédito y el descuento
+   se calcula sobre lo que queda. */
+let splitDiscScope='parte', splitDiscMode='pct';
+let splitPayDiscMode='pct', splitPayDiscVal=0, splitPayUsarHaber=true;
+/* Monto de descuento a partir de un valor (% o $) sobre una base, validando límites */
+function _splitDiscCalc(valor,modo,base){
+  const v=parseFloat(valor)||0;
+  if(v<=0)return {amount:0,info:'',error:''};
+  if(modo==='pct'){
+    if(v>100)return {amount:0,info:'',error:'El porcentaje no puede superar 100%'};
+    return {amount:Math.round(base*v/100),info:v+'%'};
+  }
+  if(v>base)return {amount:0,info:'',error:'El descuento supera '+fmt(base)};
+  return {amount:Math.round(v),info:fmt(Math.round(v))};
+}
+/* Qué forma de descuento rige en este pedido (si hay descuento de mesa, manda ese) */
+function _splitScope(o){ return (o&&o.splitDisc)?'mesa':splitDiscScope; }
+/* Descuento total de la mesa */
+function _splitDiscMesa(o){ const d=o&&o.splitDisc; return d?Math.max(0,Math.min(+d.total||0,oTotal(o))):0; }
+/* Cuánto de ese descuento ya se repartió en los cobros hechos */
+function _splitDiscDado(o){ return _splitPays(o).reduce((s,p)=>s+((p&&p.descMesa)?(+p.desc||0):0),0); }
+/* Parte proporcional (según lo consumido) del descuento de la mesa para un cobro dado.
+   Si este cobro liquida la cuenta, se lleva el resto exacto: el reparto nunca descuadra. */
+function _splitDiscParaParte(o,sub){
+  const tot=_splitDiscMesa(o); if(tot<=0)return 0;
+  const bruto=oTotal(o); if(bruto<=0)return 0;
+  const queda=Math.max(0,tot-_splitDiscDado(o));
+  const cierra=(sub>=oUnpaid(o)-1);
+  return Math.max(0,Math.min(queda,cierra?queda:Math.round(tot*sub/bruto),sub));
+}
+/* Haber EN DINERO que se usará en la parte que se está cobrando */
+function _splitPayHaberMax(o){ return _haberDineroDisponible(o); }
+/* Descuento que le corresponde a la parte que se está cobrando (después del haber) */
+function _splitDescDeParte(o,sub,hab){
+  const base=Math.max(0,(+sub||0)-(+hab||0));
+  if(_splitScope(o)==='mesa')return Math.min(base,_splitDiscParaParte(o,sub));
+  const r=_splitDiscCalc(splitPayDiscVal,splitPayDiscMode,base);
+  return r.error?0:Math.max(0,Math.min(base,r.amount));
+}
+function setSplitDiscScope(s){
+  const o=getOrder(splitOrderId);
+  if(s==='parte'&&o&&o.splitDisc){ showToast('Primero quita el descuento de la mesa','del'); return; }
+  splitDiscScope=(s==='mesa')?'mesa':'parte'; renderSplitModal();
+}
+function setSplitDiscMode(m){ splitDiscMode=(m==='amt')?'amt':'pct'; renderSplitModal(); }
+function previewSplitDiscMesa(){
+  const o=getOrder(splitOrderId), el=$('splitDiscPreview'); if(!o||!el)return;
+  const r=_splitDiscCalc($('splitDiscInput')?.value,splitDiscMode,oTotal(o));
+  if(r.error){ el.style.color='var(--er)'; el.textContent=r.error; return; }
+  el.style.color='var(--ts)';
+  el.innerHTML=r.amount>0
+    ?`Total de la mesa ${fmt(oTotal(o))} · Descuento −${fmt(r.amount)} · <b style="color:var(--tm)">quedan ${fmt(oTotal(o)-r.amount)}</b> a repartir`
+    :'Ingresa el descuento para toda la mesa';
+}
+function aplicarSplitDescMesa(){
+  const o=getOrder(splitOrderId); if(!o)return;
+  const r=_splitDiscCalc($('splitDiscInput')?.value,splitDiscMode,oTotal(o));
+  if(r.error){ showToast(r.error,'del'); return; }
+  if(r.amount<=0){ showToast('Ingresa un descuento válido','del'); return; }
+  const dado=_splitDiscDado(o);
+  if(r.amount<dado){ showToast('Ya se descontaron '+fmt(dado)+' en los cobros hechos: el descuento de la mesa no puede ser menor','del'); return; }
+  o.splitDisc={modo:splitDiscMode,valor:parseFloat($('splitDiscInput').value)||0,info:r.info,total:r.amount};
+  splitDiscScope='mesa';
+  broadcastState(); renderSplitModal();
+  showToast('Descuento de la mesa: −'+fmt(r.amount),'ok');
+}
+function quitarSplitDescMesa(){
+  const o=getOrder(splitOrderId); if(!o)return;
+  const dado=_splitDiscDado(o);
+  if(dado>0){ showToast('No se puede quitar: ya se descontaron '+fmt(dado)+' en los cobros hechos','del'); return; }
+  o.splitDisc=null; broadcastState(); renderSplitModal(); showToast('Descuento de la mesa quitado','del');
+}
+function setSplitPayDiscMode(m){ splitPayDiscMode=(m==='amt')?'amt':'pct'; _renderSplitPayModal(); }
+function setSplitPayDiscVal(v){ splitPayDiscVal=Math.max(0,parseFloat(v)||0); _renderSplitPayModal(); }
+function toggleSplitPayHaber(){ splitPayUsarHaber=!splitPayUsarHaber; _renderSplitPayModal(); }
 /* Valor de cada parte: lo que falta dividido entre las personas que aún no pagan.
    Así el redondeo nunca descuadra: la última persona paga exactamente el saldo. */
 function _splitEqParte(o){ const f=oUnpaid(o), N=Math.max(1,splitEqN|0); return N<=1?f:Math.round(f/N); }
@@ -3021,6 +3163,7 @@ function setSplitEqK(v){ splitEqK=Math.max(1,Math.min(splitEqN,parseInt(v)||1));
 
 function openSplitBill(oid){
   splitOrderId=oid; splitSel={}; splitMode='prod'; splitEqN=2; splitEqK=1;
+  splitDiscScope='parte'; splitDiscMode='pct'; splitPayDiscMode='pct'; splitPayDiscVal=0; splitPayUsarHaber=true;
   renderSplitModal(); openMod('splitModal');
 }
 /* Unidades que faltan por cobrar de un producto (cantidad total menos lo ya cobrado) */
@@ -3053,13 +3196,19 @@ function splitSelNone(){ splitSel={}; renderSplitModal(); }
 
 function renderSplitModal(){
   const o=getOrder(splitOrderId); if(!o){ closeMod('splitModal'); return; }
+  if(o.splitDisc)splitDiscScope='mesa';   /* si la mesa tiene descuento, manda esa forma */
   const pagos=_splitPays(o), ya=_paidMonto(o), falta=oUnpaid(o), total=oTotal(o);
+  const dMesa=_splitDiscMesa(o), dDado=_splitDiscDado(o);
+  const hbCli=_haberClienteDe(o), hbMax=hbCli?_haberDinero(hbCli):0;
   const btn='padding:3px 9px;border-radius:20px;cursor:pointer;font-size:10px;font-weight:700;background:transparent';
   let html=`<h3 style="margin-bottom:.7rem"><i class="ti ti-users" style="color:var(--bm)" aria-hidden="true"></i> Dividir cuenta · ${o.tableId?'Mesa '+o.tableId:'Mostrador'}</h3>`;
   html+=`<div style="background:var(--cr2);border-radius:var(--r);padding:.6rem .7rem;margin-bottom:.7rem;font-size:12px">
     <div class="dir"><span style="color:var(--ts)">Total de la mesa</span><span style="font-weight:700">${fmt(total)}</span></div>
     ${ya>0?`<div class="dir"><span style="color:var(--ok)">✓ Ya cobrado</span><span style="color:var(--ok);font-weight:700">${fmt(ya)}</span></div>`:''}
     <div class="dir" style="border-top:1px solid var(--br);margin-top:4px;padding-top:4px"><span style="font-weight:700">Falta por cobrar</span><span style="font-weight:700;color:var(--bm)">${fmt(falta)}</span></div>
+    ${dMesa>0?`<div class="dir" style="font-size:11px"><span style="color:var(--er)">Descuento de la mesa${o.splitDisc.info?' ('+o.splitDisc.info+')':''}</span><span style="color:var(--er);font-weight:700">−${fmt(dMesa)}</span></div>`:''}
+    ${hbMax>0?`<div class="dir" style="font-size:11px"><span style="color:var(--ok)">Haber de ${hbCli.name} (disponible)</span><span style="color:var(--ok);font-weight:700">${fmt(hbMax)}</span></div>`:''}
+    ${(dMesa>0||hbMax>0)?`<div style="font-size:10px;color:var(--ts);margin-top:3px;line-height:1.4">«Falta por cobrar» es el consumo sin descuentos: el descuento y el haber se aplican al cobrar cada parte.</div>`:''}
   </div>`;
   const dup=_splitOverpaid(o);
   if(dup.length)html+=`<div style="background:var(--er);color:#fff;border-radius:var(--r);padding:.5rem .7rem;margin-bottom:.7rem;font-size:11px;font-weight:700">⚠ Atención: ${dup.map(d=>d.name+' (+'+d.ex+')').join(', ')} aparece cobrado más veces que su cantidad. Revisa los cobros.</div>`;
@@ -3067,6 +3216,24 @@ function renderSplitModal(){
   /* ── Cómo se divide: por productos o en partes iguales ── */
   const mb=(m,ic,txt)=>`<button onclick="setSplitMode('${m}')" style="flex:1;padding:8px 6px;border:1px solid ${splitMode===m?'var(--bm)':'var(--br)'};background:${splitMode===m?'var(--bm)':'transparent'};color:${splitMode===m?'#fff':'var(--tm)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600"><i class="ti ti-${ic}" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> ${txt}</button>`;
   html+=`<div style="display:flex;gap:6px;margin-bottom:.7rem">${mb('prod','list-check','Por productos')}${mb('iguales','divide','Partes iguales')}</div>`;
+
+  /* ── Descuento: a toda la mesa (repartido) o solo a una parte ── */
+  const sb=(s,txt,sub2)=>`<button onclick="setSplitDiscScope('${s}')" style="flex:1;padding:7px 6px;border:1px solid ${splitDiscScope===s?'var(--bm)':'var(--br)'};background:${splitDiscScope===s?'var(--bm)':'transparent'};color:${splitDiscScope===s?'#fff':'var(--tm)'};border-radius:var(--r);cursor:pointer;font-size:11px;font-weight:600;line-height:1.3">${txt}<br><span style="font-size:9px;font-weight:400;opacity:.85">${sub2}</span></button>`;
+  const dm=(m,txt)=>`<button onclick="setSplitDiscMode('${m}')" style="flex:1;padding:6px;border:1px solid ${splitDiscMode===m?'var(--bm)':'var(--br)'};background:${splitDiscMode===m?'var(--bm)':'transparent'};color:${splitDiscMode===m?'#fff':'var(--ts)'};border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">${txt}</button>`;
+  html+=`<div class="split-person">
+    <h4><span><i class="ti ti-discount-2" style="color:var(--bm);font-size:13px" aria-hidden="true"></i> Descuento</span></h4>
+    <div style="display:flex;gap:6px;margin-bottom:8px">${sb('mesa','A toda la mesa','se reparte según lo consumido')}${sb('parte','Solo a una parte','se pide al cobrar cada parte')}</div>
+    ${splitDiscScope==='mesa'?`
+      <div style="display:flex;gap:6px;margin-bottom:7px">${dm('pct','Porcentaje %')}${dm('amt','Monto fijo $')}</div>
+      <input type="number" id="splitDiscInput" min="0" value="${(o.splitDisc&&o.splitDisc.modo===splitDiscMode)?(o.splitDisc.valor||''):''}" placeholder="${splitDiscMode==='pct'?'Ej: 10 (=10%)':'Ej: 5000'}" oninput="previewSplitDiscMesa()" style="width:100%;padding:7px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;text-align:center;box-sizing:border-box">
+      <div id="splitDiscPreview" style="font-size:11px;color:var(--ts);margin-top:6px;text-align:center">${dMesa>0?('Descuento aplicado −'+fmt(dMesa)+' · se reparte entre las partes según lo que consume cada una'):'Ingresa el descuento para toda la mesa'}</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="quitarSplitDescMesa()" style="flex:1;padding:7px;border:1px solid var(--br);background:transparent;color:var(--ts);border-radius:6px;cursor:pointer;font-size:12px">Quitar</button>
+        <button onclick="aplicarSplitDescMesa()" style="flex:2;padding:7px;border:none;background:var(--ok);color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">Aplicar a la mesa</button>
+      </div>
+      ${dMesa>0?`<div style="font-size:10px;color:var(--ts);margin-top:7px;line-height:1.5">Ya descontado en los cobros hechos: <b>${fmt(dDado)}</b> · queda por repartir <b>${fmt(Math.max(0,dMesa-dDado))}</b> (la última parte se lleva el resto exacto).</div>`:''}
+    `:`<div style="font-size:11px;color:var(--ts);line-height:1.5">El descuento se pide <b>al cobrar cada parte</b>, en su ventana de pago: así cada persona puede tener el suyo (o ninguno).</div>`}
+  </div>`;
 
   /* ── Lista de productos de la mesa ── */
   html+=`<div class="split-person">
@@ -3130,7 +3297,8 @@ function renderSplitModal(){
         <span style="font-size:12px;color:var(--ts);flex:1;min-width:150px">¿Cuántas partes paga esta persona?</span>
         <input type="number" min="1" max="${N}" value="${k}" onchange="setSplitEqK(this.value)" style="width:56px;padding:5px;border:1px solid var(--br);border-radius:var(--r);font-size:14px;text-align:center;font-weight:700">
       </div>`:''}
-      <div class="split-total-row"><span>A cobrar ahora</span><span style="color:var(--bm)">${fmt(monto)}</span></div>
+      ${dMesa>0?`<div class="dir" style="font-size:11px"><span style="color:var(--er)">Descuento que le toca (aprox.)</span><span style="color:var(--er);font-weight:700">−${fmt(_splitDiscParaParte(o,monto))}</span></div>`:''}
+      <div class="split-total-row"><span>A cobrar ahora</span><span style="color:var(--bm)">${fmt(Math.max(0,monto-(dMesa>0?_splitDiscParaParte(o,monto):0)))}</span></div>
       <button class="bpay" ${falta>0?'':'disabled'} style="${falta>0?'':'opacity:.5;cursor:not-allowed'}" onclick="splitCobrarIguales()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px" aria-hidden="true"></i> Cobrar ${k===1?'1 parte':k+' partes'} · ${fmt(monto)}</button>
       <div style="font-size:10px;color:var(--ts);margin-top:6px;line-height:1.5">Al repartir en partes iguales no se sabe quién consumió qué: la venta queda registrada como «División de cuenta», sin detalle de productos. Si necesitas ese detalle, usa «Por productos».</div>
     </div>`;
@@ -3143,10 +3311,11 @@ function renderSplitModal(){
       const det=p.eq
         ? ('Partes iguales · '+((+p.partes||1)===1?'1 parte':(+p.partes)+' partes')+(p.deN?' de '+p.deN:''))
         : (p.items||[]).map(x=>{ const it=(o.items||[]).find(y=>y&&y.uid===x.uid); return ((+x.qty||1)>1?x.qty+'× ':'')+(it?it.name:'producto'); }).join(', ');
+      const _pd=+p.desc||0, _ph=+p.haber||0, _pc=Math.max(0,(+p.monto||0)-_pd-_ph)+(+p.propina||0);
       html+=`<div style="font-size:11px;color:var(--ts);padding:5px 0;border-bottom:1px solid var(--cr2)">
-        <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:700;color:var(--tm)">Cobro ${i+1} · ${p.medio||'efectivo'}</span><span style="font-weight:700;color:var(--bm)">${fmt((+p.monto||0)+(+p.propina||0))}</span></div>
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:700;color:var(--tm)">Cobro ${i+1} · ${p.medio||'efectivo'}</span><span style="font-weight:700;color:var(--bm)">${fmt(_pc)}</span></div>
         <div>${det||'Parte de la cuenta'}</div>
-        <div>Subtotal ${fmt(+p.monto||0)}${(+p.propina||0)?' · Propina '+fmt(+p.propina||0):''}${p.ts?' · '+ftime(p.ts):''}</div>
+        <div>Consumo ${fmt(+p.monto||0)}${_ph?' · Haber −'+fmt(_ph):''}${_pd?' · Descuento −'+fmt(_pd):''}${(+p.propina||0)?' · Propina '+fmt(+p.propina||0):''}${p.ts?' · '+ftime(p.ts):''}</div>
       </div>`;
     });
     html+='</div>';
@@ -3168,6 +3337,7 @@ function splitCobrarSeleccionados(){
   if(ajustado)showToast('Un producto ya fue cobrado en otro dispositivo · se ajustó la selección','del');
   if(_splitSelTotal(o)<=0){ renderSplitModal(); showToast('Selecciona al menos un producto','del'); return; }
   splitPayTipMode='pct'; splitPayTipVal=0; splitPayMedio='efectivo';
+  splitPayDiscMode='pct'; splitPayDiscVal=0; splitPayUsarHaber=true;
   renderSplitModal(); _renderSplitPayModal();
 }
 /* ── Cobro de una o varias partes iguales ── */
@@ -3176,6 +3346,7 @@ function splitCobrarIguales(){
   if(oUnpaid(o)<=0){ renderSplitModal(); showToast('Esta cuenta ya está pagada','del'); return; }
   if(_splitEqMonto(o)<=0){ renderSplitModal(); showToast('El monto a cobrar es cero','del'); return; }
   splitPayTipMode='pct'; splitPayTipVal=0; splitPayMedio='efectivo';
+  splitPayDiscMode='pct'; splitPayDiscVal=0; splitPayUsarHaber=true;
   renderSplitModal(); _renderSplitPayModal();
 }
 function _splitPayTip(sub){ return splitPayTipMode==='pct'?Math.max(0,Math.round(sub*(+splitPayTipVal||0)/100)):Math.max(0,Math.round(+splitPayTipVal||0)); }
@@ -3185,8 +3356,13 @@ function setSplitPayMedio(m){ splitPayMedio=m; _renderSplitPayModal(); }
 function _renderSplitPayModal(){
   const o=getOrder(splitOrderId); if(!o)return;
   const esIg=(splitMode==='iguales');
-  const sub=esIg?_splitEqMonto(o):_splitSelTotal(o), tip=_splitPayTip(sub), tot=sub+tip;
-  const pct=(splitPayTipMode==='pct')?(+splitPayTipVal||0):(sub>0?Math.round(tip/sub*100):0);
+  const sub=esIg?_splitEqMonto(o):_splitSelTotal(o);
+  /* Primero el HABER del cliente, después el DESCUENTO sobre lo que queda */
+  const hbMax=_splitPayHaberMax(o), hab=splitPayUsarHaber?Math.min(hbMax,sub):0;
+  const desc=_splitDescDeParte(o,sub,hab), aPagar=Math.max(0,sub-hab-desc);
+  const tip=_splitPayTip(aPagar), tot=aPagar+tip;
+  const pct=(splitPayTipMode==='pct')?(+splitPayTipVal||0):(aPagar>0?Math.round(tip/aPagar*100):0);
+  const esMesaDisc=(_splitScope(o)==='mesa');
   let m=document.getElementById('splitPayModal');
   if(!m){ m=document.createElement('div'); m.className='ov'; m.id='splitPayModal'; m.style.cssText='display:flex;z-index:10001'; document.body.appendChild(m); }
   const kIg=Math.max(1,Math.min(splitEqK|0,Math.max(1,splitEqN|0)));
@@ -3200,6 +3376,26 @@ function _renderSplitPayModal(){
     <div style="margin-bottom:.6rem">${det}</div>
     <div style="border-top:1px solid var(--br);padding-top:.6rem">
       <div class="dir"><span style="color:var(--ts)">Subtotal</span><span style="font-weight:700">${fmt(sub)}</span></div>
+      ${hbMax>0?`<div class="dir" style="align-items:center;margin-top:6px">
+        <span style="color:var(--ts)">Haber del cliente</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="color:var(--ok);font-weight:700;font-size:12px">−${fmt(hab)}</span>
+          <button onclick="toggleSplitPayHaber()" style="padding:3px 9px;border:1px solid var(--ok);background:transparent;color:var(--ok);border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap">${splitPayUsarHaber?'No usar':'Usar haber'}</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--ts);text-align:right">Saldo ${fmt(hbMax)} · queda ${fmt(hbMax-hab)}</div>`:''}
+      ${esMesaDisc
+        ?(desc>0?`<div class="dir" style="margin-top:6px"><span style="color:var(--ts)">Descuento de la mesa · parte proporcional</span><span style="color:var(--er);font-weight:700">−${fmt(desc)}</span></div>`:'')
+        :`<div class="dir" style="align-items:center;margin-top:6px">
+            <span style="color:var(--ts)">Descuento de esta parte</span>
+            <div style="display:flex;align-items:center;gap:5px">
+              <button onclick="setSplitPayDiscMode('pct')" style="width:26px;height:26px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;border:1px solid ${splitPayDiscMode==='pct'?'var(--bm)':'var(--br)'};background:${splitPayDiscMode==='pct'?'var(--bm)':'transparent'};color:${splitPayDiscMode==='pct'?'#fff':'var(--ts)'}">%</button>
+              <button onclick="setSplitPayDiscMode('amt')" style="width:26px;height:26px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;border:1px solid ${splitPayDiscMode==='amt'?'var(--bm)':'var(--br)'};background:${splitPayDiscMode==='amt'?'var(--bm)':'transparent'};color:${splitPayDiscMode==='amt'?'#fff':'var(--ts)'}">$</button>
+              <input type="number" min="0" value="${splitPayDiscVal||''}" placeholder="0" onchange="setSplitPayDiscVal(this.value)" title="Descuento solo para esta parte" style="width:70px;padding:4px 6px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;text-align:center">
+              <span style="color:var(--er);font-weight:700;font-size:12px">−${fmt(desc)}</span>
+            </div>
+          </div>`}
+      ${(hab>0||desc>0)?`<div class="dir" style="margin-top:6px"><span style="color:var(--ts)">A pagar</span><span style="font-weight:700">${fmt(aPagar)}</span></div>`:''}
       <div class="split-tip-row" style="margin-top:8px">
         <label style="font-weight:700;color:var(--tm)">Propina:</label>
         <input type="number" min="0" value="${pct}" onchange="setSplitPayTipPct(this.value)" title="Propina por porcentaje" style="width:52px"><span>%</span>
@@ -3234,18 +3430,27 @@ function splitConfirmPago(){
   const mp=document.getElementById('splitPayModal'); if(mp)mp.remove();
   if(sub<=0){ splitSel={}; renderSplitModal(); showToast('Esos productos ya fueron cobrados','del'); return; }
   if(sub>oUnpaid(o)+1){ renderSplitModal(); showToast('Lo seleccionado supera lo que falta por cobrar','del'); return; }
-  const propina=_splitPayTip(sub), medio=splitPayMedio||'efectivo';
+  const medio=splitPayMedio||'efectivo';
   const n=_splitPays(o).length+1;
   const ref=o.id+'-S'+n+'-'+_dSfx();
+  const lugar=`División ${o.tableId?'Mesa '+o.tableId:'Mostrador'}`;
+  /* HABER primero (lo que de verdad quede en el saldo ahora), DESCUENTO sobre lo que queda */
+  const hab=splitPayUsarHaber?_haberUsarDinero(o,Math.min(_haberDineroDisponible(o),sub),'S-'+ref,lugar):0;
+  const desc=_splitDescDeParte(o,sub,hab), esMesaD=(_splitScope(o)==='mesa');
+  const aPagar=Math.max(0,sub-hab-desc);
+  const propina=_splitPayTip(aPagar);
   if(!Array.isArray(o.splitPays))o.splitPays=[];
-  /* El cobro queda GUARDADO en el pedido con su propio detalle (productos, subtotal, propina) */
-  o.splitPays.push({ref,nombre:'Cobro '+n,medio,monto:sub,propina,ts:_nextTs(),items});
+  /* El cobro queda GUARDADO en el pedido con su propio detalle (productos, haber, descuento, propina) */
+  o.splitPays.push({ref,nombre:'Cobro '+n,medio,monto:sub,desc,descMesa:esMesaD,haber:hab,propina,ts:_nextTs(),items});
   /* Caja y venta del día se registran al instante: el día cuadra aunque la mesa siga abierta */
-  addCajaMov(sub+propina,medio,`División ${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
+  if(aPagar+propina>0)addCajaMov(aPagar+propina,medio,lugar);
   closedSales.push({id:ref,tableId:o.tableId,type:o.type||(o.tableId?'mesa':'mostrador'),waiter:o.waiter||cUser,
-    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,discount:0,splitOf:o.id,items:detalle});
-  splitSel={};
-  showToast(`Cobrado ${fmt(sub+propina)} ✓`,'ok');
+    clientId:o.clientId||null,clientName:o.clientName||'',
+    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,
+    discount:desc,discountInfo:desc>0?(esMesaD?'Descuento de mesa (parte)':'Descuento de la parte'):'',
+    haber:hab,haberInfo:hab>0?fmt(hab):'',splitOf:o.id,items:detalle});
+  splitSel={}; splitPayDiscVal=0;
+  showToast(`Cobrado ${fmt(aPagar+propina)} ✓`+(hab>0?' · haber −'+fmt(hab):'')+(desc>0?' · desc. −'+fmt(desc):''),'ok');
   broadcastState(); renderDashboard(); renderTables(); renderSplitModal();
   /* Si ya no queda nada por cobrar, se PREGUNTA antes de cerrar (solo al dividir) */
   if(oUnpaid(o)<=0)_askCloseAfterSplit(o.id);
@@ -3258,18 +3463,27 @@ function _splitConfirmIguales(o){
   if(falta<=0){ renderSplitModal(); showToast('Esta cuenta ya fue pagada en otro dispositivo','del'); return; }
   const sub=Math.min(_splitEqMonto(o),falta);
   if(sub<=0){ renderSplitModal(); return; }
-  const propina=_splitPayTip(sub), medio=splitPayMedio||'efectivo';
+  const medio=splitPayMedio||'efectivo';
   const N=Math.max(1,splitEqN|0), partes=Math.max(1,Math.min(splitEqK|0,N));
   const n=_splitPays(o).length+1;
   const ref=o.id+'-S'+n+'-'+_dSfx();
+  const lugar=`División ${o.tableId?'Mesa '+o.tableId:'Mostrador'}`;
+  /* HABER primero, DESCUENTO sobre lo que queda (igual que en el cobro por productos) */
+  const hab=splitPayUsarHaber?_haberUsarDinero(o,Math.min(_haberDineroDisponible(o),sub),'S-'+ref,lugar):0;
+  const desc=_splitDescDeParte(o,sub,hab), esMesaD=(_splitScope(o)==='mesa');
+  const aPagar=Math.max(0,sub-hab-desc);
+  const propina=_splitPayTip(aPagar);
   if(!Array.isArray(o.splitPays))o.splitPays=[];
-  o.splitPays.push({ref,nombre:'Parte igual '+n,medio,monto:sub,propina,ts:_nextTs(),items:[],eq:true,partes,deN:N});
-  addCajaMov(sub+propina,medio,`División ${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
+  o.splitPays.push({ref,nombre:'Parte igual '+n,medio,monto:sub,desc,descMesa:esMesaD,haber:hab,propina,ts:_nextTs(),items:[],eq:true,partes,deN:N});
+  if(aPagar+propina>0)addCajaMov(aPagar+propina,medio,lugar);
   closedSales.push({id:ref,tableId:o.tableId,type:o.type||(o.tableId?'mesa':'mostrador'),waiter:o.waiter||cUser,
-    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,discount:0,splitOf:o.id,
+    clientId:o.clientId||null,clientName:o.clientName||'',
+    time:o.time||Date.now(),closedAt:Date.now(),status:'closed',pago:medio,tip:propina,
+    discount:desc,discountInfo:desc>0?(esMesaD?'Descuento de mesa (parte)':'Descuento de la parte'):'',
+    haber:hab,haberInfo:hab>0?fmt(hab):'',splitOf:o.id,
     items:[{name:'División de cuenta (parte igual)',price:sub,qty:1}]});
-  splitEqN=Math.max(1,N-partes); splitEqK=1;   /* quedan menos personas por pagar */
-  showToast(`Cobrado ${fmt(sub+propina)} ✓`,'ok');
+  splitEqN=Math.max(1,N-partes); splitEqK=1; splitPayDiscVal=0;   /* quedan menos personas por pagar */
+  showToast(`Cobrado ${fmt(aPagar+propina)} ✓`+(hab>0?' · haber −'+fmt(hab):'')+(desc>0?' · desc. −'+fmt(desc):''),'ok');
   broadcastState(); renderDashboard(); renderTables(); renderSplitModal();
   if(oUnpaid(o)<=0)_askCloseAfterSplit(o.id);
 }
@@ -3450,14 +3664,16 @@ function renderDashboard(){
 function openOD(id){
   const o=getOrder(id);if(!o)return;
   const sub=oTotal(o),tip=o.tip||Math.round(sub*.1);
+  const _hbo=Math.min(_haberDineroDisponible(o),oUnpaid(o)),_subH=Math.max(0,sub-_hbo);
   $('odContent').innerHTML=`<div class="od">
     <h3>${o.tableId?'Mesa '+o.tableId:'Mostrador'} — ${o.id} ${o.status==='canceled'?'<span style="font-size:12px;color:var(--er);background:#FEF0F0;padding:2px 8px;border-radius:20px;font-weight:600">Cancelado</span>':''}</h3>
     <div class="meta">Garzón: ${o.waiter} · ${ftime(o.time)} · ${elapsed(o.time)}</div>
     <div style="margin-bottom:.6rem">${o.items.map(i=>`<div class="dir"><span>${i.name}${i.qty>1?' ×'+i.qty:''} ${i.detail?'<span style="font-size:10px;color:var(--ts)">('+i.detail+')</span>':''} ${i.note?'<span style="font-size:10px;color:var(--wn);background:#FDF5E0;padding:1px 5px;border-radius:5px">'+i.note+'</span>':''}</span><span>${fmt(i.price*i.qty)}</span></div>`).join('')}</div>
     <div class="dts">
       <div class="dr"><span>Subtotal</span><span>${fmt(sub)}</span></div>
-      <div class="tip-row"><label>Propina:</label><input type="number" id="cTip" value="${tip}" min="0" oninput="$('dGT').textContent=fmt(${sub}+(parseInt(this.value)||0))"><button class="atip" onclick="(()=>{const t=Math.round(${sub}*.1);$('cTip').value=t;$('dGT').textContent=fmt(${sub}+t)})()">10% auto</button></div>
-      <div class="dtot"><span>Total a cobrar</span><span id="dGT">${fmt(sub+tip)}</span></div>
+      ${_hbo>0?`<div class="dr" style="color:var(--ok)"><span>Haber del cliente (se descuenta al cobrar)</span><span>−${fmt(_hbo)}</span></div>`:''}
+      <div class="tip-row"><label>Propina:</label><input type="number" id="cTip" value="${tip}" min="0" oninput="$('dGT').textContent=fmt(${_subH}+(parseInt(this.value)||0))"><button class="atip" onclick="(()=>{const t=Math.round(${_subH}*.1);$('cTip').value=t;$('dGT').textContent=fmt(${_subH}+t)})()">10% auto</button></div>
+      <div class="dtot"><span>Total a cobrar</span><span id="dGT">${fmt(_subH+tip)}</span></div>
     </div>
     <div style="font-size:10px;color:var(--ts);font-weight:600;margin:6px 0 3px">Pago</div>
     <div class="pay-opts">
@@ -3482,12 +3698,16 @@ function closeOrd(id){
   const o=getOrder(id);if(!o)return;
   /* Con pagos parciales de una división se cobra SOLO lo que falta (lo ya pagado no se re-cobra) */
   const _pend=oUnpaid(o);
-  const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(_pend*.1):Math.round(_pend*.1);
+  /* HABER: el crédito en dinero del cliente se descuenta de lo que falta por cobrar */
+  const _hab=_haberUsarDinero(o,Math.min(_haberDineroDisponible(o),_pend),'C-'+o.id,'Pago de '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));
+  o.haber=_hab;o.haberInfo=_hab>0?fmt(_hab):'';
+  const _cobra=Math.max(0,_pend-_hab);
+  const cTipEl=$('cTip');const tip=cTipEl?parseInt(cTipEl.value)||Math.round(_cobra*.1):Math.round(_cobra*.1);
   _normOrder(o);o.closedUids=o.items.map(i=>i.uid); /* productos que SÍ entran en este cobro */
   o.tip=tip;o.status='closed';o.closedAt=Date.now();
   if(_pend>0)closedSales.push({...o,items:_saleItemsFor(o,_pend)}); /* lo ya pagado ya tiene su venta */
   /* Stock ya descontado al enviar a cocina — NO descontar de nuevo al cobrar y cerrar */
-  if(_pend+tip>0)addCajaMov(_pend+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
+  if(_cobra+tip>0)addCajaMov(_cobra+tip,o.pago,`${o.tableId?'Mesa '+o.tableId:'Mostrador'}`);
   /* Free table only if no other non-closed orders remain */
   const t=getTable(o.tableId);
   if(t){
@@ -3495,9 +3715,276 @@ function closeOrd(id){
     if(!remaining.length){t.status='free';t.waiter='';t.clientId=null;t.clientName='';}
   }
   closeMod('odModal');
-  showToast(`${o.tableId?'Mesa '+o.tableId:'Mostrador'} cerrada · ${fmt(oTotal(o)+tip)}`,'ok');
+  showToast(`${o.tableId?'Mesa '+o.tableId:'Mostrador'} cerrada · ${fmt(_cobra+tip)}`+(_hab>0?' (haber −'+fmt(_hab)+')':''),'ok');
   updateOCBadge();renderDashboard();renderTables();
   broadcastState();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HABER DEL CLIENTE (crédito a favor)
+   Un cliente puede tener dos tipos de crédito, incluso los dos a la vez:
+     • PRODUCTOS por categoría de la Carta  (ej: 8 cafés = 8 unidades de «Bebidas Calientes»)
+     • DINERO abonado                        (ej: $20.000)
+   Todo se guarda como un LIBRO DE MOVIMIENTOS (c.haberMovs): abonos, usos y devoluciones.
+   El saldo es siempre la suma del libro, nunca un número suelto, por dos razones:
+     1. queda el historial completo (fecha, mesa, producto) que pide el negocio;
+     2. cada movimiento lleva una referencia única y la fusión entre equipos es por UNIÓN,
+        igual que los cobros divididos: dos equipos nunca se pisan ni duplican un consumo.
+   Vive dentro del estado que ya se sincroniza (clients), así que NO requiere cambios
+   en la base de datos de Supabase.
+   ═══════════════════════════════════════════════════════════════════════ */
+function _haberMovs(c){ if(!c)return []; if(!Array.isArray(c.haberMovs))c.haberMovs=[]; return c.haberMovs; }
+function _haberKey(cat,sub){ return (cat||'')+'›'+(sub||'*'); }
+function _haberKeyPartes(k){ const i=String(k||'').indexOf('›'); return i<0?{cat:k,sub:null}:{cat:k.slice(0,i),sub:(k.slice(i+1)==='*'?null:k.slice(i+1))}; }
+function _haberKeyTxt(k){ const p=_haberKeyPartes(k); return p.sub?(p.cat+' › '+p.sub):p.cat; }
+function _haberCli(cid){ return clients.find(x=>x&&x.id===cid)||null; }
+/* Agrega un movimiento solo si su referencia no existe (idempotente: seguro entre equipos) */
+function _haberMov(c,mov){
+  if(!c||!mov||!mov.ref)return false;
+  const ms=_haberMovs(c);
+  if(ms.some(m=>m&&m.ref===mov.ref))return false;
+  ms.push({ts:_nextTs(),...mov});
+  return true;
+}
+/* Saldos actuales: {prod:{clave:unidades}, dinero:monto} */
+function _haberSaldos(c){
+  const prod={}; let dinero=0;
+  _haberMovs(c).forEach(m=>{
+    if(!m)return;
+    const signo=(m.tipo==='uso')?-1:1;                       /* abono y devolución suman */
+    if(m.clase==='dinero'){ dinero+=signo*(+m.monto||0); return; }
+    const k=_haberKey(m.cat,m.sub);
+    prod[k]=(prod[k]||0)+signo*(+m.qty||0);
+  });
+  Object.keys(prod).forEach(k=>{ if(prod[k]<=0)delete prod[k]; });
+  return {prod,dinero:Math.max(0,Math.round(dinero))};
+}
+function _haberDinero(c){ return _haberSaldos(c).dinero; }
+function _haberUnidades(c){ const s=_haberSaldos(c); return Object.values(s.prod).reduce((a,b)=>a+b,0); }
+function _haberTiene(c){ return !!c && (_haberUnidades(c)>0 || _haberDinero(c)>0); }
+/* Resumen corto para mostrar en tarjetas y badges */
+function _haberResumen(c){
+  const s=_haberSaldos(c), out=[];
+  Object.keys(s.prod).forEach(k=>out.push(s.prod[k]+'× '+_haberKeyTxt(k)));
+  if(s.dinero>0)out.push(fmt(s.dinero));
+  return out.join(' · ');
+}
+/* ¿Qué crédito de productos cubre este producto? Primero el de su subcategoría, luego el
+   de la categoría completa. Devuelve la clave con saldo o null. */
+/* En qué categoría › subcategoría de la Carta está un producto del pedido.
+   Primero por nombre exacto; si no (productos armados como «Tostadas», que se guardan
+   con un nombre genérico), por el nombre de la subcategoría o por prefijo. */
+function _haberUbica(name){
+  if(!name)return null;
+  const loc=(typeof _findMenuItem==='function')?_findMenuItem(name):null;
+  if(loc)return {cat:loc.cat,sub:loc.sub};
+  const n=String(name).trim().toLowerCase(); let hit=null;
+  Object.keys(menuData).forEach(cat=>Object.keys(menuData[cat]).forEach(sub=>{
+    if(hit)return;
+    if(String(sub).trim().toLowerCase()===n){ hit={cat,sub}; return; }
+    (menuData[cat][sub]||[]).forEach(it=>{ if(!hit&&it&&String(it.name).toLowerCase().startsWith(n+' '))hit={cat,sub}; });
+  }));
+  return hit;
+}
+function _haberCreditoPara(c,prodName,saldosProd){
+  if(!c||!prodName)return null;
+  const loc=_haberUbica(prodName);
+  if(!loc)return null;
+  const sp=saldosProd||_haberSaldos(c).prod;
+  const kSub=_haberKey(loc.cat,loc.sub), kCat=_haberKey(loc.cat,null);
+  if((sp[kSub]||0)>0)return kSub;
+  if((sp[kCat]||0)>0)return kCat;
+  return null;
+}
+/* Cliente asociado a un pedido / mesa */
+function _haberClienteDe(order,tid){
+  let cid=(order&&order.clientId)||null;
+  if(!cid){ const t=getTable(tid||(order&&order.tableId)); cid=t&&t.clientId; }
+  return cid?_haberCli(cid):null;
+}
+/* Aplica el crédito de productos a los ítems que se van a enviar a la mesa.
+   MUTA el arreglo: si el crédito alcanza solo para parte de las unidades, el producto se
+   divide en dos (las cubiertas a $0 y el resto al precio normal). */
+function _haberAplicarAItems(items,c){
+  if(!c||!Array.isArray(items))return items;
+  const sp={...(_haberSaldos(c).prod)};
+  for(let i=0;i<items.length;i++){
+    const it=items[i];
+    if(!it||it.cred||!(+it.price>0))continue;          /* los de $0 no consumen crédito */
+    const k=_haberCreditoPara(c,it.name,sp);
+    if(!k)continue;
+    const disp=sp[k]||0, qty=+it.qty||0;
+    const cubre=Math.min(disp,qty);
+    if(cubre<=0)continue;
+    const p=_haberKeyPartes(k);
+    if(cubre<qty){                                      /* parte gratis, parte se cobra */
+      const resto={...it,qty:qty-cubre,uid:_newItemUid(),_at:_nextTs()};
+      it.qty=cubre;
+      items.splice(i+1,0,resto); i++;
+    }
+    it.credPrice=+it.price;                             /* precio original, para devolver */
+    it.price=0;
+    it.cred={cat:p.cat,sub:p.sub,cid:c.id};
+    sp[k]=disp-cubre;
+  }
+  return items;
+}
+/* Registra en el libro del cliente los consumos de crédito de un pedido (idempotente) */
+function _haberRegistrarUsos(order){
+  if(!order||!Array.isArray(order.items))return;
+  const porCli={};
+  order.items.forEach(it=>{
+    if(!it||!it.cred||!it.cred.cid)return;
+    const c=porCli[it.cred.cid]||(porCli[it.cred.cid]=_haberCli(it.cred.cid));
+    if(!c)return;
+    _haberMov(c,{ref:'U-'+order.id+'-'+it.uid,tipo:'uso',clase:'prod',cat:it.cred.cat,sub:it.cred.sub,
+      qty:+it.qty||0,oid:order.id,uid:it.uid,prod:it.name,mesa:order.tableId||null});
+  });
+}
+/* Devuelve el crédito de un producto que se quita de la mesa antes de pagar */
+function _haberDevolverItem(order,it){
+  if(!order||!it||!it.cred||!it.cred.cid)return;
+  const c=_haberCli(it.cred.cid); if(!c)return;
+  _haberMov(c,{ref:'D-'+order.id+'-'+it.uid,tipo:'devol',clase:'prod',cat:it.cred.cat,sub:it.cred.sub,
+    qty:+it.qty||0,oid:order.id,uid:it.uid,prod:it.name,mesa:order.tableId||null,nota:'Producto eliminado de la mesa'});
+}
+function _haberDevolverPedido(order){
+  if(!order||!Array.isArray(order.items))return;
+  order.items.forEach(it=>_haberDevolverItem(order,it));
+}
+/* Cuánto crédito EN DINERO se puede usar en un cobro, y registro del uso */
+function _haberDineroDisponible(order){
+  const c=_haberClienteDe(order); return c?_haberDinero(c):0;
+}
+function _haberUsarDinero(order,monto,ref,nota){
+  const c=_haberClienteDe(order); if(!c)return 0;
+  const usar=Math.min(Math.max(0,Math.round(monto||0)),_haberDinero(c));
+  if(usar<=0)return 0;
+  _haberMov(c,{ref:'M-'+ref,tipo:'uso',clase:'dinero',monto:usar,oid:order.id,
+    mesa:order.tableId||null,nota:nota||'Pago de cuenta'});
+  return usar;
+}
+
+/* Fusión entre equipos: unión de los libros por referencia (nunca se duplica ni se pierde) */
+function _haberUnion(a,b){
+  const out=[], vis={};
+  [].concat(_haberMovs(a),_haberMovs(b)).forEach(m=>{ if(!m||!m.ref||vis[m.ref])return; vis[m.ref]=1; out.push(m); });
+  const anul={}; out.forEach(m=>{ if(m.tipo==='anulado'&&m.anula)anul[m.anula]=1; });
+  const limpio=out.filter(m=>!anul[m.ref]);
+  limpio.sort((x,y)=>(x.ts||0)-(y.ts||0));
+  return limpio;
+}
+
+/* ── VENTANA «HABER» ───────────────────────────────────────────────────── */
+let _haberCid=null, _haberTipo='prod', _haberKeySel='';
+function openHaber(cid){
+  _haberCid=cid; _haberTipo='prod'; _haberKeySel='';
+  renderHaberModal(); openMod('haberModal');
+}
+function haberSetTipo(t){ _haberTipo=(t==='dinero')?'dinero':'prod'; renderHaberModal(); }
+function _haberOpcionesCat(){
+  const out=[];
+  Object.keys(menuData).forEach(cat=>{
+    out.push({k:_haberKey(cat,null),txt:cat+'  (toda la categoría)'});
+    Object.keys(menuData[cat]).forEach(sub=>out.push({k:_haberKey(cat,sub),txt:'　└ '+cat+' › '+sub}));
+  });
+  return out;
+}
+function renderHaberModal(){
+  const c=_haberCli(_haberCid); const box=$('haberBody'); if(!c||!box)return;
+  const s=_haberSaldos(c);
+  const movs=[..._haberMovs(c)].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const tb=(t,ic,txt)=>`<button onclick="haberSetTipo('${t}')" style="flex:1;padding:8px 6px;border:1px solid ${_haberTipo===t?'var(--bm)':'var(--br)'};background:${_haberTipo===t?'var(--bm)':'transparent'};color:${_haberTipo===t?'#fff':'var(--tm)'};border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600"><i class="ti ti-${ic}" style="font-size:13px;vertical-align:-2px"></i> ${txt}</button>`;
+  const claves=Object.keys(s.prod);
+  box.innerHTML=`
+    <div style="background:var(--cr2);border-radius:var(--r);padding:.6rem .7rem;margin-bottom:.7rem;font-size:12px">
+      <div style="font-weight:700;color:var(--tm);margin-bottom:5px"><i class="ti ti-wallet" style="color:var(--bm);font-size:13px;vertical-align:-2px"></i> Haber disponible de ${c.name}</div>
+      ${claves.length?claves.map(k=>`<div class="dir" style="font-size:12px"><span style="color:var(--ts)">${_haberKeyTxt(k)}</span><span style="font-weight:700">${s.prod[k]} unidad(es)</span></div>`).join(''):''}
+      ${s.dinero>0?`<div class="dir" style="font-size:12px"><span style="color:var(--ts)">Dinero abonado</span><span style="font-weight:700;color:var(--ok)">${fmt(s.dinero)}</span></div>`:''}
+      ${(!claves.length&&!s.dinero)?`<div style="color:var(--tl);font-size:12px">Sin haber registrado</div>`:''}
+    </div>
+    <div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:.4rem">Cargar haber</div>
+    <div style="display:flex;gap:6px;margin-bottom:.6rem">${tb('prod','coffee','Productos')}${tb('dinero','cash','Dinero')}</div>
+    ${_haberTipo==='prod'?`
+      <div class="form-item"><label>Categoría de la Carta</label>
+        <select id="haberCat" style="width:100%;padding:8px;border:1px solid var(--br);border-radius:var(--r);font-size:13px;background:var(--wh);color:var(--tm)">
+          ${_haberOpcionesCat().map(o=>`<option value="${o.k}">${o.txt}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-item"><label>¿Cuántas unidades?</label><input type="number" id="haberQty" min="1" value="1" inputmode="numeric"></div>
+    `:`
+      <div class="form-item"><label>Monto abonado ($)</label><input type="number" id="haberMonto" min="1" placeholder="Ej: 20000" inputmode="numeric"></div>
+    `}
+    <div class="form-item"><label>Motivo (opcional)</label><input type="text" id="haberNota" placeholder="Ej: entregó 10 libros"></div>
+    <button class="bc2" style="width:100%" onclick="haberAgregar()"><i class="ti ti-plus" style="font-size:13px"></i> Agregar al haber</button>
+    <div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin:.9rem 0 .4rem">Movimientos (${movs.length})</div>
+    ${movs.length?movs.map(m=>{
+      const esUso=m.tipo==='uso';
+      const txt=(m.clase==='dinero')
+        ? ((esUso?'−':'+')+fmt(+m.monto||0))
+        : ((esUso?'−':'+')+(+m.qty||0)+'× '+_haberKeyTxt(_haberKey(m.cat,m.sub)));
+      const detalle=[m.prod,(m.mesa?'Mesa '+m.mesa:''),m.nota].filter(Boolean).join(' · ');
+      return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:5px 0;border-bottom:1px solid var(--cr2)">
+        <div style="flex:1"><span style="color:var(--ts)">${fdate(m.ts)}</span>${detalle?` <span style="color:var(--tl)">· ${detalle}</span>`:''}</div>
+        <span style="font-weight:700;color:${esUso?'var(--er)':'var(--ok)'};white-space:nowrap">${txt}</span>
+        ${(cRole==='admin'&&m.tipo!=='uso')?`<button class="icon-btn" style="border-color:var(--er);color:var(--er)" title="Eliminar este abono" onclick="haberQuitarMov('${m.ref}')"><i class="ti ti-trash" style="font-size:11px"></i></button>`:''}
+      </div>`;
+    }).join(''):`<div style="font-size:12px;color:var(--tl);padding:.4rem 0">Sin movimientos</div>`}`;
+}
+function haberAgregar(){
+  const c=_haberCli(_haberCid); if(!c)return;
+  const nota=($('haberNota')?.value||'').trim();
+  if(_haberTipo==='dinero'){
+    const monto=Math.round(parseFloat($('haberMonto')?.value)||0);
+    if(!(monto>0)){showToast('Ingresa un monto válido','del');return;}
+    _haberMov(c,{ref:'A-'+_nextTs()+'-'+_dSfx(),tipo:'abono',clase:'dinero',monto,nota});
+    showToast('Abonado '+fmt(monto)+' a '+c.name,'ok');
+  }else{
+    const k=$('haberCat')?.value||''; const qty=Math.round(parseFloat($('haberQty')?.value)||0);
+    if(!k){showToast('Elige una categoría','del');return;}
+    if(!(qty>0)){showToast('Ingresa cuántas unidades','del');return;}
+    const p=_haberKeyPartes(k);
+    _haberMov(c,{ref:'A-'+_nextTs()+'-'+_dSfx(),tipo:'abono',clase:'prod',cat:p.cat,sub:p.sub,qty,nota});
+    showToast('Abonadas '+qty+' unidad(es) de '+_haberKeyTxt(k),'ok');
+  }
+  broadcastState(); renderHaberModal(); renderClients();
+  if(currentClientId===c.id&&document.getElementById('clientDetailModal')?.classList.contains('open'))openClientDetail(c.id);
+}
+function haberQuitarMov(ref){
+  const c=_haberCli(_haberCid); if(!c)return;
+  const ms=_haberMovs(c); const i=ms.findIndex(m=>m&&m.ref===ref);
+  if(i<0)return;
+  if(ms[i].tipo==='uso'){showToast('Un consumo no se puede borrar','del');return;}
+  if(!confirm('¿Eliminar este movimiento del haber? No se puede deshacer.'))return;
+  ms.splice(i,1);
+  /* lápida: el movimiento borrado no revive desde otro equipo */
+  _haberMov(c,{ref:'X-'+ref,tipo:'anulado',clase:'ctrl',anula:ref});
+  broadcastState(); renderHaberModal(); renderClients();
+}
+/* Movimientos anulados: se descartan al calcular y al fusionar */
+function _haberLimpiarAnulados(c){
+  const ms=_haberMovs(c);
+  const anul={}; ms.forEach(m=>{ if(m&&m.tipo==='anulado'&&m.anula)anul[m.anula]=1; });
+  if(!Object.keys(anul).length)return;
+  for(let i=ms.length-1;i>=0;i--){ const m=ms[i]; if(m&&m.ref&&anul[m.ref])ms.splice(i,1); }
+}
+
+/* Franja del haber en la pantalla de pedido de la mesa */
+function _renderHaberStrip(){
+  const el=$('haberStrip'); if(!el)return;
+  const o=currentAccountId?getOrder(currentAccountId):null;
+  const c=(!isMC)?_haberClienteDe(o,cTable&&cTable.id):null;
+  if(!c||!_haberTiene(c)){ el.style.display='none'; el.innerHTML=''; return; }
+  const s=_haberSaldos(c);
+  el.style.display='block';
+  el.innerHTML=`<div style="background:#EAF6EE;border:1px solid var(--ok);border-radius:var(--rl);padding:7px 10px;margin-bottom:8px">
+    <div style="font-size:11px;font-weight:700;color:var(--ok);display:flex;align-items:center;gap:5px">
+      <i class="ti ti-wallet" style="font-size:13px"></i> ${c.name} tiene haber a favor
+    </div>
+    <div style="font-size:11px;color:var(--tm);margin-top:3px">${_haberResumen(c)}</div>
+    ${Object.keys(s.prod).length?`<div style="font-size:10px;color:var(--ts);margin-top:2px">Los productos de esas categorías se agregan en $0 y se descuentan del haber.</div>`:''}
+    ${s.dinero>0?`<div style="font-size:10px;color:var(--ts);margin-top:2px">El dinero abonado se descuenta al cobrar.</div>`:''}
+  </div>`;
 }
 
 /* ── CLIENTS (accessible by waiter + admin) ── */
@@ -3514,6 +4001,7 @@ function renderClients(){
           <span style="font-size:13px;font-weight:700;color:var(--bm)">${fmt(c.totalSpent)}</span>
           <span style="font-size:10px;color:var(--ts)">${c.history.length} visitas</span>
           ${c.pendings.filter(p=>!p.done).length?`<span class="pending-tag"><i class="ti ti-alert-triangle" style="font-size:10px" aria-hidden="true"></i>${c.pendings.filter(p=>!p.done).length} pendiente(s)</span>`:''}
+          ${_haberTiene(c)?`<span class="pending-tag" style="background:#EAF6EE;color:var(--ok)"><i class="ti ti-wallet" style="font-size:10px" aria-hidden="true"></i>Haber: ${_haberResumen(c)}</span>`:''}
         </div>
       </div>
       <i class="ti ti-chevron-right" style="color:var(--tl);font-size:14px" aria-hidden="true"></i>
@@ -3544,6 +4032,15 @@ function openClientDetail(cid){
       <div class="sc"><div class="sl">Ticket promedio</div><div class="sv">${fmt(avg)}</div></div>
       <div class="sc"><div class="sl">Visitas</div><div class="sv">${c.history.length}</div></div>
       <div class="sc"><div class="sl">Pendientes</div><div class="sv" style="color:${c.pendings.filter(p=>!p.done).length?'var(--wn)':'var(--ok)'}">${c.pendings.filter(p=>!p.done).length}</div></div>
+    </div>
+    <div style="background:${_haberTiene(c)?'#EAF6EE':'var(--cr2)'};border:1px solid ${_haberTiene(c)?'var(--ok)':'var(--br)'};border-radius:var(--r);padding:.55rem .7rem;margin-bottom:.8rem">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;color:${_haberTiene(c)?'var(--ok)':'var(--ts)'};text-transform:uppercase;letter-spacing:.6px"><i class="ti ti-wallet" style="font-size:12px;vertical-align:-2px" aria-hidden="true"></i> Haber a favor</div>
+          <div style="font-size:12px;color:var(--tm);margin-top:2px">${_haberTiene(c)?_haberResumen(c):'Sin haber registrado'}</div>
+        </div>
+        <button onclick="openHaber('${cid}')" style="padding:6px 11px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap"><i class="ti ti-wallet" style="font-size:12px;vertical-align:-1px" aria-hidden="true"></i> Haber</button>
+      </div>
     </div>
     <div style="font-size:11px;color:var(--ts);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:.4rem;display:flex;align-items:center;justify-content:space-between">
       Pendientes que les debo
@@ -3687,11 +4184,13 @@ function deleteClient(cid){
   clients=clients.filter(c=>c.id!==cid);closeMod('clientDetailModal');showToast('Cliente eliminado','del');renderClients();
   broadcastState();
 }
-function saveClient(){
+function saveClient(abrirHaber){
   const name=($('cliName').value||'').trim();if(!name){showToast('Ingresa un nombre');return;}
-  clients.push({id:'CLI'+String(clientCnt++).padStart(3,'0')+'-'+_dSfx(),name,phone:$('cliPhone').value.trim(),email:$('cliEmail').value.trim(),notes:$('cliNotes').value.trim(),history:[],pendings:[],totalSpent:0});
+  const _nid='CLI'+String(clientCnt++).padStart(3,'0')+'-'+_dSfx();
+  clients.push({id:_nid,name,phone:$('cliPhone').value.trim(),email:$('cliEmail').value.trim(),notes:$('cliNotes').value.trim(),history:[],pendings:[],totalSpent:0,haberMovs:[]});
   showToast(name+' creado','ok');closeMod('addClientModal');renderClients();
   broadcastState(); /* sincronizar de inmediato (antes quedaba solo en este equipo hasta otra acción) */
+  if(abrirHaber)openHaber(_nid);   /* «Guardar y cargar Haber»: se crea y se abre su haber */
 }
 
 /* ── CAJA ── */
@@ -3846,6 +4345,7 @@ function renderStats(){
         <div style="text-align:right;flex-shrink:0">
           <div style="color:var(--bm);font-weight:700">${fmt(oNet(s))}</div>
           ${s.discount?`<div style="font-size:10px;color:var(--er)">desc. −${fmt(s.discount)}</div>`:''}
+          ${s.haber?`<div style="font-size:10px;color:var(--ok)">haber −${fmt(s.haber)}</div>`:''}
           ${s.tip?`<div style="font-size:10px;color:var(--ts)">+${fmt(s.tip)} propina</div>`:''}
         </div>
       </div>`).join(''):`<div style="color:var(--tl);font-size:12px;padding:.5rem 0">Sin ventas de mesas</div>`}
@@ -3860,7 +4360,7 @@ function renderStats(){
           <div style="font-size:10px;color:var(--ts)">${s.waiter} · ${ftime(s.closedAt||s.time)} · ${s.pago}</div>
           <div style="font-size:10px;color:var(--ts)">${s.items.map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join(', ')}</div>
         </div>
-        <div style="text-align:right;flex-shrink:0"><div style="color:var(--bm);font-weight:700">${fmt(oNet(s))}</div>${s.discount?`<div style="font-size:10px;color:var(--er)">desc. −${fmt(s.discount)}</div>`:''}</div>
+        <div style="text-align:right;flex-shrink:0"><div style="color:var(--bm);font-weight:700">${fmt(oNet(s))}</div>${s.discount?`<div style="font-size:10px;color:var(--er)">desc. −${fmt(s.discount)}</div>`:''}${s.haber?`<div style="font-size:10px;color:var(--ok)">haber −${fmt(s.haber)}</div>`:''}</div>
       </div>`).join(''):`<div style="color:var(--tl);font-size:12px;padding:.5rem 0">Sin ventas de mostrador</div>`}
     </div>`;
 }
@@ -4674,6 +5174,7 @@ function _buildExcel(rng,sales,books){
   /* Importes: BRUTO = suma de productos · NETO = bruto − descuentos · COBRADO = neto + propinas */
   const bruto=sales.reduce((s,o)=>s+oTotal(o),0);
   const desc=sales.reduce((s,o)=>s+(o.discount||0),0);
+  const haber=sales.reduce((s,o)=>s+(o.haber||0),0);
   const neto=sales.reduce((s,o)=>s+oNet(o),0);
   const tips=sales.reduce((s,o)=>s+(o.tip||0),0);
   const cobrado=neto+tips;
@@ -4700,6 +5201,7 @@ function _buildExcel(rng,sales,books){
   row('RESUMEN DE VENTAS (cafetería)');
   row('Ventas brutas (suma de productos)',bruto,'$');
   row('Descuentos aplicados',-desc,'$');
+  if(haber>0)row('Haber de clientes usado (ya estaba pagado)',-haber,'$');
   row('VENTAS NETAS',neto,'$');
   row('Propinas',tips,'$');
   row('TOTAL COBRADO (netas + propinas)',cobrado,'$');
@@ -4734,21 +5236,21 @@ function _buildExcel(rng,sales,books){
 
   /* ── Hoja «Ventas detalle» (una fila por cobro + fila de TOTALES para cuadrar) ── */
   const ordenadas=[...sales].sort((a,b)=>_saleTs(a)-_saleTs(b));
-  const dHead=['Fecha y hora','Día','Tipo','Mesa','Garzón','Cliente','Productos','Unidades','Venta bruta','Descuento','Venta neta','Propina','Total cobrado','Método de pago','Detalle del pago','ID del cobro','Parte del pedido'];
+  const dHead=['Fecha y hora','Día','Tipo','Mesa','Garzón','Cliente','Productos','Unidades','Venta bruta','Descuento','Haber usado','Venta neta','Propina','Total cobrado','Método de pago','Detalle del pago','ID del cobro','Parte del pedido'];
   const dRows=ordenadas.map(s=>{
     const uds=(s.items||[]).reduce((n,i)=>n+(+((i&&i.qty))||0),0);
     const mix=s.pagoMix?('Tarjeta '+fmt(s.pagoMix.tarjeta||0)+' + Efectivo '+fmt(s.pagoMix.efectivo||0)):(s.discountInfo||'');
     return [_xlDate(_saleTs(s)),_xlDay(_saleTs(s)),
       s.type==='mesa'?'Mesa':'Mostrador',s.tableId||'',s.waiter||'',s.clientName||'',
       (s.items||[]).map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join('; '),uds,
-      oTotal(s),(s.discount||0),oNet(s),(s.tip||0),oNet(s)+(s.tip||0),
+      oTotal(s),(s.discount||0),(s.haber||0),oNet(s),(s.tip||0),oNet(s)+(s.tip||0),
       NOM[MET.indexOf(s.pago)>=0?s.pago:'otros'],mix,s.id||'',s.splitOf||''];
   });
-  dRows.push(['TOTALES','','','','','','',dRows.reduce((n,r)=>n+(+r[7]||0),0),bruto,desc,neto,tips,cobrado,'','','','']);
+  dRows.push(['TOTALES','','','','','','',dRows.reduce((n,r)=>n+(+r[7]||0),0),bruto,desc,haber,neto,tips,cobrado,'','','','']);
   const wsD=XLSX.utils.aoa_to_sheet([dHead,...dRows]);
   _xlFmtCol(wsD,0,1,dRows.length-1,_XL_DATEF);_xlFmtCol(wsD,1,1,dRows.length-1,_XL_DAYF);
-  [8,9,10,11,12].forEach(c=>_xlMoneyCol(wsD,c,1,dRows.length));
-  wsD['!cols']=[{wch:18},{wch:12},{wch:10},{wch:7},{wch:14},{wch:16},{wch:42},{wch:9},{wch:13},{wch:12},{wch:12},{wch:11},{wch:14},{wch:22},{wch:26},{wch:20},{wch:18}];
+  [8,9,10,11,12,13].forEach(c=>_xlMoneyCol(wsD,c,1,dRows.length));
+  wsD['!cols']=[{wch:18},{wch:12},{wch:10},{wch:7},{wch:14},{wch:16},{wch:42},{wch:9},{wch:13},{wch:12},{wch:12},{wch:12},{wch:11},{wch:14},{wch:22},{wch:26},{wch:20},{wch:18}];
   wsD['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:dRows.length,c:dHead.length-1}})};
   XLSX.utils.book_append_sheet(wb,wsD,'Ventas detalle');
 
@@ -7079,7 +7581,7 @@ function getSerializableState(){
     orders:orders.map(o=>({...o})),
     tables:tables.map(t=>({...t})),
     closedSales:closedSales.map(s=>({...s})),
-    clients:clients.map(c=>({...c,history:[...c.history],pendings:[...c.pendings]})),
+    clients:clients.map(c=>({...c,history:[...c.history],pendings:[...c.pendings],haberMovs:[...(c.haberMovs||[])]})),
     ordCnt,totalOrdsIn,clientCnt,
     kDone:JSON.parse(JSON.stringify(kDone)),
     caja:{...caja,movements:[...caja.movements],log:[...caja.log]},
@@ -7151,8 +7653,8 @@ async function _syncHistory(){
 /* Versión de NIVEL PEDIDO (_mts) y de NIVEL PRODUCTO (_its), por separado: un cambio de Cocina
    en un producto y un producto nuevo agregado por el garzón son cambios independientes. */
 let _ordSig={}, _itemSig={};
-function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.type,o.waiter,o.tip,o.discount,o.discountInfo,o.pago,o.clientName,o.clientId,o.kitchenHidden,o.kitchenStartTime,o.stockDescontado,o.closedAt,_splitPays(o).map(p=>p&&p.ref).sort()]); }catch(e){ return 'x'+Math.random(); } }
-function _itemSigOf(it){ try{ return JSON.stringify([it.name,it.qty,it.price,it.detail,it.note,it.noteKitchen,it.kstate,it.kStart,it.kEnd,it.kdone,it.kdisp]); }catch(e){ return 'x'+Math.random(); } }
+function _ordSigOf(o){ try{ return JSON.stringify([o.status,o.tableId,o.type,o.waiter,o.tip,o.discount,o.discountInfo,o.haber,o.splitDisc,o.pago,o.clientName,o.clientId,o.kitchenHidden,o.kitchenStartTime,o.stockDescontado,o.closedAt,_splitPays(o).map(p=>p&&p.ref).sort()]); }catch(e){ return 'x'+Math.random(); } }
+function _itemSigOf(it){ try{ return JSON.stringify([it.name,it.qty,it.price,it.detail,it.note,it.noteKitchen,it.kstate,it.kStart,it.kEnd,it.kdone,it.kdisp,it.cred?1:0]); }catch(e){ return 'x'+Math.random(); } }
 function _stampOrders(){
   const ids={}, iks={};
   orders.forEach(o=>{ if(!o||!o.id)return; _normOrder(o); ids[o.id]=1;
@@ -7174,7 +7676,7 @@ function _convDigest(st){
   try{
     const o=(st.orders||[]).filter(x=>x&&x.id&&x.status!=='closed'&&!delOrders[x.id]).map(x=>x.id+':'+(x._mts||0)+':'+(x.status||'')+':'+(x.items||[]).filter(it=>it&&!(x.rmItems&&x.rmItems[it.uid])).map(it=>(it.uid||'?')+'.'+(it._its||0)+'.'+(it.kdisp?1:0)).sort().join(',')+':'+Object.keys(x.rmItems||{}).sort().join(',')).sort().join('|');
     const cs=(st.closedSales||[]).filter(x=>!_saleCleared(x)).map(x=>x&&x.id).filter(Boolean).sort().join(',');
-    const cl=(st.clients||[]).map(x=>x&&x.id).filter(id=>id&&!delClients[id]).sort().join(',');
+    const cl=(st.clients||[]).filter(x=>x&&x.id&&!delClients[x.id]).map(x=>x.id+'.'+((x.haberMovs||[]).length)).sort().join(',');
     const bk=(st.bookSales||[]).filter(b=>b&&b.id&&!delBooks[b.id]&&!((b.ts||0)<=bookClearTs)).map(b=>b.id).sort().join(',');
     const cm=st.caja?((st.caja.openTime||0)+'#'+(st.caja.open?1:0)+'#'+(st.caja.movements||[]).length):'';
     const tb=[Object.keys(st.delOrders||{}).length,Object.keys(st.delClients||{}).length,Object.keys(st.delBooks||{}).length,st.bookClearTs||0,st.salesClearTs||0,Object.keys(st.delSales||{}).length].join('/');
@@ -7327,7 +7829,14 @@ function applyRemoteState(data,force){
       const ch={}; clients.forEach(c=>{ if(c&&c.id)ch[c.id]=c; });
       s.clients.forEach(rc=>{ if(!rc||!rc.id||delClients[rc.id])return; const lc=ch[rc.id];
         if(!lc){ clients.push(rc); ch[rc.id]=rc; }
-        else if(!_older){ const idx=clients.indexOf(lc); if(idx>=0)clients[idx]=rc; ch[rc.id]=rc; } });
+        else {
+          /* El libro del HABER se fusiona por UNIÓN de movimientos (cada uno tiene su
+             referencia única), igual que los cobros divididos: ningún abono ni consumo
+             se pierde ni se duplica, aunque dos equipos trabajen a la vez. */
+          const _hu=_haberUnion(lc,rc);
+          if(!_older){ const idx=clients.indexOf(lc); if(idx>=0)clients[idx]=rc; ch[rc.id]=rc; rc.haberMovs=_hu; }
+          else { lc.haberMovs=_hu; }
+        } });
     }
     for(let i=clients.length-1;i>=0;i--){ const c=clients[i]; if(c&&c.id&&delClients[c.id])clients.splice(i,1); }
     if(!_older&&s.kDone)Object.assign(kDone,s.kDone);
