@@ -4833,8 +4833,9 @@ function lblPrint(){
   printLabels(withCode,$('lblTitles')?.checked);
 }
 let _biBook=null;
-function openBookInfo(i){
-  const b=_catFiltered[i];if(!b)return;
+function openBookInfo(i){const b=_catFiltered[i];if(!b)return;_openBookCard(b);}
+function _openBookCard(b){
+  if(!b)return;
   _biBook=b;
   const code=_cg(b,'code');
   $('biTitle').innerHTML=(code?`<span style="display:inline-block;font-size:12px;font-weight:700;font-family:ui-monospace,monospace;color:#fff;background:var(--bm);border-radius:6px;padding:2px 8px;margin-bottom:6px">${_esc(code)}</span><br>`:'')+_esc(_cg(b,'t'));
@@ -5191,13 +5192,31 @@ function _renderCodeAlert(){
   const el=$('catCodeAlert');if(!el)return;
   let h='';
   if(_catMeta&&_catMeta.fixV===_CODEFIX_V&&!_catMeta.fixAck&&_catMeta.fixN){
-    h+=`<div style="display:flex;align-items:flex-start;gap:8px;background:#e8f7ee;border:1px solid var(--ok);border-radius:var(--r);padding:9px 11px;margin-bottom:7px">
-      <i class="ti ti-circle-check" style="color:var(--ok);font-size:16px;flex-shrink:0;margin-top:1px"></i>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12.5px;color:var(--tm);line-height:1.5"><b>Se actualizaron correctamente los códigos de ${_catMeta.fixN} libros de la biblioteca</b> según el criterio correcto: tres letras del <b>primer apellido</b> del escritor (el paterno), nunca del segundo.</div>
-        <div style="font-size:11px;color:var(--ts);margin-top:3px">Cada libro corregido muestra su propio aviso al abrirlo. Este mensaje desaparece para siempre cuando lo confirmes.</div>
+    /* Los libros que cambiaron de código en esta corrección, ordenados por el código nuevo */
+    const act=[];bookCatalog.forEach((b,i)=>{if(b.cOld)act.push(i);});
+    act.sort((x,y)=>String(bookCatalog[x].code||'').localeCompare(String(bookCatalog[y].code||''),'es'));
+    const lista=!_catFixOpen?'':`<div style="margin-top:8px;border:1px solid var(--br);border-radius:var(--r);background:var(--wh);max-height:300px;overflow:auto">
+        ${act.map(i=>{const b=bookCatalog[i];return `<div onclick="catFixVerLibro(${i})" title="Abrir la ficha del libro" style="display:flex;align-items:center;gap:7px;padding:6px 8px;border-bottom:1px solid var(--br);cursor:pointer">
+          <span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--ts);text-decoration:line-through;white-space:nowrap;flex-shrink:0">${_esc(String(b.cOld))}</span>
+          <i class="ti ti-arrow-narrow-right" style="font-size:12px;color:var(--ts);flex-shrink:0"></i>
+          <span style="font-family:ui-monospace,monospace;font-size:10px;font-weight:700;color:var(--bm);background:var(--cr);border:1px solid var(--br);border-radius:5px;padding:1px 5px;white-space:nowrap;flex-shrink:0">${_esc(String(b.code||''))}</span>
+          <span style="flex:1;min-width:0;font-size:11.5px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))} <span style="color:var(--ts)">· ${_esc(_cg(b,'a'))}</span></span>
+          ${(b.cOld&&!b.cAck)?'<span title="Aviso sin confirmar" style="width:7px;height:7px;border-radius:50%;background:var(--ok);flex-shrink:0"></span>':''}
+        </div>`;}).join('')}
+      </div>`;
+    h+=`<div style="background:#e8f7ee;border:1px solid var(--ok);border-radius:var(--r);padding:9px 11px;margin-bottom:7px">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <i class="ti ti-circle-check" style="color:var(--ok);font-size:16px;flex-shrink:0;margin-top:1px"></i>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;color:var(--tm);line-height:1.5"><b>Se actualizaron correctamente los códigos de ${_catMeta.fixN} libros de la biblioteca</b> según el criterio correcto: tres letras del <b>primer apellido</b> del escritor (el paterno), nunca del segundo.</div>
+          <div style="font-size:11px;color:var(--ts);margin-top:3px">Cada libro corregido muestra su propio aviso al abrirlo. Este mensaje desaparece para siempre cuando lo confirmes.</div>
+          <button onclick="catFixToggle()" style="margin-top:6px;padding:4px 11px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">
+            <i class="ti ti-chevron-${_catFixOpen?'up':'down'}" style="font-size:12px;vertical-align:-2px"></i> ${_catFixOpen?'Ocultar la lista':'Ver qué libros se actualizaron ('+act.length+')'}
+          </button>
+        </div>
+        <button onclick="catCodeAlertOK()" style="flex-shrink:0;padding:5px 13px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">OK</button>
       </div>
-      <button onclick="catCodeAlertOK()" style="flex-shrink:0;padding:5px 13px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">OK</button>
+      ${lista}
     </div>`;
   }
   const rev=_catRevisar().length;
@@ -5213,6 +5232,10 @@ function _renderCodeAlert(){
   }
   el.innerHTML=h;el.style.display=h?'block':'none';
 }
+let _catFixOpen=false;   /* la lista de libros actualizados está desplegada */
+function catFixToggle(){_catFixOpen=!_catFixOpen;_renderCodeAlert();}
+/* Abrir la ficha de un libro desde la lista del aviso */
+function catFixVerLibro(i){_openBookCard(bookCatalog[i]);}
 function catCodeAlertOK(){
   _catMeta.fixAck=1;_renderCodeAlert();
   _saveCatalogToCloud().then(r=>showToast(r&&r.error?'Confirmado; se sincronizará al reconectar':'Aviso confirmado','ok'));
