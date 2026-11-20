@@ -816,6 +816,7 @@ body.dark .info-note b{color:#7fb0e0}
           <button onclick="openLabelModal()" title="Seleccionar libros y descargar el PDF de etiquetas (15×20 mm)" style="padding:5px 10px;border:1px solid var(--bm);color:#fff;background:var(--bm);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-tags" style="font-size:11px;vertical-align:-1px"></i> Generar Etiquetas</button>
           <button onclick="exportCatalogXlsx()" title="Descargar el catálogo completo en Excel" style="padding:5px 10px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-file-spreadsheet" style="font-size:11px;vertical-align:-1px"></i> Exportar Excel</button>
           <button id="btnCatImport" onclick="_triggerImport('catImportFile')" title="Actualizar el catálogo desde el Excel" style="padding:5px 10px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-upload" style="font-size:11px;vertical-align:-1px"></i> Importar Excel</button>
+          <button onclick="openCodeReview()" title="Confirmar el primer apellido en los libros donde no se puede deducir solo" style="padding:5px 10px;border:1px solid #b57c00;color:#b57c00;background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600"><i class="ti ti-help-circle" style="font-size:11px;vertical-align:-1px"></i> Revisar códigos</button>
           <input type="file" id="catImportFile" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0])importCatalogXlsx(this.files[0])">
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-bottom:.7rem">
@@ -828,6 +829,7 @@ body.dark .info-note b{color:#7fb0e0}
           <button onclick="clearCatFilter()" style="padding:7px 8px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px"><i class="ti ti-x" style="font-size:11px;vertical-align:-1px"></i> Limpiar</button>
         </div>
         <datalist id="catAutoresDL"></datalist>
+        <div id="catCodeAlert" style="display:none"></div>
         <div id="catResults"></div>
       </div>
 
@@ -929,9 +931,24 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;bookModal&#39;)">Cancelar</button><button class="bc2" onclick="saveBookSale()">Guardar</button></div>
 </div></div>
 
+<div class="ov" id="codeReviewModal"><div class="mb" style="max-width:560px;width:100%">
+  <h3 style="margin-bottom:.2rem"><i class="ti ti-help-circle" style="color:#b57c00"></i> Revisar códigos <span id="crCount" style="font-size:11px;color:var(--ts);font-weight:600"></span></h3>
+  <div style="font-size:11.5px;color:var(--ts);line-height:1.5;margin-bottom:.7rem">El código usa las tres primeras letras del <b>primer apellido</b> del escritor. En estos nombres la app no puede saberlo sola (apellidos con «de», países donde el apellido va primero, palabras que sirven de nombre y de apellido…). Toca la palabra que es el primer apellido y el código se corrige al instante.</div>
+  <div id="crBody" style="max-height:60vh;overflow:auto"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod('codeReviewModal')">Cerrar</button></div>
+</div></div>
+<div class="ov" id="apPickModal"><div class="mb" style="max-width:440px;width:100%">
+  <h3 style="margin-bottom:.2rem"><i class="ti ti-user-question" style="color:var(--bm)"></i> ¿Cuál es el primer apellido?</h3>
+  <div style="font-size:12px;color:var(--ts);line-height:1.5;margin-bottom:.6rem">No se puede deducir solo con este nombre, y el código no debe generarse al azar. Toca la palabra que es el <b>primer apellido</b> (el paterno) del escritor.</div>
+  <div id="apPickName" style="font-size:13.5px;font-weight:600;color:var(--tm);background:var(--cr);border-radius:var(--r);padding:7px 10px;margin-bottom:.6rem"></div>
+  <input type="hidden" id="apPickToks">
+  <div id="apPickBody" style="display:flex;flex-wrap:wrap"></div>
+  <div class="ma"><button class="bs2" onclick="closeMod('apPickModal');_apPickCB=null">Cancelar</button></div>
+</div></div>
 <div class="ov" id="bookInfoModal"><div class="mb" style="max-width:460px;width:100%">
   <h3 id="biTitle" style="margin-bottom:.3rem"></h3>
   <div id="biAuthor" style="font-size:13px;color:var(--ts);margin-bottom:.7rem"></div>
+  <div id="biCodeAlert" style="display:none"></div>
   <div id="biMeta" style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px;margin-bottom:.8rem"></div>
   <div id="biDescWrap" style="display:none">
     <div style="font-size:11px;font-weight:700;color:var(--bd);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Descripción</div>
@@ -4561,12 +4578,14 @@ async function loadBookCatalog(force){
     await loadTaxonomy();
     if(_sb){
       const {data}=await _sb.from('econativo_state').select('payload').eq('key','book_catalog').maybeSingle();
-      if(data&&data.payload&&Array.isArray(data.payload.books)){bookCatalog=data.payload.books;_catLoaded=true;}
+      if(data&&data.payload&&Array.isArray(data.payload.books)){bookCatalog=data.payload.books;_catLoaded=true;_catMeta=_catMetaDe(data.payload);}
     }
   }catch(e){console.warn('[Biblioteca] no se pudo cargar el catálogo:',e&&e.message);}
   _catLoading=false;
   const ap=document.querySelector('.page.active');
   if(ap&&ap.id==='page-catalogo')renderCatalogo();
+  /* Corrección de los códigos al criterio del primer apellido: una sola vez */
+  try{await _migrarCodigosBiblioteca();}catch(e){}
 }
 /* ── Taxonomía editable (Gestionar Géneros): se guarda en econativo_state key='book_taxonomy' ── */
 let _taxLoaded=false;
@@ -4676,6 +4695,7 @@ const _cg=(b,k)=>String((b&&b[k])||'').trim();
 function _catUniq(k){return [...new Set(bookCatalog.map(b=>_cg(b,k)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));}
 function renderCatalogo(){
   const cont=$('catResults');if(!cont)return;
+  _renderCodeAlert();
   if(!bookCatalog.length){
     $('catCount').textContent='';
     cont.innerHTML='<div class="noo"><i class="ti ti-library" aria-hidden="true"></i><p>'+(_catLoading?'Cargando catálogo…':'Catálogo no disponible. Usa «Importar Excel» para cargarlo.')+'</p></div>';
@@ -4730,6 +4750,7 @@ function renderCatResults(){
       <div style="min-width:0;flex:1">
         <div style="display:flex;align-items:center;gap:6px;min-width:0">
           ${_cg(b,'code')?`<span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;color:var(--bm);background:var(--cr);border:1px solid var(--br);border-radius:5px;padding:1px 5px;flex-shrink:0;white-space:nowrap">${_esc(_cg(b,'code'))}</span>`:''}
+          ${(b.cOld&&!b.cAck)?'<span title="El código de este libro fue actualizado" style="font-size:9px;font-weight:700;color:#fff;background:var(--ok);border-radius:20px;padding:1px 6px;flex-shrink:0;white-space:nowrap">código actualizado</span>':''}
           <span style="font-size:14px;font-weight:600;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(_cg(b,'t'))}</span>
         </div>
         <div style="font-size:11px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${_esc(_cg(b,'a'))}${_cg(b,'pais')?' · '+_esc(_cg(b,'pais')):''}</div>
@@ -4820,6 +4841,7 @@ function openBookInfo(i){
   $('biAuthor').innerHTML='<i class="ti ti-user" style="font-size:11px;vertical-align:-1px"></i> '+(_esc(_cg(b,'a'))||'—');
   const rows=[['País','pais'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib']];
   $('biMeta').innerHTML=rows.filter(([,k])=>_cg(b,k)).map(([lbl,k])=>`<div style="color:var(--ts);font-weight:600">${lbl}</div><div style="color:var(--tm)">${_esc(_cg(b,k))}</div>`).join('');
+  _renderBiCodeAlert(b);
   const desc=_cg(b,'d');
   $('biDescWrap').style.display=desc?'block':'none';
   if(desc)$('biDesc').textContent=desc;
@@ -4832,6 +4854,204 @@ const _cln=v=>String(v==null?'':v).replace(/\s+/g,' ').trim();
 const _noAcc=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'');
 const _nm=s=>_noAcc(_cln(s)).toLowerCase();
 const _firstAuthor=a=>_cln(String(a).split(/[\/&;]| y | e /i)[0]);
+/* ═══════════════════════════════════════════════════════════════════════
+   PRIMER APELLIDO DEL AUTOR  ·  motor de códigos de la Biblioteca
+   El código de lomo es GEN-PAIS-APE-NNN, donde APE son las tres primeras
+   letras del PRIMER apellido (el paterno), nunca del segundo:
+     Raúl Silva Castro → SIL      Juan López González → LOP
+     Pablo Neruda      → NER      Gabriela Mistral    → MIS
+   En español el orden es «Nombre(s) Apellido1 Apellido2», así que el primer
+   apellido es la palabra que sigue a los nombres de pila. En inglés, francés
+   o alemán el apellido es la última palabra, y en chino/japonés/coreano va
+   primero: por eso la convención se decide según el país del libro.
+   Cuando el nombre no permite decidirlo con certeza NO se inventa nada: el
+   libro queda para revisión manual con una sugerencia que basta confirmar.
+   ═══════════════════════════════════════════════════════════════════════ */
+const _apCln=v=>String(v==null?'':v).replace(/\s+/g,' ').trim();
+const _apNoAcc=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'');
+const _apNm=s=>_apNoAcc(_apCln(s)).toLowerCase();
+
+/* Países donde rige el orden español: dos apellidos y manda el primero */
+const _AP_HISPANO=new Set(['chile','argentina','espana','mexico','peru','colombia','uruguay','venezuela','cuba','guatemala','ecuador','bolivia','paraguay','costa rica','panama','republica dominicana','el salvador','honduras','nicaragua','puerto rico','hispanoamerica','latinoamerica','iberoamerica',
+  'chilena','chileno','argentino','espanola','espanol','mexicana','mexicano','peruana','peruano','colombiana','colombiano','uruguaya','uruguayo','venezolana','venezolano','cubana','cubano','guatemalteca','guatemalteco','ecuatoriana','ecuatoriano','boliviana','boliviano','paraguaya','paraguayo','costarricense','panamena','panameno','dominicana','dominicano','salvadorena','salvadoreno','hondurena','hondureno','nicaraguense','puertorriquena','puertorriqueno']);
+/* Países donde el apellido puede ir primero: no se puede deducir el orden */
+const _AP_ORIENTAL=new Set(['china','japon','corea','corea del sur','corea del norte','vietnam','taiwan','chino','japonesa','japones','coreana','coreano','vietnamita','taiwanesa','taiwanes']);
+
+const _AP_PARTIC=new Set(['de','del','la','las','los','van','von','da','di','du','le','dos','das','della','ter','ten','af','bin','al','saint','st','mac','mc','ibn','abu','vander','degli','dei']);
+/* Tratamientos, cargos y órdenes religiosas: no forman parte del nombre */
+const _AP_TITULO=new Set(['dr','dra','doctor','doctora','prof','profesor','profesora','sr','sra','srta','don','dona','padre','fray','sor','madre','mons','monsenor','pbro','presbitero','lic','licenciado','ing','ingeniero','arq','abate','duque','conde','condesa','marques','marquesa','baron','baronesa','rey','reina','santo','san','mr','mrs','ms','sir','lord','lady','general','coronel','capitan','almirante','jr','jnr','snr','hijo','ii','iii','iv','phd','md','osb','sj','ofm','op','ssc','msc','cmf']);
+/* Abreviaturas de nombre de pila: se escriben con punto (Fco. Ma. Gmo.) */
+const _AP_ABREV=new Set(['fco','fdo','gmo','ma','jta','rbto','fca','ant','jno','gpe','mig','salv','alej','nn']);
+/* Palabras que delatan que el «autor» es una institución o una editorial */
+const _AP_INSTIT=/\b(ministerio|instituto|universidad|universitaria|biblioteca|libreria|imprenta|talleres|corporacion|fundacion|museo|gobierno|municipalidad|sociedad|editorial|ediciones|comision|consejo|direccion general|departamento|servicio nacional|sernatur|empresa|banco|camara de|academia|colegio|escuela|liceo|asociacion|federacion|comite|secretaria de|subsecretaria|television|agencia|organizacion|naciones unidas|unesco|unicef|oficina|tribunal|corte suprema|congreso|senado|parlamento|ltda|s\.\s?a\.?|spa|inc|cia|compania)\b/;
+const _AP_ANONIMO=/^(anonimo|anonima|varios autores|varios|vv\.?\s?aa|autores varios|colectivo|desconocido|sin autor|aa\.?\s?vv|no aplica|n\/a|\?+|-+)$/;
+/* Señales de que el campo no es un nombre de persona sino una nota editorial */
+const _AP_NOTA=/[\[\]]|\b(adaptacion|seleccion|compilacion|antologia|recopilacion|traduccion|version de|edicion de|editores|editado por|coordinado|presentacion de)\b/i;
+const _AP_ROL=/^\s*(editores?|editora|compilador(a|es)?|coordinador(a|es)?|seleccion|antologia|recopilacion|adaptacion|traduccion|version|texto|textos|ilustraciones|fotografias|prologo|autores)\s*:/i;
+/* Terminaciones inconfundiblemente de apellido español (patronímicos) */
+const _AP_FIN=/(ez|az|iz|oz|uz)$/;
+
+/* Nombres de pila frecuentes en español: sirven para saber dónde terminan los nombres */
+const _AP_PILA=new Set((`jose juan maria carlos luis miguel francisco antonio manuel pedro jorge rafael ramon fernando javier ricardo eduardo alberto roberto sergio pablo andres diego alejandro felipe ignacio gonzalo cristian cristobal sebastian matias nicolas vicente tomas benjamin martin agustin joaquin emilio hector hugo raul oscar victor enrique guillermo arturo armando alfredo gustavo mario marcelo patricio rodrigo claudio jaime gabriel daniel david samuel isaac adolfo augusto cesar julio mauricio rene rolando salvador santiago teodoro tulio waldo ernesto eugenio federico gerardo german gregorio lorenzo lucas marcos mateo nestor norberto octavio osvaldo pascual rogelio rodolfo ruben saul silvio ulises valentin wenceslao abel adrian alvaro amadeo anibal baltasar bartolome bernardo bruno camilo clemente damian dario demetrio domingo edgardo efrain eliseo elias emiliano eliodoro fabian fausto fidel florencio gaspar genaro gilberto heriberto homero horacio humberto ismael israel ivan jacobo jeronimo jesus joel jonas leonardo leopoldo lino lucio marcial maximo nemesio nicanor olegario pelayo policarpo porfirio quintin remigio ruperto sabino sixto telesforo timoteo tiburcio tobias urbano venancio zacarias eustasio eustaquio evaristo exequiel ezequiel facundo faustino fermin fernan franco froilan fulgencio galvarino gerson gumercindo heraclio hermogenes hernan hilario indalecio inocencio isidoro isidro jacinto juvenal ladislao lautaro leandro lisandro longino luciano ludovico manlio marcelino mardoqueo mariano maximiliano melchor modesto moises napoleon narciso natalio nemorino nilo noe norman obdulio onofre orlando pantaleon paulino placido plutarco procopio quintiliano ramiro raimundo regulo reinaldo roque rosendo rufino sandalio saturnino segundo serafin servando sigfrido simon sinforoso tadeo tarsicio teofilo tito torcuato tristan valerio vidal virgilio wilfredo zenon santos esteban toribio anton aurelio celso eliecer eleodoro abdon anselmo apolinario benigno bonifacio ceferino cipriano eleuterio epifanio eulogio fortunato hipolito leocadio macario nicomedes prudencio sotero teodosio valeriano zoilo cuauhtemoc nezahualcoyotl moctezuma caupolican lincoyan galvarino tupac atahualpa inti amaru
+maria ana isabel carmen rosa laura patricia claudia andrea paula francisca javiera camila valentina catalina constanza antonia josefa florencia alejandra veronica carolina daniela gabriela marcela mariana monica natalia paulina pilar raquel sandra silvia sofia soledad susana teresa victoria violeta ximena yolanda adriana alicia amalia amanda angela angelica beatriz berta blanca cecilia celia clara consuelo cristina delia dolores elena elisa elvira emilia ester esther eugenia eva fabiola filomena gloria graciela guadalupe ines irene irma julia juana leonor lidia lorena lucia lucy luisa luz magdalena manuela margarita marta martina matilde mercedes nelly nieves norma olga paz pia rebeca rocio sara sonia tamara ursula valeria vania virginia adela agustina aida albertina aurora azucena bernardita brigida carla carlota casilda celeste cleofe corina delfina dina dominga edith elba eliana elsa emma encarnacion erika estela etelvina eufemia eulalia fanny felisa fidelia flor flora fresia gilda gladys grace griselda haydee herminia hilda ida ignacia ilda imelda iris isaura jacinta jimena josefina judith julieta justina lastenia laurencia leontina lila liliana lorenza lucila ludovina mafalda magaly marcia marina maritza marlene melania micaela milagros mirta mireya nancy nela nidia nilda noemi nora norberta obdulia odette ofelia olivia oriana otilia pamela pascuala perla petronila primitiva priscila quintina ramona raimunda rita roberta rosalia rosario rosaura ruth sabina salome sarita saturnina selva serafina severina sidonia simona sinforosa susanita tatiana telma teodora tomasa trinidad venancia vicenta victorina vilma wilma yasna yenny yesenia zenaida zoila zulema belen angeles asuncion concepcion amparo remedios socorro montserrat monserrat purificacion enriqueta eloisa genoveva`).split(/\s+/).filter(Boolean));
+
+/* Apellidos españoles frecuentes: confirman una decisión dudosa */
+const _AP_APELLIDO=new Set((`garcia gonzalez rodriguez fernandez lopez martinez sanchez perez gomez martin jimenez ruiz hernandez diaz moreno munoz alvarez romero alonso gutierrez navarro torres dominguez vazquez ramos gil ramirez serrano blanco suarez molina morales ortega delgado castro ortiz rubio marin sanz nunez iglesias medina garrido cortes castillo santos lozano guerrero cano prieto mendez cruz calvo gallego vidal leon herrera marquez pena cabrera campos vega fuentes carrasco diez caballero reyes nieto aguilar pascual santana herrero lorenzo montero hidalgo gimenez ibanez ferrer duran santiago benitez mora vicente arias carmona crespo roman pastor soto saez velasco moya soler parra esteban bravo gallardo rojas pardo merino franco espinosa izquierdo arroyo lara rivas silva rivera bustos araya contreras valenzuela sepulveda fuentealba riquelme figueroa cerda tapia salazar henriquez escobar miranda ulloa carvajal venegas yanez saavedra alarcon zuniga cuevas palma pizarro riveros maldonado moraga toro bustamante vergara barrera orellana salinas sandoval guzman cardenas acuna oyarzun aguilera vera leiva burgos farias ojeda mellado godoy inostroza vallejos arellano lagos barrios quezada poblete valdes olivares urrutia espinoza paredes gatica pino cuadra bascunan rebolledo ganga canales catalan jara pacheco villalobos gaete donoso cifuentes aguayo maturana zamora larrain errazuriz subercaseaux tocornal irarrazaval balmaceda montt edwards prat vicuna mackenna lastarria barros blest gana amunategui orrego lillo latorre prado gumucio valdivia carrera recabarren matte ossa echeverria letelier sanfuentes alessandri frei allende aylwin pinera boric banados echenique bryce arguedas vargas ribeyro bioy sabato cortazar borges onetti benedetti galeano quiroga rulfo paz monsivais poniatowska castellanos nervo villaurrutia pellicer sabines pacheco aridjis krauze volpi padilla sainz esquivel mastretta boullosa glantz pitol elizondo arreola azuela magdaleno revueltas garro campobello duenas neruda mistral huidobro parra rokha bombal brunet eltit zurita lihn teillier millan skarmeta dorfman jodorowsky labarca sepulveda ampuero fuguet contardo zambra costamagna meruane wacquez emar encina eyzaguirre arana gay ovalle vivar ercilla carvallo goyeneche galdames jocelyn holt correa pinto grez gazmuri heise krebs harriet`).split(/\s+/).filter(Boolean));
+
+/* Corpus: cómo se usa cada palabra en ESTE catálogo. Es solo una ayuda. */
+let _AP_CORPUS=null;
+function _apCorpus(books){
+  if(_AP_CORPUS&&_AP_CORPUS.n===(books?books.length:0))return _AP_CORPUS;
+  const pila={},ape={},add=(o,w)=>{const k=_apNm(w);if(k.length>1)o[k]=(o[k]||0)+1;};
+  (books||[]).forEach(b=>{
+    const crudo=_apCln(b&&b.a);if(!crudo||_AP_INSTIT.test(_apNm(crudo)))return;
+    const t=_apToks(_apPrimerAutor(crudo));
+    if(t.length===2){add(pila,t[0]);add(ape,t[1]);}
+    else if(t.length>=3){add(pila,t[0]);add(ape,t[t.length-1]);}
+  });
+  _AP_CORPUS={n:books?books.length:0,pila,ape};
+  return _AP_CORPUS;
+}
+function _apEsPila(w,corpus){
+  const k=_apNm(w);
+  if(_AP_PILA.has(k))return true;
+  return !!(corpus&&(corpus.pila[k]||0)>=3&&!(corpus.ape[k]||0));
+}
+function _apEsApellido(w,corpus){
+  const k=_apNm(w);
+  if(_AP_APELLIDO.has(k))return true;
+  if(_AP_FIN.test(k)&&k.length>=5&&!_AP_PILA.has(k))return true;   /* …ez  …az  …oz */
+  return !!(corpus&&(corpus.ape[k]||0)>=1);
+}
+
+/* Primer autor cuando el campo trae varios, y limpieza de apodos y notas */
+function _apPrimerAutor(a){
+  let s=_apCln(a).replace(/[‘’´`]/g,"'");
+  s=s.replace(/\[[^\]]*\]/g,' ').replace(/\([^)]*\)/g,' ');
+  s=s.replace(/["“”«»]/g,' ');
+  s=s.replace(/^[^:]{0,24}:\s*/,'');
+  s=s.split(/[\/&;·•]|\sy\s|\se\s|\sand\s|\swith\s|et al/i)[0];
+  return _apCln(s);
+}
+/* Palabras del nombre, sin tratamientos, iniciales ni abreviaturas.
+   El array lleva .iniIni=true si el nombre EMPIEZA por inicial o abreviatura
+   («J.K. Rowling», «Fco. Frías Valenzuela»): entonces lo que queda son apellidos. */
+function _apToks(nombre){
+  const brutos=_apNoAcc(String(nombre||'')).replace(/[^A-Za-z.'\-\s]/g,' ').split(/\s+/).filter(Boolean);
+  const out=[];let iniIni=false,vistaPalabra=false;
+  for(const w of brutos){
+    const limpio=w.replace(/\./g,''),k=limpio.toLowerCase();
+    const esTitulo=_AP_TITULO.has(k);
+    const esInicial=/^[A-Za-z]\.?$/.test(w)||/^([A-Za-z]\.){2,}$/.test(w);   /* J.  J.K.  O.S.B. */
+    const esAbrev=/\.$/.test(w)&&_AP_ABREV.has(k);
+    if(esTitulo)continue;
+    if(esInicial||esAbrev){ if(!vistaPalabra)iniIni=true; continue; }
+    if(limpio.length<2)continue;
+    out.push(limpio);vistaPalabra=true;
+  }
+  out.iniIni=iniIni;
+  return out;
+}
+const _apTres=s=>{const c=_apNoAcc(String(s||'')).toUpperCase().replace(/[^A-Z]/g,'');return c.length>=3?c.slice(0,3):(c?(c+'XX').slice(0,3):null);};
+/* Salta partículas desde la posición i */
+function _apSalta(t,i){let p=false;while(i<t.length-1&&_AP_PARTIC.has(t[i].toLowerCase())){i++;p=true;}return {i,p};}
+
+/* ── Resultado ───────────────────────────────────────────────────────────
+   {ape, seguro, motivo, autor, toks, idx, sugerencia, clase}
+   seguro:false → no se toca el código; el libro aparece en «Revisar códigos».
+   clase 'persona'  → hay que decidir qué palabra del nombre es el apellido.
+   clase 'sinautor' → no hay persona de la que sacar el apellido (anónimo,
+                      institución, antología): el código se deja como está.   */
+function apellidoInfo(autorRaw,pais,nc,books){
+  const corpus=books?_apCorpus(books):null;
+  const crudo=_apCln(autorRaw);
+  const nada=motivo=>({ape:null,seguro:false,motivo,clase:'sinautor'});
+  if(!crudo)return nada('El libro no tiene autor');
+  const nm=_apNm(crudo);
+  if(_AP_ANONIMO.test(nm.replace(/[()]/g,'').trim()))return nada('Autor anónimo o «varios autores»');
+  if(_AP_INSTIT.test(nm))return nada('El autor es una institución, no una persona');
+  if(_AP_ROL.test(crudo)||_AP_NOTA.test(crudo))return nada('Es una antología, adaptación o edición preparada por varios');
+
+  const pk=_apNm(pais),nk=_apNm(nc);
+  const autor=_apPrimerAutor(crudo);
+
+  /* «Apellido1 Apellido2, Nombre» → los apellidos van antes de la coma.
+     Si lo de la izquierda ya empieza por un nombre de pila es una lista de
+     autores («Alan Cowsill, Alex Irvine…»), no este formato. */
+  if(/,/.test(autor)){
+    const izq=_apToks(autor.split(',')[0]);
+    const der=_apToks(autor.split(',').slice(1).join(' '));
+    /* Es «Apellido, Nombre» solo si detrás de la coma hay nombres de pila y nada más */
+    const soloNombres=der.length>=1&&der.length<=2&&der.every(w=>_apEsPila(w,corpus));
+    if(izq.length&&soloNombres&&!izq.iniIni&&!_apEsPila(izq[0],corpus)){
+      const s=_apSalta(izq,0);
+      return {ape:_apTres(izq[s.i]),seguro:true,motivo:'Escrito «Apellido, Nombre»',autor,toks:izq,idx:s.i,clase:'persona'};
+    }
+  }
+  const t=_apToks(autor.split(',')[0]);     /* si es una lista, solo el primer autor */
+  if(!t.length)return nada('No se entiende el nombre del autor');
+
+  if(_AP_ORIENTAL.has(pk)||_AP_ORIENTAL.has(nk))
+    return {ape:null,seguro:false,motivo:'En ese país el apellido suele ir primero: confírmalo tú',autor,toks:t,idx:0,clase:'persona',sugerencia:_apTres(t[0])};
+
+  if(t.length===1){
+    /* «Papus (Dr. Gérard Encausse)»: el nombre real está en el paréntesis */
+    if(/\([^)]*\s[^)]*\)/.test(crudo))
+      return {ape:null,seguro:false,motivo:'El nombre real va entre paréntesis: confírmalo tú',autor,toks:t,idx:0,clase:'persona',sugerencia:_apTres(t[0])};
+    const a=_apTres(t[0]);return a?{ape:a,seguro:true,motivo:'Un solo nombre',autor,toks:t,idx:0,clase:'persona'}:nada('No se entiende el nombre del autor');}
+
+  /* Nombre de reinado o papal («Juan Pablo II», «Luis XIV»): no hay apellido */
+  if(/\s(I{1,3}|IV|VI{0,3}|IX|XI{0,3}|XIV|XV|XVI{0,2})\.?$/.test(_apNoAcc(autor)))
+    return {ape:_apTres(t[0]),seguro:true,motivo:'Nombre de reinado: no hay apellido',autor,toks:t,idx:0,clase:'persona'};
+
+  const hispano=_AP_HISPANO.has(pk)||_AP_HISPANO.has(nk);
+  if(!hispano&&(pk||nk)){
+    /* Inglés, francés, alemán…: el apellido es la última palabra */
+    const i=t.length-1;
+    if(i>0&&_AP_PARTIC.has(t[i-1].toLowerCase()))   /* «de la Cruz», «von Humboldt»: hay dos criterios válidos */
+      return {ape:null,seguro:false,motivo:'Apellido con partícula («de», «von»): confírmalo tú',autor,toks:t,idx:i,clase:'persona',sugerencia:_apTres(t[i])};
+    return {ape:_apTres(t[i]),seguro:true,motivo:i===1?'Nombre + Apellido':'Apellido al final (país no hispano)',autor,toks:t,idx:i,clase:'persona'};
+  }
+
+  /* Nombre que empieza por iniciales o abreviaturas: lo que queda son apellidos */
+  if(t.iniIni){const s=_apSalta(t,0);
+    if(s.p)return {ape:null,seguro:false,motivo:'Apellido con partícula («de», «del»): confírmalo tú',autor,toks:t,idx:s.i,clase:'persona',sugerencia:_apTres(t[s.i])};
+    return {ape:_apTres(t[s.i]),seguro:true,motivo:'Nombre abreviado: el resto son apellidos',autor,toks:t,idx:s.i,clase:'persona'};}
+
+  if(t.length===2){
+    if(_AP_PARTIC.has(t[0].toLowerCase()))   /* «de Rivas», «del Pilar»: hay dos criterios válidos */
+      return {ape:null,seguro:false,motivo:'Apellido con partícula («de», «del»): confírmalo tú',autor,toks:t,idx:1,clase:'persona',sugerencia:_apTres(t[1])};
+    return {ape:_apTres(t[1]),seguro:true,motivo:'Nombre + Apellido',autor,toks:t,idx:1,clase:'persona'};
+  }
+  if(!hispano&&!_apEsPila(t[0],corpus))
+    return {ape:null,seguro:false,motivo:'Sin país y el nombre no permite deducir el orden',autor,toks:t,idx:1,clase:'persona',sugerencia:_apTres(t[1])};
+
+  /* Orden español: los nombres de pila van delante y el primer apellido es el
+     que les sigue. Una palabra que sirve de nombre y de apellido (Santos,
+     Esteban…) se salta solo si detrás quedan dos palabras más, porque
+     «Nombre Nombre Apellido1 Apellido2» es mucho más frecuente que tres apellidos. */
+  let i=1;
+  while(i<t.length-1&&_apEsPila(t[i],corpus)&&(!_apEsApellido(t[i],corpus)||i<t.length-2))i++;
+  const s=_apSalta(t,i);i=s.i;
+  const elegido=t[i],particula=s.p;
+  const esPila=_apEsPila(elegido,corpus),esApe=_apEsApellido(elegido,corpus);
+  const quedanDos=(t.length-1-i)>=1;
+  /* «Daniel de la Vega»: el apellido puede codificarse VEG o DLV, así que no se cambia */
+  if(particula)return {ape:null,seguro:false,motivo:'Apellido con partícula («de», «del»): confírmalo tú',autor,toks:t,idx:i,clase:'persona',sugerencia:_apTres(elegido)};
+  {
+    if(esPila&&!esApe)return {ape:null,seguro:false,motivo:'No se distingue si «'+elegido+'» es nombre o apellido',autor,toks:t,idx:i,clase:'persona',sugerencia:_apTres(elegido)};
+    if(esPila&&esApe)return {ape:null,seguro:false,motivo:'«'+elegido+'» se usa como nombre y como apellido: confírmalo tú',autor,toks:t,idx:i,clase:'persona',sugerencia:_apTres(elegido)};
+    /* Palabra desconocida con más apellidos detrás: podría ser un segundo nombre
+       («Carlos Cuauhtémoc Sánchez»), así que se pregunta en vez de inventar. */
+    if(!_apEsPila(t[0],corpus)&&!_apEsApellido(elegido,corpus))
+      return {ape:null,seguro:false,motivo:'No se reconoce ninguna palabra del nombre: confírmalo tú',autor,toks:t,idx:i,clase:'persona',sugerencia:_apTres(elegido)};
+  }
+  return {ape:_apTres(elegido),seguro:true,
+    motivo:quedanDos?'Primer apellido (orden español)':(particula?'Partícula + apellido':'Apellido tras los nombres de pila'),
+    autor,toks:t,idx:i,clase:'persona'};
+}
+/* Criterio antiguo (última palabra del nombre). Se conserva solo como último
+   recurso cuando no hay ni motor ni código previo de donde deducir el apellido. */
 const _PARTIC=new Set(['de','del','la','las','los','van','von','da','di','du','le','san','santa']);
 function _surnameFromName(a){
   const fa=_firstAuthor(a);let toks=_noAcc(fa).replace(/[^A-Za-z\s.]/g,'').split(/\s+/).filter(Boolean).filter(x=>!/^[A-Z]\.$/.test(x)&&x.length>1);
@@ -4844,9 +5064,16 @@ function _parseCode(c){const cc=_noAcc(String(c||'')).toUpperCase().replace(/Ñ/
 const _NAT2CODE=(()=>{const M={};const a=(code,...ks)=>ks.forEach(k=>M[_nm(k)]=code);
   a('CL','chile','chilena','chileno');a('US','estados unidos','estadounidense');a('UK','reino unido','britanica','britanico','inglesa','ingles','escocesa','escoces','gran bretana');a('ES','espana','espanola','espanol');a('FR','francia','francesa','frances');a('DE','alemania','alemana','aleman');a('IT','italia','italiana','italiano');a('AR','argentina','argentino');a('CO','colombia','colombiana','colombiano');a('PE','peru','peruana','peruano');a('MX','mexico','mexicana','mexicano');a('UY','uruguay','uruguaya','uruguayo');a('RU','rusia','rusa','ruso');a('GR','grecia','griega','griego');a('IE','irlanda','irlandesa','irlandes');a('AT','austria','austriaca','austriaco');a('CZ','chequia','checa','checo');a('JP','japon','japonesa','japones');a('NO','noruega','noruego');a('PL','polonia','polaca','polaco');a('VE','venezuela','venezolana','venezolano');a('PT','portugal','portuguesa','portugues');a('CA','canada','canadiense');a('AU','australia','australiana','australiano');a('CH','suiza','suizo');a('CHN','china','chino');a('GT','guatemala','guatemalteca','guatemalteco');a('DK','dinamarca');a('BE','belgica','belga');a('SE','suecia','sueca','sueco');
   return M;})();
-/* Asigna/corrige el campo .code de TODOS los libros del arreglo (in place) */
-function _codifyCatalog(books){
-  const top=o=>o?Object.entries(o).sort((x,y)=>y[1]-x[1])[0][0]:null;
+/* Asigna/corrige el campo .code de TODOS los libros del arreglo (in place).
+   El apellido sale del motor del primer apellido; si el motor no puede decidirlo
+   con certeza se RESPETA el código que ya tenía el libro (y queda para revisión).
+   Los números correlativos no se mueven: cada libro conserva el suyo y solo
+   recibe uno nuevo si llega a un grupo distinto o si chocaría con otro.
+   opts.marcar = true → guarda en cada libro cambiado el código anterior (cOld)
+   para poder avisar «el código de este libro fue actualizado». */
+function _codifyCatalog(books,opts){
+  const o=opts||{};
+  const top=ob=>ob?Object.entries(ob).sort((x,y)=>y[1]-x[1])[0][0]:null;
   const gC={},pC={},nC={},aC={};
   books.forEach((b,i)=>{b._row=i;const p=_parseCode(b.code);b._p=p;if(!p)return;
     const gk=_nm(b.g);(gC[gk]=gC[gk]||{})[p.g]=(gC[gk][p.g]||0)+1;
@@ -4861,30 +5088,232 @@ function _codifyCatalog(books){
     b._G=(p&&p.g.length===3)?p.g:(_GEN2CODE[b.g]||gMap[_nm(b.g)]||genG(b.g));
     const canon=_NAT2CODE[_nm(b.pais)]||_NAT2CODE[_nm(b.nc)]||pMap[_nm(b.pais)]||nMap[_nm(b.nc)]||null;
     b._C=canon||((p&&p.c.length>=2&&p.c.length<=3)?p.c:genC(b.pais,b.nc));
-    b._S=(p&&p.s.length===3)?p.s:(sMap[_nm(_firstAuthor(b.a))]||_surnameFromName(b.a));
+    /* ── El apellido: primero lo que confirmó el usuario, luego el motor ── */
+    const conf=_apConf(b);
+    const r=apellidoInfo(b.a,b.pais,b.nc,books);b._R=r;
+    if(conf.length===3)     {b._S=conf;delete b.sq;}            /* confirmado a mano */
+    else if(r.seguro&&r.ape){b._S=r.ape;delete b.sq;}           /* el motor lo sabe con certeza */
+    else if(p&&p.s.length===3){b._S=p.s;delete b.sq;}           /* se respeta el código actual */
+    else{ /* sin certeza y sin código previo: se usa el más probable y queda POR CONFIRMAR */
+      b._S=(r.sugerencia||sMap[_nm(_firstAuthor(b.a))]||_surnameFromName(b.a));b.sq=1;}
   });
   const groups={};
   books.forEach(b=>{const key=b._G+'-'+b._C+'-'+b._S;(groups[key]=groups[key]||[]).push(b);});
   for(const key in groups){
-    const arr=groups[key];
-    arr.sort((x,y)=>{const nx=(x._p&&x._p.n)||99999,ny=(y._p&&y._p.n)||99999;return nx!==ny?nx-ny:x._row-y._row;});
-    arr.forEach((b,i)=>{b.code=key+'-'+String(i+1).padStart(3,'0');});
+    const arr=groups[key],usados=new Set();
+    const sigue=b=>!!(b._p&&(b._p.g+'-'+b._p.c+'-'+b._p.s)===key);   /* ya estaba en este grupo */
+    const quedan=arr.filter(sigue).sort((x,y)=>(x._p.n-y._p.n)||(x._row-y._row));
+    const llegan=arr.filter(b=>!sigue(b)).sort((x,y)=>(((x._p&&x._p.n)||99999)-((y._p&&y._p.n)||99999))||(x._row-y._row));
+    const choca=[];
+    quedan.forEach(b=>{if(usados.has(b._p.n))choca.push(b);else{usados.add(b._p.n);b._N=b._p.n;}});
+    let libre=0;usados.forEach(n=>{if(n>libre)libre=n;});
+    const sig=()=>{do{libre++;}while(usados.has(libre));usados.add(libre);return libre;};
+    choca.concat(llegan).forEach(b=>{b._N=sig();});
+    arr.forEach(b=>{const nuevo=key+'-'+String(b._N).padStart(3,'0');
+      if(nuevo!==b.code){ if(o.marcar&&b.code){b.cOld=String(b.code);b.cAck=0;} b.code=nuevo; }
+    });
   }
-  books.forEach(b=>{delete b._p;delete b._row;delete b._G;delete b._C;delete b._S;});
+  books.forEach(b=>{delete b._p;delete b._row;delete b._G;delete b._C;delete b._S;delete b._N;delete b._R;});
   return books;
 }
 /* Guardar el catálogo completo en el registro propio de Supabase (misma vía que el import) */
 function _saveCatalogToCloud(){
   if(!_sb)return Promise.resolve({error:'sin conexión'});
   const ts=new Date().toISOString();
-  return _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,count:bookCatalog.length,books:bookCatalog},updated_at:ts})
+  const meta=_catMeta||{};
+  return _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,
+      fixV:meta.fixV||null,fixTs:meta.fixTs||null,fixN:meta.fixN||0,fixAck:meta.fixAck?1:0,
+      count:bookCatalog.length,books:bookCatalog},updated_at:ts})
     .then(({error})=>({error}));
+}
+/* ── Corrección, confirmación y revisión de los códigos de la Biblioteca ──
+   Todo el estado (qué corrección se aplicó, qué avisos confirmó el usuario y qué
+   apellidos confirmó a mano) se guarda DENTRO del registro book_catalog de
+   Supabase, así que viaja solo entre todos los equipos. */
+const _CODEFIX_V='ap1';                 /* versión de la corrección ya aplicada */
+let _catMeta={};                        /* banderas guardadas junto al catálogo */
+let _catFixRunning=false;
+function _catMetaDe(p){return {fixV:p&&p.fixV,fixTs:p&&p.fixTs,fixN:p&&p.fixN,fixAck:p&&p.fixAck};}
+/* Apellido confirmado a mano para un libro (3 letras) */
+const _apConf=b=>_noAcc(String((b&&b.sx)||'')).toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
+/* Libros en los que la app no puede decidir sola y el código actual no coincide
+   con lo más probable: son los que hay que confirmar a mano. */
+function _catRevisar(){
+  const out=[];
+  bookCatalog.forEach((b,i)=>{
+    if(_apConf(b).length===3)return;                       /* ya confirmado */
+    const r=apellidoInfo(b.a,b.pais,b.nc,bookCatalog);
+    if(r.seguro||r.clase!=='persona')return;               /* lo sabe, o no hay persona */
+    const p=_parseCode(b.code);
+    if(p&&r.sugerencia&&r.sugerencia===p.s&&!b.sq)return;   /* el código ya era el probable */
+    out.push({i,b,r});
+  });
+  return out;
+}
+/* ── La corrección de una sola vez sobre los libros ya guardados ──
+   Se ejecuta UNA vez (queda marcada en la nube) y nunca vuelve a tocar los
+   registros en los inicios de sesión siguientes. */
+async function _migrarCodigosBiblioteca(){
+  if(!_sb||!bookCatalog.length||_catFixRunning)return;
+  if(cRole!=='admin')return;                        /* solo el administrador la ejecuta */
+  if(_catMeta&&_catMeta.fixV===_CODEFIX_V)return;   /* ya hecha: no se repite */
+  _catFixRunning=true;
+  try{
+    /* 1) Releer el catálogo para no pisar lo que haya hecho otro equipo */
+    const {data,error}=await _sb.from('econativo_state').select('payload').eq('key','book_catalog').maybeSingle();
+    if(error)throw error;
+    const pay=(data&&data.payload)||{};
+    if(pay.fixV===_CODEFIX_V){_catMeta=_catMetaDe(pay);if(Array.isArray(pay.books)&&pay.books.length)bookCatalog=pay.books;return;}
+    if(Array.isArray(pay.books)&&pay.books.length)bookCatalog=pay.books;
+    const ts=new Date().toISOString();
+    /* 2) Copia de seguridad lógica ANTES de modificar nada */
+    const resp=await _sb.from('econativo_state').upsert({key:'book_catalog_respaldo',payload:{
+      v:1,motivo:'copia previa a corregir los códigos al criterio del primer apellido',
+      guardado:ts,desdeActualizado:pay.updated||null,count:bookCatalog.length,
+      books:JSON.parse(JSON.stringify(bookCatalog))},updated_at:ts});
+    if(resp&&resp.error)throw resp.error;
+    /* 3) Corregir, marcando cada libro cuyo código cambió para poder avisar */
+    const antes=bookCatalog.map(b=>String(b.code||''));
+    _codifyCatalog(bookCatalog,{marcar:true});
+    const n=bookCatalog.filter((b,i)=>String(b.code||'')!==antes[i]).length;
+    _catMeta={fixV:_CODEFIX_V,fixTs:ts,fixN:n,fixAck:n?0:1};
+    const g=await _saveCatalogToCloud();
+    if(g&&g.error)throw new Error(g.error.message||g.error);
+    console.log('[Biblioteca] códigos corregidos al primer apellido:',n,'de',bookCatalog.length);
+    const ap=document.querySelector('.page.active');
+    if(ap&&ap.id==='page-catalogo')renderCatalogo();
+  }catch(e){
+    console.warn('[Biblioteca] no se pudo aplicar la corrección de códigos:',e&&e.message);
+  }finally{_catFixRunning=false;}
+}
+/* ── Aviso general arriba de la Biblioteca ── */
+function _renderCodeAlert(){
+  const el=$('catCodeAlert');if(!el)return;
+  let h='';
+  if(_catMeta&&_catMeta.fixV===_CODEFIX_V&&!_catMeta.fixAck&&_catMeta.fixN){
+    h+=`<div style="display:flex;align-items:flex-start;gap:8px;background:#e8f7ee;border:1px solid var(--ok);border-radius:var(--r);padding:9px 11px;margin-bottom:7px">
+      <i class="ti ti-circle-check" style="color:var(--ok);font-size:16px;flex-shrink:0;margin-top:1px"></i>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;color:var(--tm);line-height:1.5"><b>Se actualizaron correctamente los códigos de ${_catMeta.fixN} libros de la biblioteca</b> según el criterio correcto: tres letras del <b>primer apellido</b> del escritor (el paterno), nunca del segundo.</div>
+        <div style="font-size:11px;color:var(--ts);margin-top:3px">Cada libro corregido muestra su propio aviso al abrirlo. Este mensaje desaparece para siempre cuando lo confirmes.</div>
+      </div>
+      <button onclick="catCodeAlertOK()" style="flex-shrink:0;padding:5px 13px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">OK</button>
+    </div>`;
+  }
+  const rev=_catRevisar().length;
+  if(rev){
+    h+=`<div style="display:flex;align-items:center;gap:8px;background:#fff6e5;border:1px solid var(--wr,#e0a000);border-radius:var(--r);padding:9px 11px;margin-bottom:7px">
+      <i class="ti ti-help-circle" style="color:#b57c00;font-size:16px;flex-shrink:0"></i>
+      <div style="flex:1;min-width:0;font-size:12.5px;color:var(--tm);line-height:1.45">
+        <b>${rev} libro${rev===1?'':'s'} necesita${rev===1?'':'n'} que confirmes el apellido.</b>
+        <span style="color:var(--ts)">Son nombres donde no se puede saber con certeza cuál es el primer apellido, así que no se tocó su código.</span>
+      </div>
+      <button onclick="openCodeReview()" style="flex-shrink:0;padding:5px 13px;border:1px solid #b57c00;color:#b57c00;background:transparent;border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">Revisar</button>
+    </div>`;
+  }
+  el.innerHTML=h;el.style.display=h?'block':'none';
+}
+function catCodeAlertOK(){
+  _catMeta.fixAck=1;_renderCodeAlert();
+  _saveCatalogToCloud().then(r=>showToast(r&&r.error?'Confirmado; se sincronizará al reconectar':'Aviso confirmado','ok'));
+}
+/* ── Aviso por libro (dentro de la ficha) ── */
+function _renderBiCodeAlert(b){
+  const el=$('biCodeAlert');if(!el)return;
+  if(b&&b.cOld&&!b.cAck){
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;background:#e8f7ee;border:1px solid var(--ok);border-radius:var(--r);padding:8px 10px;margin-bottom:.7rem">
+      <i class="ti ti-circle-check" style="color:var(--ok);font-size:15px;flex-shrink:0"></i>
+      <div style="flex:1;min-width:0;font-size:12px;color:var(--tm);line-height:1.45"><b>El código de este libro fue actualizado.</b> <span style="color:var(--ts)">Antes: <span style="font-family:ui-monospace,monospace">${_esc(b.cOld)}</span> · Ahora: <span style="font-family:ui-monospace,monospace">${_esc(String(b.code||''))}</span></span></div>
+      <button onclick="biCodeOK()" style="flex-shrink:0;padding:4px 12px;border:none;color:#fff;background:var(--ok);border-radius:20px;cursor:pointer;font-size:11px;font-weight:700">OK</button>
+    </div>`;
+    el.style.display='block';
+  } else {el.innerHTML='';el.style.display='none';}
+}
+function biCodeOK(){
+  const b=_biBook;if(!b)return;
+  b.cAck=1;_renderBiCodeAlert(b);renderCatResults();_renderCodeAlert();
+  _saveCatalogToCloud().then(r=>showToast(r&&r.error?'Confirmado; se sincronizará al reconectar':'Aviso confirmado','ok'));
+}
+/* ── Pantalla «Revisar códigos»: una decisión por libro, de un toque ── */
+let _revList=[];
+function openCodeReview(){
+  _revList=_catRevisar();
+  renderCodeReview();
+  openMod('codeReviewModal');
+}
+function renderCodeReview(){
+  const c=$('crBody');if(!c)return;
+  $('crCount').textContent=_revList.length?('· '+_revList.length+' por confirmar'):'';
+  if(!_revList.length){
+    c.innerHTML='<div class="noo"><i class="ti ti-circle-check" style="color:var(--ok)" aria-hidden="true"></i><p>No queda ningún libro por confirmar.</p></div>';
+    return;
+  }
+  c.innerHTML=_revList.map((x,k)=>{
+    /* Solo palabras que sirven de apellido: fuera iniciales y partículas («de», «la») */
+    const t=(x.r.toks||[]).map((w,j)=>({w,j})).filter(o=>String(o.w).replace(/[^A-Za-z]/g,'').length>=3&&!_AP_PARTIC.has(String(o.w).toLowerCase()));
+    const bot=t.map(({w,j})=>`<button onclick="crElegir(${k},${j})" title="Usar «${_esc(w)}» como primer apellido" style="padding:4px 9px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:11.5px;font-weight:600">${_esc(w)} <span style="font-family:ui-monospace,monospace;color:var(--ts)">${_esc(String(w).slice(0,3).toUpperCase())}</span></button>`).join(' ');
+    return `<div style="border:1px solid var(--br);border-radius:var(--r);padding:9px 10px;margin-bottom:7px;background:var(--wh)">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;color:var(--bm);background:var(--cr);border:1px solid var(--br);border-radius:5px;padding:1px 5px">${_esc(String(x.b.code||'sin código'))}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--tm)">${_esc(_cg(x.b,'t'))}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--ts);margin-top:3px"><i class="ti ti-user" style="font-size:11px;vertical-align:-1px"></i> ${_esc(_cg(x.b,'a'))||'—'}${_cg(x.b,'pais')?' · '+_esc(_cg(x.b,'pais')):''}</div>
+      <div style="font-size:11px;color:#b57c00;margin-top:3px">${_esc(x.r.motivo)}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center">
+        <span style="font-size:11px;color:var(--ts);font-weight:600">¿Cuál es el primer apellido?</span>${bot}
+        <button onclick="crDejar(${k})" style="padding:4px 9px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:20px;cursor:pointer;font-size:11.5px">Dejar como está</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+/* El usuario elige la palabra que es el primer apellido */
+function crElegir(k,j){
+  const x=_revList[k];if(!x)return;
+  const w=(x.r.toks||[])[j];if(!w)return;
+  const sx=_noAcc(String(w)).toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
+  if(sx.length<3){showToast('Esa palabra es muy corta para el código','del');return;}
+  const antes=String(x.b.code||'');
+  x.b.sx=sx;delete x.b.sq;
+  _codifyCatalog(bookCatalog,{marcar:true});
+  if(String(x.b.code||'')===antes){x.b.cOld='';x.b.cAck=1;}
+  _revList.splice(k,1);
+  renderCodeReview();renderCatResults();_renderCodeAlert();
+  _saveCatalogToCloud().then(r=>showToast(r&&r.error?'Guardado; se sincronizará al reconectar':'Código confirmado · '+String(x.b.code||''),'ok'));
+}
+/* Dejar el código tal como está: se confirma el componente actual como correcto */
+function crDejar(k){
+  const x=_revList[k];if(!x)return;
+  const p=_parseCode(x.b.code);
+  if(!p){showToast('Este libro no tiene un código válido: elige el apellido','del');return;}
+  x.b.sx=p.s;delete x.b.sq;
+  _revList.splice(k,1);
+  renderCodeReview();_renderCodeAlert();
+  _saveCatalogToCloud().then(r=>showToast(r&&r.error?'Guardado; se sincronizará al reconectar':'Código confirmado','ok'));
+}
+/* ── Elegir el apellido al agregar o editar un libro ── */
+let _apPickCB=null;
+function _apPickAbrir(nombre,toks,cb){
+  _apPickCB=cb;
+  $('apPickName').textContent=nombre||'';
+  $('apPickBody').innerHTML=(toks||[]).map((w,j)=>`<button onclick="apPickElegir(${j})" style="padding:7px 12px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;margin:3px">${_esc(w)} <span style="font-family:ui-monospace,monospace;color:var(--ts)">${_esc(String(w).slice(0,3).toUpperCase())}</span></button>`).join('');
+  $('apPickToks').value=JSON.stringify(toks||[]);
+  openMod('apPickModal');
+}
+function apPickElegir(j){
+  let toks=[];try{toks=JSON.parse($('apPickToks').value)||[];}catch(e){}
+  const w=toks[j];if(!w)return;
+  const sx=_noAcc(String(w)).toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
+  if(sx.length<3){showToast('Esa palabra es muy corta para el código','del');return;}
+  closeMod('apPickModal');
+  const cb=_apPickCB;_apPickCB=null;
+  if(cb)cb(sx);
 }
 /* Nacionalidad → país (para autocompletar el país al agregar/editar si se deja vacío) */
 const _NAT2PAIS=(()=>{const M={};const a=(pais,...ks)=>ks.forEach(k=>M[_nm(k)]=pais);
   a('Chile','chilena','chileno');a('Estados Unidos','estadounidense');a('Reino Unido','britanica','britanico','inglesa','ingles','escocesa','escoces');a('España','espanola','espanol','catalana');a('Francia','francesa','frances');a('Alemania','alemana','aleman');a('Italia','italiana','italiano');a('Argentina','argentina','argentino');a('Colombia','colombiana','colombiano');a('Perú','peruana','peruano');a('México','mexicana','mexicano');a('Uruguay','uruguaya','uruguayo');a('Rusia','rusa','ruso');a('Grecia','griega','griego');a('Irlanda','irlandesa','irlandes');a('Austria','austriaca','austriaco');a('Chequia','checa','checo');a('Japón','japonesa','japones');a('Noruega','noruega','noruego');a('Polonia','polaca','polaco');a('Venezuela','venezolana','venezolano');a('Portugal','portuguesa','portugues');a('Canadá','canadiense');a('Australia','australiana','australiano');a('Suiza','suiza','suizo');a('China','china','chino');a('Guatemala','guatemalteca','guatemalteco');a('Dinamarca','danesa','danes');a('Bélgica','belga');a('Suecia','sueca','sueco');a('India','india','indio');a('Cuba','cubana','cubano');
   return M;})();
 let _catAddMode=false;
+let _ceSX='';   /* apellido que el usuario confirmó para el libro que está guardando */
 /* Compartir el catálogo: genera el enlace público de solo lectura (/catalogo) y su QR */
 function _catShareURL(){ return location.origin.replace(/\/$/,'')+'/catalogo'; }
 function shareCatalog(){
@@ -4974,15 +5403,31 @@ function saveCatEdit(){
   if(!sgv){showToast('Selecciona un subgénero','del');return;}
   let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';
   const data={t,a,pais,g:gv,sg:sgv,id:_cln($('ceID').value),ib,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
+  /* El código se genera solo. Si el nombre no permite saber cuál es el primer
+     apellido, se pregunta en vez de inventar un código equivocado. */
+  const sxPrev=_apConf(_catAddMode?{}:(_biBook||{}));
+  const rAp=apellidoInfo(a,pais,'',bookCatalog);
+  if(!rAp.seguro&&!_ceSX&&!(sxPrev.length===3&&_biBook&&_cg(_biBook,'a')===a)){
+    const toks=(rAp.toks||[]).filter(w=>String(w).replace(/[^A-Za-z]/g,'').length>=3);
+    if(!toks.length){
+      showToast('Falta el dato: escribe el nombre del escritor para poder generar el código','del');
+      return;
+    }
+    _apPickAbrir(a,toks,sx=>{_ceSX=sx;saveCatEdit();});
+    return;
+  }
   let b;
   if(_catAddMode){
     b={code:'',...data};          /* código vacío → se generará automáticamente */
     bookCatalog.push(b);
   } else {
     b=_biBook;if(!b)return;
+    const mismoAutor=_cg(b,'a')===a;
     Object.assign(b,data);
     b.code='';                    /* recalcular con los datos nuevos */
+    if(!mismoAutor&&!_ceSX)b.sx=''; /* cambió el autor: se recalcula el apellido */
   }
+  if(_ceSX){b.sx=_ceSX;_ceSX='';}  /* apellido confirmado por el usuario */
   _codifyCatalog(bookCatalog);     /* genera/renumera códigos (incluye el nuevo/editado) */
   /* repoblar filtros con los datos nuevos */
   ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
@@ -4997,7 +5442,7 @@ function saveCatEdit(){
 }
 /* Genera el código de UN libro nuevo respecto al catálogo actual (siguiente correlativo del grupo) */
 function generateBookCode(book){
-  const tmp=bookCatalog.concat([book]).map(b=>({code:b.code,g:b.g,sg:b.sg,nc:b.nc,pais:b.pais,a:b.a}));
+  const tmp=bookCatalog.concat([book]).map(b=>({code:b.code,g:b.g,sg:b.sg,nc:b.nc,pais:b.pais,a:b.a,sx:b.sx}));
   _codifyCatalog(tmp);
   return tmp[tmp.length-1].code;
 }
@@ -5038,16 +5483,22 @@ function importCatalogXlsx(file){
       books.push({code:at(row,ci.code),t,a:at(row,ci.a),pais,ib,ed:at(row,ci.ed),ec:at(row,ci.ec),id:at(row,ci.id),g,sg,d:at(row,ci.d)});
     }
     if(!books.length){showToast('No se encontraron libros (revisa la columna «Título»)','del');return;}
+    /* Conservar los apellidos que el usuario ya confirmó a mano (mismo título y autor) */
+    if(bookCatalog.length){
+      const prev={};bookCatalog.forEach(b=>{if(b.sx)prev[_nm(b.t)+'|'+_nm(b.a)]=b.sx;});
+      books.forEach(b=>{const s=prev[_nm(b.t)+'|'+_nm(b.a)];if(s)b.sx=s;});
+    }
     _codifyCatalog(books); /* corrige/completa códigos y numera correlativo */
     if(!confirm('Se cargará el catálogo con '+books.length+' libro(s), con códigos generados/corregidos, reemplazando el actual.\n\n¿Confirmar?'))return;
     bookCatalog=books;_catLoaded=true;
     ['catAutoresDL','catGenerosDL','catSubgenerosDL'].forEach(id=>{const el=$(id);if(el)el.innerHTML='';});
     const n=$('catNac');if(n)n.innerHTML='<option value="">País (todos)</option>';
-    if(_sb){const ts=new Date().toISOString();
-      _sb.from('econativo_state').upsert({key:'book_catalog',payload:{v:2,coded:true,updated:ts,count:books.length,books},updated_at:ts})
-        .then(({error})=>{if(error){console.warn('[Biblioteca] guardar catálogo',error.message);showToast('Cargado local, pero no se pudo guardar en la nube','del');}else showToast('Catálogo actualizado y codificado ('+books.length+' libros)','ok');});
+    if(_sb){
+      _saveCatalogToCloud().then(r=>{if(r&&r.error){console.warn('[Biblioteca] guardar catálogo',r.error.message||r.error);showToast('Cargado local, pero no se pudo guardar en la nube','del');}else showToast('Catálogo actualizado y codificado ('+books.length+' libros)','ok');});
     } else showToast('Catálogo cargado ('+books.length+' libros)','ok');
     renderCatalogo();
+    const dud=_catRevisar().length;
+    if(dud)setTimeout(()=>showToast(dud+' libro(s) necesitan que confirmes el apellido · usa «Revisar códigos»','del'),1800);
   }catch(err){showToast('No se pudo leer el archivo','del');console.warn('[Biblioteca import]',err);}};
   rd.readAsArrayBuffer(file);
 }
