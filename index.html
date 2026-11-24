@@ -981,8 +981,7 @@ body.dark .info-note b{color:#7fb0e0}
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;user-select:none"><input type="radio" name="lblBar" value="codigo" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código de barra y código de lomo</span></label>
       <div style="font-size:11px;color:var(--ts);margin-top:6px;line-height:1.4">El título va impreso siempre, para reconocer el libro. Cada libro lleva <b>un solo código de barra</b>: el de la editorial, el creado de su ISBN o el propio de la biblioteca.</div>
       <div id="lblFaltanBox" style="display:none;margin-top:7px;padding:7px 9px;border:1px solid var(--er);border-radius:var(--r);background:var(--cr)">
-        <div style="font-size:11.5px;color:var(--tm);line-height:1.4"><b><span id="lblFaltanN">0</span> libro(s)</b> de la selección no tienen código de barra: no traen el de la editorial ni tienen ISBN, así que quedarían fuera del PDF.</div>
-        <button onclick="lblCrearFaltantes()" style="margin-top:6px;width:100%;padding:7px;border:1px solid var(--bm);background:transparent;color:var(--bm);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-library" style="font-size:13px;vertical-align:-2px"></i> Crearles el código de la biblioteca</button>
+        <div style="font-size:11.5px;color:var(--tm);line-height:1.4"><b><span id="lblFaltanN">0</span> libro(s)</b> de la selección todavía no tienen código de barra, así que quedarían fuera del PDF. Dáselo abriendo cada libro y tocando «Código de barra».</div>
       </div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin-bottom:5px;user-select:none"><input type="radio" name="lblTipo" value="qr" onchange="lblTipoCambio()" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código QR <span style="color:var(--ts)">· 35 mm, para el teléfono</span></span></label>
@@ -4888,22 +4887,6 @@ function lblTipoCambio(){
   if(ic)ic.className='ti '+(icono[t]||icono.lomo);
   lblRenderSel();
 }
-/* Les crea de una vez el código de la biblioteca a los libros de la selección
-   que no tienen ninguno (ni de editorial ni ISBN del que sacarlo) */
-function lblCrearFaltantes(){
-  if(!_lblSel.length){showToast('Selecciona antes los libros','del');return;}
-  _bcAsegurar(bookCatalog);
-  const faltan=_cbFaltan(_lblSel);
-  if(!faltan.length){showToast('Todos los libros elegidos ya tienen código de barra','ok');return;}
-  let k=0;
-  faltan.forEach(b=>{const x=_bcDe(b);if(x.length===10){b.eb=x;b.ebo='bi';k++;}});
-  lblRenderSel();
-  if(_biBook&&_cbDe(_biBook))_openBookCard(_biBook);
-  _saveCatalogToCloud().then(r=>{
-    if(r&&r.error)showToast(k+' código(s) creados localmente, pero no se pudo sincronizar','del');
-    else showToast(k+' código(s) de barra creados por la biblioteca','ok');
-  });
-}
 function lblPrint(){
   if(!_lblSel.length){showToast('Selecciona al menos un libro','del');return;}
   const tipo=_lblTipo();
@@ -5067,22 +5050,24 @@ function _cbVista(el,b){
       +'</div>';
     let nota='';
     if(r.o==='ed')nota='Es el código que <b>trae impreso el libro</b>, el de la editorial.';
-    else if(r.o==='is')nota='Creado <b>a partir del ISBN</b> del libro: es el mismo número que lleva la contratapa.'+(r.g?'':' Se imprimirá así aunque no lo guardes.');
+    else if(r.o==='is')nota='Creado <b>a partir del ISBN</b> del libro: es el mismo número que lleva la contratapa.';
     else if(r.o==='bi')nota='Creado <b>por la biblioteca</b>, porque el libro no trae código impreso ni tiene ISBN.';
     h+='<div style="font-size:11.5px;color:var(--ts);margin-top:.7rem;line-height:1.45">'+nota+' Al escanearlo sobre el buscador de la Biblioteca, el libro aparece de inmediato.</div>';
   }else{
     h+='<div style="background:var(--cr);border:1px dashed var(--br);border-radius:10px;padding:16px 14px;text-align:center">'
       +'<i class="ti ti-barcode" style="font-size:26px;color:var(--ts)"></i>'
       +'<div style="font-size:13px;font-weight:700;color:var(--tp);margin-top:6px">Este libro todavía no tiene código de barra</div>'
-      +'<div style="font-size:11.5px;color:var(--ts);margin-top:5px;line-height:1.45">No tiene guardado el de la editorial y tampoco un ISBN del que crearlo. Pasa el lector por la contratapa si trae uno impreso; si no trae ninguno, créale uno propio de la biblioteca.</div>'
-      +'</div>';
+      +'<div style="font-size:11.5px;color:var(--ts);margin-top:5px;line-height:1.45">'
+      +(desdeISBN?'Pasa el lector por el código impreso en la contratapa. Si el libro no trae ninguno, créalo a partir de su ISBN.'
+                 :'No trae código guardado y tampoco tiene un ISBN del que crearlo. Pasa el lector por la contratapa si trae uno impreso; si no trae ninguno, créale uno propio de la biblioteca.')
+      +'</div></div>';
   }
   if(_cbEscaneo){el.innerHTML=h+_cbPanelScan();return;}
   const bt=(txt,ico,fn,fuerte)=>'<button onclick="'+fn+'" style="width:100%;padding:9px 10px;border:1px solid '+(fuerte?'var(--bm)':'var(--br)')+';background:'+(fuerte?'var(--bm)':'transparent')+';color:'+(fuerte?'#fff':'var(--tm)')+';border-radius:var(--r);cursor:pointer;font-size:12.5px;font-weight:'+(fuerte?'700':'600')+';text-align:left"><i class="ti '+ico+'" style="font-size:14px;vertical-align:-2px"></i> '+txt+'</button>';
   let acc='<div style="display:flex;flex-direction:column;gap:6px;margin-top:.8rem">';
   acc+=bt(r.o==='ed'?'Volver a escanear el código de editorial':'Escanear código de editorial','ti-scan','_cbScanAbrir()',r.o!=='ed');
-  if(desdeISBN&&!(r.g&&r.v===desdeISBN))acc+=bt('Generar código a partir del ISBN','ti-wand','_cbDesdeISBN()',false);
-  if(!r.v)acc+=bt('Crear uno propio de la biblioteca','ti-library','_cbCrearBiblioteca()',false);
+  if(desdeISBN&&r.v!==desdeISBN)acc+=bt('Generar código a partir del ISBN','ti-wand','_cbDesdeISBN()',false);
+  if(!r.v&&!desdeISBN)acc+=bt('Crear uno propio de la biblioteca','ti-library','_cbCrearBiblioteca()',false);
   acc+='</div>';
   el.innerHTML=h+acc;
 }
@@ -7654,15 +7639,14 @@ function _cbOrigen(b){
   const d=_eanDesdeISBN(_cg(b,'ib'));
   return (d&&d===v)?'is':'ed';
 }
-/* El único código del libro. Si no hay ninguno guardado pero sí ISBN, sale de ahí.
-   Devuelve {v: cifras, o: origen, g: ya está guardado}. */
+/* El único código del libro: el que está guardado, y nada más. Nunca se inventa
+   solo a partir del ISBN; eso se hace a mano, libro por libro.
+   Devuelve {v: cifras, o: origen}. */
 function _cbEfectivo(b){
-  if(!b)return {v:'',o:'',g:false};
+  if(!b)return {v:'',o:''};
   const v=_cbDe(b);
-  if(_cbValido(v))return {v:v,o:_cbOrigen(b),g:true};
-  const d=_eanDesdeISBN(_cg(b,'ib'));
-  if(d)return {v:d,o:'is',g:false};
-  return {v:'',o:'',g:false};
+  if(_cbValido(v))return {v:v,o:_cbOrigen(b)};
+  return {v:'',o:''};
 }
 /* Las rayas: 13 cifras → EAN-13 (el de las contratapas); 10 → Code 128 */
 function _cbSVG(v,alto){const s=String(v||'');
@@ -7685,7 +7669,7 @@ function ceEBCambio(){
   const v=limpio;
   if(!v){
     av.style.color='var(--ts)';
-    av.textContent=desdeISBN?'Sin código guardado: se imprimirá el creado a partir del ISBN ('+desdeISBN+'). Si el libro trae uno impreso, pasa el lector por la contratapa.'
+    av.textContent=desdeISBN?'Este libro todavía no tiene código de barra. Pasa el lector por la contratapa, o créalo desde su ISBN con el botón de al lado ('+desdeISBN+').'
                             :'Sin código y sin ISBN del que crearlo. Pasa el lector por la contratapa, o créale uno propio desde el botón «Código de barra» de la ficha.';
     return;
   }
@@ -7721,7 +7705,7 @@ function _openBookCard(b){
   {const rcb=_cbEfectivo(b);
    _meta+='<div style="color:var(--ts);font-weight:600">Código de barra</div><div style="color:var(--tm)">'
      +(rcb.v?_esc(_cbTexto(rcb.v))+'<span style="color:var(--ts);font-size:11.5px"> · '+_cbEtiqueta(rcb.o)+'</span>'
-            :'<span style="color:var(--ts)">todavía no tiene · créalo en «Código de barra»</span>')+'</div>';}
+            :'<span style="color:var(--ts)">todavía no tiene · escanéalo en «Código de barra»</span>')+'</div>';}
   $('biMeta').innerHTML=_meta;
   _renderBiCodeAlert(b);
   const desc=_cg(b,'d');
