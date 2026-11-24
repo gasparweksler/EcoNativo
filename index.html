@@ -960,7 +960,7 @@ body.dark .info-note b{color:#7fb0e0}
 <!-- GENERAR ETIQUETAS: selección manual de libros (por nombre) + filtros actuales -->
 <div class="ov" id="labelModal"><div class="mb" style="max-width:560px;width:100%">
   <h3 style="margin-bottom:.35rem"><i class="ti ti-tags" style="color:var(--bm)"></i> Generar Etiquetas</h3>
-  <div style="font-size:12px;color:var(--ts);margin-bottom:.7rem">Elige los libros a etiquetar: agrega los que están filtrados y/o busca cualquier libro por nombre (aunque quede fuera de los filtros). Después elige si el PDF lleva la etiqueta de lomo (15×20 mm), el código de barra (50 mm) o el código QR (35 mm).</div>
+  <div style="font-size:12px;color:var(--ts);margin-bottom:.7rem">Elige los libros a etiquetar: agrega los que están filtrados y/o busca cualquier libro por nombre (aunque quede fuera de los filtros). Después elige si el PDF lleva la etiqueta de lomo (15×20 mm), el código de barra del libro (50 mm) o el código QR (35 mm).</div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6rem">
     <button onclick="lblAddFiltered()" style="padding:6px 11px;border:1px solid var(--ok);color:var(--ok);background:transparent;border-radius:18px;cursor:pointer;font-size:12px;font-weight:600"><i class="ti ti-filter" style="font-size:12px;vertical-align:-1px"></i> Agregar filtrados (<span id="lblFiltCount">0</span>)</button>
     <button onclick="lblClearSel()" style="padding:6px 11px;border:1px solid var(--br);color:var(--ts);background:transparent;border-radius:18px;cursor:pointer;font-size:12px"><i class="ti ti-eraser" style="font-size:12px;vertical-align:-1px"></i> Vaciar selección</button>
@@ -978,20 +978,18 @@ body.dark .info-note b{color:#7fb0e0}
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin-bottom:5px;user-select:none"><input type="radio" name="lblTipo" value="barra" onchange="lblTipoCambio()" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código de barra <span style="color:var(--ts)">· 50 mm, para el lector</span></span></label>
     <div id="lblOpcBarra" style="display:none;padding:0 0 2px 24px">
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;margin-bottom:4px;user-select:none"><input type="radio" name="lblBar" value="solo" checked style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Solo el código de barra</span></label>
-      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;user-select:none"><input type="radio" name="lblBar" value="codigo" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código de barra y código del libro</span></label>
-      <div style="font-size:11px;color:var(--ts);margin-top:6px;line-height:1.4">El título va impreso siempre, para reconocer el libro. Cada libro tiene un único código de barra, el mismo en todos los equipos.</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;user-select:none"><input type="radio" name="lblBar" value="codigo" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código de barra y código de lomo</span></label>
+      <div style="font-size:11px;color:var(--ts);margin-top:6px;line-height:1.4">El título va impreso siempre, para reconocer el libro. Cada libro lleva <b>un solo código de barra</b>: el de la editorial, el creado de su ISBN o el propio de la biblioteca.</div>
+      <div id="lblFaltanBox" style="display:none;margin-top:7px;padding:7px 9px;border:1px solid var(--er);border-radius:var(--r);background:var(--cr)">
+        <div style="font-size:11.5px;color:var(--tm);line-height:1.4"><b><span id="lblFaltanN">0</span> libro(s)</b> de la selección no tienen código de barra: no traen el de la editorial ni tienen ISBN, así que quedarían fuera del PDF.</div>
+        <button onclick="lblCrearFaltantes()" style="margin-top:6px;width:100%;padding:7px;border:1px solid var(--bm);background:transparent;color:var(--bm);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700"><i class="ti ti-library" style="font-size:13px;vertical-align:-2px"></i> Crearles el código de la biblioteca</button>
+      </div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin-bottom:5px;user-select:none"><input type="radio" name="lblTipo" value="qr" onchange="lblTipoCambio()" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código QR <span style="color:var(--ts)">· 35 mm, para el teléfono</span></span></label>
     <div id="lblOpcQR" style="display:none;padding:0 0 2px 24px">
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;margin-bottom:4px;user-select:none"><input type="radio" name="lblQR" value="solo" checked style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Solo el código QR</span></label>
       <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;user-select:none"><input type="radio" name="lblQR" value="codigo" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código QR y código del libro</span></label>
       <div style="font-size:11px;color:var(--ts);margin-top:6px;line-height:1.4">Al escanearlo con el teléfono se abre la ficha de ese libro en el catálogo que compartes con los clientes.</div>
-    </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin-bottom:5px;user-select:none"><input type="radio" name="lblTipo" value="ean" onchange="lblTipoCambio()" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código de barra del libro <span style="color:var(--ts)">· 50 mm, el de la contratapa</span></span></label>
-    <div id="lblOpcEAN" style="display:none;padding:0 0 2px 24px">
-      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;margin-bottom:4px;user-select:none"><input type="radio" name="lblEAN" value="solo" checked style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Solo el código de barra del libro</span></label>
-      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tm);cursor:pointer;user-select:none"><input type="radio" name="lblEAN" value="codigo" style="width:15px;height:15px;cursor:pointer;flex:none"> <span>Código de barra del libro y código de lomo</span></label>
-      <div style="font-size:11px;color:var(--ts);margin-top:6px;line-height:1.4">Para los libros que no traen código de barra impreso: se crea a partir de su ISBN. Los que no tienen ISBN quedan fuera del PDF y se te avisa cuántos son.</div>
     </div>
   </div>
   <div class="ma"><button class="bs2" onclick="closeMod(&#39;labelModal&#39;)">Cerrar</button><button class="bc2" onclick="lblPrint()"><i class="ti ti-tag" id="lblPdfIco" style="font-size:13px"></i> <span id="lblPdfTxt">Etiquetas PDF</span> (<span id="lblPdfCount">0</span>)</button></div>
@@ -1005,8 +1003,8 @@ body.dark .info-note b{color:#7fb0e0}
     <button id="bcTabQR" onclick="bcTipo('qr')" style="flex:1;padding:8px 6px;border:1px solid var(--br);background:transparent;color:var(--tm);border-radius:var(--r);cursor:pointer;font-size:12.5px;font-weight:600;white-space:nowrap"><i class="ti ti-qrcode" style="font-size:13px"></i> Código QR</button>
   </div>
   <div id="bcBody"></div>
-  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin:.85rem 0 .1rem;user-select:none"><input type="checkbox" id="bcConCodigo" checked style="width:16px;height:16px;cursor:pointer;flex:none"> <span>Incluir también el código del libro</span></label>
-  <div class="ma"><button class="bs2" onclick="closeMod(&#39;bcModal&#39;)">Cerrar</button><button class="bc2" onclick="bcPrint()"><i class="ti ti-printer" style="font-size:13px"></i> Etiqueta PDF</button></div>
+  <label id="bcConCodigoWrap" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tm);cursor:pointer;margin:.85rem 0 .1rem;user-select:none"><input type="checkbox" id="bcConCodigo" checked style="width:16px;height:16px;cursor:pointer;flex:none"> <span>Incluir también el código de lomo</span></label>
+  <div class="ma"><button class="bs2" onclick="closeMod(&#39;bcModal&#39;)">Cerrar</button><button class="bc2" id="bcPdfBtn" onclick="bcPrint()"><i class="ti ti-printer" style="font-size:13px"></i> Etiqueta PDF</button></div>
 </div></div>
 
 <!-- GESTIONAR GÉNEROS: añadir/editar géneros y sus subgéneros (taxonomía del formulario) -->
@@ -1028,7 +1026,7 @@ body.dark .info-note b{color:#7fb0e0}
   <div class="form-item"><label>País</label><input type="text" id="cePais" list="cefPaisDL" placeholder="Ej: Chile, Francia, Estados Unidos…"></div><datalist id="cefPaisDL"></datalist>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Género *</label><select id="ceG" required onchange="_ceGenreChanged()"><option value="" disabled selected>Selecciona un género</option></select></div><div class="form-item" style="flex:1"><label>Subgénero *</label><select id="ceSG" required disabled><option value="" disabled selected>Selecciona un subgénero</option></select></div></div>
   <div style="display:flex;gap:8px"><div class="form-item" style="flex:1"><label>Idioma</label><input type="text" id="ceID"></div><div class="form-item" style="flex:1"><label>ISBN</label><input type="text" id="ceIB" oninput="ceEBCambio()"></div></div>
-  <div class="form-item"><label>Código de barra del libro <span style="font-weight:400;color:var(--ts)">· el que trae la contratapa</span></label>
+  <div class="form-item"><label>Código de barra <span style="font-weight:400;color:var(--ts)">· el de la editorial, el que trae la contratapa</span></label>
     <div style="display:flex;gap:6px;align-items:stretch">
       <input type="text" id="ceEB" inputmode="numeric" autocomplete="off" placeholder="Pasa el lector por la contratapa…" oninput="ceEBCambio()" style="flex:1">
       <button type="button" id="ceEBCrear" onclick="ceCrearEAN()" style="padding:0 12px;border:1px solid var(--bm);color:var(--bm);background:transparent;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap"><i class="ti ti-wand" style="font-size:13px"></i> Crear desde el ISBN</button>
@@ -4864,9 +4862,13 @@ function lblRemoveIdx(i){_lblSel.splice(i,1);lblRenderSel();lblRenderSearch();}
 function lblClearSel(){_lblSel=[];lblRenderSel();lblRenderSearch();}
 function lblRenderSel(){
   const box=$('lblSelList');if(!box)return;
-  const conCod=_lblSel.filter(b=>_cg(b,'code')).length;
+  const tipoSel=_lblTipo();
+  const conCod=(tipoSel==='barra')?_lblSel.filter(b=>_cbEfectivo(b).v).length:_lblSel.filter(b=>_cg(b,'code')).length;
   ['lblSelCount'].forEach(id=>{const e=$(id);if(e)e.textContent=_lblSel.length;});
   const pc=$('lblPdfCount');if(pc)pc.textContent=conCod;
+  {const faltan=_cbFaltan(_lblSel).length,cj=$('lblFaltanBox'),nn=$('lblFaltanN');
+   if(nn)nn.textContent=faltan;
+   if(cj)cj.style.display=faltan?'':'none';}
   const src=(_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog;const fc=$('lblFiltCount');if(fc)fc.textContent=src.length;
   if(!_lblSel.length){box.innerHTML='<div style="padding:11px;font-size:12px;color:var(--ts);border:1px dashed var(--br);border-radius:var(--r)">Aún no hay libros seleccionados.</div>';return;}
   box.innerHTML=_lblSel.map((b,i)=>{const noCode=!_cg(b,'code');return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--br);border-radius:var(--r);margin-bottom:4px;background:var(--wh)">
@@ -4877,13 +4879,30 @@ function lblRenderSel(){
 function _lblTipo(){const r=document.querySelector('input[name="lblTipo"]:checked');return r?r.value:'lomo';}
 function lblTipoCambio(){
   const t=_lblTipo();
-  const cajas={lomo:$('lblOpcLomo'),barra:$('lblOpcBarra'),qr:$('lblOpcQR'),ean:$('lblOpcEAN')};
+  const cajas={lomo:$('lblOpcLomo'),barra:$('lblOpcBarra'),qr:$('lblOpcQR')};
   for(const k in cajas)if(cajas[k])cajas[k].style.display=(k===t)?'':'none';
-  const nombre={lomo:'Etiquetas PDF',barra:'Códigos de barra PDF',qr:'Códigos QR PDF',ean:'Códigos del libro PDF'};
-  const icono={lomo:'ti-tag',barra:'ti-barcode',qr:'ti-qrcode',ean:'ti-barcode'};
+  const nombre={lomo:'Etiquetas PDF',barra:'Códigos de barra PDF',qr:'Códigos QR PDF'};
+  const icono={lomo:'ti-tag',barra:'ti-barcode',qr:'ti-qrcode'};
   const tx=$('lblPdfTxt'),ic=$('lblPdfIco');
   if(tx)tx.textContent=nombre[t]||nombre.lomo;
   if(ic)ic.className='ti '+(icono[t]||icono.lomo);
+  lblRenderSel();
+}
+/* Les crea de una vez el código de la biblioteca a los libros de la selección
+   que no tienen ninguno (ni de editorial ni ISBN del que sacarlo) */
+function lblCrearFaltantes(){
+  if(!_lblSel.length){showToast('Selecciona antes los libros','del');return;}
+  _bcAsegurar(bookCatalog);
+  const faltan=_cbFaltan(_lblSel);
+  if(!faltan.length){showToast('Todos los libros elegidos ya tienen código de barra','ok');return;}
+  let k=0;
+  faltan.forEach(b=>{const x=_bcDe(b);if(x.length===10){b.eb=x;b.ebo='bi';k++;}});
+  lblRenderSel();
+  if(_biBook&&_cbDe(_biBook))_openBookCard(_biBook);
+  _saveCatalogToCloud().then(r=>{
+    if(r&&r.error)showToast(k+' código(s) creados localmente, pero no se pudo sincronizar','del');
+    else showToast(k+' código(s) de barra creados por la biblioteca','ok');
+  });
 }
 function lblPrint(){
   if(!_lblSel.length){showToast('Selecciona al menos un libro','del');return;}
@@ -4896,11 +4915,6 @@ function lblPrint(){
   if(tipo==='qr'){
     const r=document.querySelector('input[name="lblQR"]:checked');
     printQRs(_lblSel,!!(r&&r.value==='codigo'));
-    return;
-  }
-  if(tipo==='ean'){
-    const r=document.querySelector('input[name="lblEAN"]:checked');
-    printEANs(_lblSel,!!(r&&r.value==='codigo'));
     return;
   }
   const withCode=_lblSel.filter(b=>_cg(b,'code'));
@@ -4982,16 +4996,20 @@ async function _bcSincronizar(){
   if(n&&_sb&&cRole==='admin'){try{await _saveCatalogToCloud();}catch(e){console.warn('[Barras] no se pudo guardar:',e&&e.message);}}
   return n;
 }
-/* ── PDF de etiquetas con código de barra ── */
+/* ── PDF de etiquetas con el código de barra de cada libro ──
+   Imprime el ÚNICO código de cada libro (editorial, del ISBN o de la
+   biblioteca). Los que todavía no tienen ninguno quedan fuera y se avisa. */
 function printBarcodes(list,conCodigo){
   list=(list&&list.length)?list:((_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog);
   if(!list||!list.length){showToast('No hay libros para generar códigos de barra','del');return;}
-  _bcAsegurar(bookCatalog);
-  const celdas=list.map(b=>{
-    const num=_bcDe(b),code=_cg(b,'code');
+  const con=[],sin=[];
+  list.forEach(b=>{(_cbEfectivo(b).v?con:sin).push(b);});
+  if(!con.length){showToast('Ninguno de los libros elegidos tiene código de barra todavía','del');return;}
+  const celdas=con.map(b=>{
+    const r=_cbEfectivo(b),code=_cg(b,'code');
     return '<div class="cell"><div class="tt">'+_esc(_cg(b,'t')||'(sin título)')+'</div>'
-      +'<div class="bcw">'+_bcSVG(num,16)+'</div>'
-      +'<div class="nn">'+_esc(num)+'</div>'
+      +'<div class="bcw">'+_cbSVG(r.v,16)+'</div>'
+      +'<div class="nn">'+_esc(_cbTexto(r.v))+'</div>'
       +(conCodigo?'<div class="cc">'+_esc(code||'—')+'</div>':'')
       +'</div>';
   }).join('');
@@ -5001,22 +5019,24 @@ function printBarcodes(list,conCodigo){
     +'.cell{width:50mm;border:0.2mm dashed #aaa;padding:1.4mm 1.2mm;display:flex;flex-direction:column;align-items:center;break-inside:avoid;page-break-inside:avoid}'
     +'.cell .tt{width:100%;font-size:2.6mm;line-height:1.15;text-align:center;font-weight:600;margin-bottom:1mm;height:6.2mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}'
     +'.cell .bcw{width:45mm;height:13mm}'
-    +'.cell .nn{font-family:"Courier New",monospace;font-size:3mm;letter-spacing:0.5mm;margin-top:0.6mm}'
+    +'.cell .nn{font-family:"Courier New",monospace;font-size:3mm;letter-spacing:0.4mm;margin-top:0.6mm}'
     +'.cell .cc{font-family:"Courier New",monospace;font-size:2.9mm;font-weight:700;letter-spacing:0.2mm;margin-top:0.5mm}'
     +'.bar{padding:8px;font-family:sans-serif;font-size:13px}@media print{.bar{display:none}}'
     +'</style></head><body>'
     +'<div class="bar"><button onclick="window.print()" style="padding:6px 12px;font-size:13px;cursor:pointer">🖨️ Imprimir / Guardar PDF</button> &nbsp; '
-    +list.length+' código(s) de barra · 50 mm de ancho'+(conCodigo?' · con el código del libro':' · solo el código de barra')+'</div>'
+    +con.length+' código(s) de barra · 50 mm de ancho'+(conCodigo?' · con el código de lomo':'')
+    +(sin.length?' &nbsp;·&nbsp; <b>'+sin.length+' libro(s) quedaron fuera</b> porque todavía no tienen código de barra':'')+'</div>'
     +'<div class="wrap">'+celdas+'</div>'
     +'<scr'+'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},350);}</scr'+'ipt>'
     +'</body></html>';
   const w=window.open('','_blank');
   if(!w){showToast('Permite ventanas emergentes para descargar el PDF','del');return;}
   w.document.open();w.document.write(html);w.document.close();
+  if(sin.length)showToast(sin.length+' libro(s) quedaron fuera: todavía no tienen código de barra','del');
 }
 /* ── Ventana del código de barra de un libro concreto ── */
 let _bcBook=null,_bcTipo='barra';
-function bcTipo(t){_bcTipo=t;if(_bcBook)openBarcodeModal(_bcBook);}
+function bcTipo(t){_bcTipo=t;_cbEscaneo=false;if(_bcBook)openBarcodeModal(_bcBook);}
 function _bcPinta(id,activo){
   const el=$(id);if(!el)return;
   el.style.background=activo?'var(--bm)':'transparent';
@@ -5033,27 +5053,129 @@ function _bcVistaQR(el,b){
     +'</div>'
     +'<div style="font-size:11.5px;color:var(--ts);margin-top:.7rem;line-height:1.45">Al escanearlo con cualquier teléfono se abre <b>la ficha de este libro</b> en el catálogo que compartes con los clientes.<br><span style="word-break:break-all;color:var(--tm)">'+_esc(url)+'</span></div>';
 }
+let _cbEscaneo=false,_cbScanT=null;
+/* La vista del código de barra del libro */
+function _cbVista(el,b){
+  const r=_cbEfectivo(b),code=_cg(b,'code');
+  const desdeISBN=_eanDesdeISBN(_cg(b,'ib'));
+  let h='<div style="font-size:13px;font-weight:700;color:var(--tp);text-align:center;margin-bottom:.6rem;line-height:1.25">'+_esc(_cg(b,'t')||'(sin título)')+'</div>';
+  if(r.v){
+    h+='<div style="background:#fff;border:1px solid var(--br);border-radius:10px;padding:14px 16px 10px">'
+      +'<div style="height:62px">'+_cbSVG(r.v,16)+'</div>'
+      +'<div style="font-family:ui-monospace,monospace;font-size:15px;letter-spacing:2px;color:#111;text-align:center;margin-top:5px">'+_esc(_cbTexto(r.v))+'</div>'
+      +(code?'<div style="font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;color:#111;text-align:center;margin-top:3px">'+_esc(code)+'</div>':'')
+      +'</div>';
+    let nota='';
+    if(r.o==='ed')nota='Es el código que <b>trae impreso el libro</b>, el de la editorial.';
+    else if(r.o==='is')nota='Creado <b>a partir del ISBN</b> del libro: es el mismo número que lleva la contratapa.'+(r.g?'':' Se imprimirá así aunque no lo guardes.');
+    else if(r.o==='bi')nota='Creado <b>por la biblioteca</b>, porque el libro no trae código impreso ni tiene ISBN.';
+    h+='<div style="font-size:11.5px;color:var(--ts);margin-top:.7rem;line-height:1.45">'+nota+' Al escanearlo sobre el buscador de la Biblioteca, el libro aparece de inmediato.</div>';
+  }else{
+    h+='<div style="background:var(--cr);border:1px dashed var(--br);border-radius:10px;padding:16px 14px;text-align:center">'
+      +'<i class="ti ti-barcode" style="font-size:26px;color:var(--ts)"></i>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--tp);margin-top:6px">Este libro todavía no tiene código de barra</div>'
+      +'<div style="font-size:11.5px;color:var(--ts);margin-top:5px;line-height:1.45">No tiene guardado el de la editorial y tampoco un ISBN del que crearlo. Pasa el lector por la contratapa si trae uno impreso; si no trae ninguno, créale uno propio de la biblioteca.</div>'
+      +'</div>';
+  }
+  if(_cbEscaneo){el.innerHTML=h+_cbPanelScan();return;}
+  const bt=(txt,ico,fn,fuerte)=>'<button onclick="'+fn+'" style="width:100%;padding:9px 10px;border:1px solid '+(fuerte?'var(--bm)':'var(--br)')+';background:'+(fuerte?'var(--bm)':'transparent')+';color:'+(fuerte?'#fff':'var(--tm)')+';border-radius:var(--r);cursor:pointer;font-size:12.5px;font-weight:'+(fuerte?'700':'600')+';text-align:left"><i class="ti '+ico+'" style="font-size:14px;vertical-align:-2px"></i> '+txt+'</button>';
+  let acc='<div style="display:flex;flex-direction:column;gap:6px;margin-top:.8rem">';
+  acc+=bt(r.o==='ed'?'Volver a escanear el código de editorial':'Escanear código de editorial','ti-scan','_cbScanAbrir()',r.o!=='ed');
+  if(desdeISBN&&!(r.g&&r.v===desdeISBN))acc+=bt('Generar código a partir del ISBN','ti-wand','_cbDesdeISBN()',false);
+  if(!r.v)acc+=bt('Crear uno propio de la biblioteca','ti-library','_cbCrearBiblioteca()',false);
+  acc+='</div>';
+  el.innerHTML=h+acc;
+}
+function _cbPanelScan(){
+  return '<div style="margin-top:.8rem;border:1px solid var(--bm);border-radius:10px;padding:.7rem .75rem;background:var(--cr)">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--tp);margin-bottom:6px"><i class="ti ti-scan" style="color:var(--bm)"></i> Pasa el lector por el código de barra del libro</div>'
+    +'<input id="cbScan" type="text" inputmode="numeric" autocomplete="off" placeholder="Esperando el lector…" oninput="_cbScanInput()" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();_cbScanGuardar();}" style="width:100%;padding:9px 10px;border:1px solid var(--br);border-radius:var(--r);font-size:15px;font-family:ui-monospace,monospace;letter-spacing:1px;background:var(--wh);box-sizing:border-box">'
+    +'<div id="cbScanAviso" style="font-size:11.5px;color:var(--ts);margin-top:5px;line-height:1.4">Está en la contratapa, debajo de las rayas. Son 13 cifras. También puedes escribirlas a mano.</div>'
+    +'<div style="display:flex;gap:6px;margin-top:.65rem">'
+    +'<button onclick="_cbScanCerrar()" style="flex:1;padding:8px;border:1px solid var(--br);background:transparent;color:var(--tm);border-radius:var(--r);cursor:pointer;font-size:12.5px">Cancelar</button>'
+    +'<button onclick="_cbScanGuardar()" style="flex:1.4;padding:8px;border:1px solid var(--ok);background:var(--ok);color:#fff;border-radius:var(--r);cursor:pointer;font-size:12.5px;font-weight:700">Guardar el código</button>'
+    +'</div></div>';
+}
+function _cbScanAbrir(){_cbEscaneo=true;if(_bcBook)openBarcodeModal(_bcBook);}
+function _cbScanCerrar(){clearTimeout(_cbScanT);_cbEscaneo=false;if(_bcBook)openBarcodeModal(_bcBook);}
+function _cbScanInput(){
+  const i=$('cbScan'),av=$('cbScanAviso');if(!i||!av)return;
+  const v=_eanLimpio(i.value);
+  if(v!==i.value)i.value=v;
+  clearTimeout(_cbScanT);
+  if(!v){av.style.color='var(--ts)';av.textContent='Está en la contratapa, debajo de las rayas. Son 13 cifras. También puedes escribirlas a mano.';return;}
+  if(_eanValido(v)){av.style.color='var(--ok)';av.textContent='Código correcto · guardando…';_cbScanT=setTimeout(_cbScanGuardar,250);return;}
+  if(/^\d{13}$/.test(v)){av.style.color='var(--er)';av.textContent='Las 13 cifras están, pero el dígito de control no cuadra: vuelve a pasar el lector o revisa que estén bien copiadas.';return;}
+  av.style.color='var(--ts)';av.textContent='Llevas '+v.length+' de 13 cifras.';
+}
+function _cbScanGuardar(){
+  clearTimeout(_cbScanT);
+  const i=$('cbScan');if(!i||!_bcBook)return;
+  const v=_eanLimpio(i.value);
+  if(!v){showToast('Pasa el lector por el código de la contratapa','del');return;}
+  if(!_eanValido(v)){
+    showToast(/^\d{13}$/.test(v)?'Ese código no cuadra con su dígito de control: vuelve a leerlo':'El código de la editorial tiene 13 cifras; llevas '+v.length,'del');
+    return;
+  }
+  _cbGuardar(_bcBook,v,'ed');
+}
+function _cbDesdeISBN(){
+  const b=_bcBook;if(!b)return;
+  const e=_eanDesdeISBN(_cg(b,'ib'));
+  if(!e){showToast('Este libro no tiene un ISBN del que crear el código','del');return;}
+  _cbGuardar(b,e,'is');
+  const g=_eanLimpio(_cg(b,'ib'));
+  if(/^\d{13}$/.test(g)&&g!==e)setTimeout(()=>showToast('Ojo: el dígito de control del ISBN guardado no cuadraba; revisa que esté bien copiado del libro','del'),1500);
+}
+function _cbCrearBiblioteca(){
+  const b=_bcBook;if(!b)return;
+  _bcAsegurar(bookCatalog);
+  const x=_bcDe(b);
+  if(x.length!==10){showToast('No se pudo crear el código','del');return;}
+  _cbGuardar(b,x,'bi');
+}
+/* Guarda el código del libro y lo sincroniza. Nunca toca el `bc` del QR. */
+function _cbGuardar(b,v,origen){
+  if(!b)return;
+  const limpio=_eanLimpio(v);
+  if(!_cbValido(limpio)){showToast('Ese código no sirve para imprimir','del');return;}
+  const otro=bookCatalog.find(x=>x!==b&&_cbDe(x)===limpio);
+  b.eb=limpio;b.ebo=origen;
+  clearTimeout(_cbScanT);_cbEscaneo=false;
+  if(_biBook===b)_openBookCard(b);
+  openBarcodeModal(b);
+  _saveCatalogToCloud().then(r=>{
+    if(r&&r.error)showToast('Código guardado localmente, pero no se pudo sincronizar','del');
+    else showToast('Código de barra guardado','ok');
+  });
+  if(otro)setTimeout(()=>showToast('Ojo: «'+_cg(otro,'t')+'» ya tiene ese mismo código de barra','del'),1500);
+}
+/* El botón de imprimir solo sirve si hay algo que imprimir */
+function _cbBotonPDF(){
+  const hay=(_bcTipo==='qr')||!!_cbEfectivo(_bcBook).v;
+  const bt=$('bcPdfBtn');
+  if(bt){bt.style.opacity=hay?'1':'.4';bt.style.pointerEvents=hay?'':'none';}
+  const lb=$('bcConCodigoWrap');
+  if(lb)lb.style.display=(hay&&!_cbEscaneo)?'flex':'none';
+}
 function openBarcodeModal(b){
   b=b||_biBook;if(!b)return;
   _bcAsegurar(bookCatalog);
   _bcBook=b;
-  const num=_bcDe(b),code=_cg(b,'code');
   const el=$('bcBody');if(!el)return;
   _bcPinta('bcTabBarra',_bcTipo!=='qr');_bcPinta('bcTabQR',_bcTipo==='qr');
-  if(_bcTipo==='qr'){_bcVistaQR(el,b);openMod('bcModal');return;}
-  el.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--tp);text-align:center;margin-bottom:.6rem;line-height:1.25">'+_esc(_cg(b,'t')||'(sin título)')+'</div>'
-    +'<div style="background:#fff;border:1px solid var(--br);border-radius:10px;padding:14px 16px 10px">'
-    +'<div style="height:62px">'+_bcSVG(num,16)+'</div>'
-    +'<div style="font-family:ui-monospace,monospace;font-size:15px;letter-spacing:3px;color:#111;text-align:center;margin-top:5px">'+_esc(num)+'</div>'
-    +(code?'<div style="font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;color:#111;text-align:center;margin-top:3px">'+_esc(code)+'</div>':'')
-    +'</div>'
-    +'<div style="font-size:11.5px;color:var(--ts);margin-top:.7rem;line-height:1.45">Este número es propio y permanente de este libro: <b>no cambia</b> aunque más adelante cambie el código de lomo. Al escanearlo sobre el buscador de la Biblioteca, el libro aparece de inmediato.</div>';
+  if(_bcTipo==='qr'){_cbEscaneo=false;_bcVistaQR(el,b);}
+  else _cbVista(el,b);
+  _cbBotonPDF();
   openMod('bcModal');
+  if(_cbEscaneo)setTimeout(()=>{const i=$('cbScan');if(i){i.focus();i.select();}},70);
 }
 function bcPrint(){
   if(!_bcBook)return;
   const con=!!($('bcConCodigo')&&$('bcConCodigo').checked);
-  if(_bcTipo==='qr')printQRs([_bcBook],con); else printBarcodes([_bcBook],con);
+  if(_bcTipo==='qr'){printQRs([_bcBook],con);return;}
+  if(!_cbEfectivo(_bcBook).v){showToast('Primero dale un código de barra a este libro','del');return;}
+  printBarcodes([_bcBook],con);
 }
 /* El buscador de la Biblioteca también encuentra por código de barra: basta
    escanearlo con el lector sobre el buscador. Y encuentra el código de lomo
@@ -7483,7 +7605,7 @@ function _eanDesdeISBN(ib){
 function _ebDe(b){return _eanLimpio(b&&b.eb);}
 function _ebBuscable(b){
   const out=new Set();
-  const e=_ebDe(b); if(/^\d{13}$/.test(e))out.add(e);
+  const e=_ebDe(b); if(/^\d{10}$|^\d{13}$/.test(e))out.add(e);
   const d=_eanDesdeISBN(_cg(b,'ib')); if(d)out.add(d);
   const i=_eanLimpio(_cg(b,'ib')); if(i)out.add(i);
   return out;
@@ -7510,42 +7632,47 @@ function _eanSVG(v,alto){
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+an+' '+h+'" preserveAspectRatio="none" shape-rendering="crispEdges" style="display:block;width:100%;height:100%">'
     +'<rect x="0" y="0" width="'+an+'" height="'+h+'" fill="#fff"/><g fill="#000">'+r+'</g></svg>';
 }
-/* ── PDF de etiquetas con el código de barra del libro ── */
-function printEANs(list,conCodigo){
-  list=(list&&list.length)?list:((_catFiltered&&_catFiltered.length)?_catFiltered:bookCatalog);
-  if(!list||!list.length){showToast('No hay libros seleccionados','del');return;}
-  const con=[],sin=[];
-  list.forEach(b=>{const e=_ebDe(b)||_eanDesdeISBN(_cg(b,'ib'));(_eanValido(e)?con:sin).push(b);});
-  if(!con.length){showToast('Ninguno de los libros elegidos tiene código de barra ni ISBN para crearlo','del');return;}
-  const celdas=con.map(b=>{
-    const e=_ebDe(b)||_eanDesdeISBN(_cg(b,'ib')),code=_cg(b,'code');
-    return '<div class="cell"><div class="tt">'+_esc(_cg(b,'t')||'(sin título)')+'</div>'
-      +'<div class="bcw">'+_eanSVG(e,16)+'</div>'
-      +'<div class="nn">'+_esc(e.slice(0,1)+' '+e.slice(1,7)+' '+e.slice(7))+'</div>'
-      +(conCodigo?'<div class="cc">'+_esc(code||'—')+'</div>':'')
-      +'</div>';
-  }).join('');
-  const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Códigos de barra del libro</title><style>'
-    +'@page{size:auto;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif}'
-    +'.wrap{display:flex;flex-wrap:wrap;gap:2mm;align-items:flex-start}'
-    +'.cell{width:50mm;border:0.2mm dashed #aaa;padding:1.4mm 1.2mm;display:flex;flex-direction:column;align-items:center;break-inside:avoid;page-break-inside:avoid}'
-    +'.cell .tt{width:100%;font-size:2.6mm;line-height:1.15;text-align:center;font-weight:600;margin-bottom:1mm;height:6.2mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}'
-    +'.cell .bcw{width:45mm;height:13mm}'
-    +'.cell .nn{font-family:"Courier New",monospace;font-size:3mm;letter-spacing:0.4mm;margin-top:0.6mm}'
-    +'.cell .cc{font-family:"Courier New",monospace;font-size:2.9mm;font-weight:700;letter-spacing:0.2mm;margin-top:0.5mm}'
-    +'.bar{padding:8px;font-family:sans-serif;font-size:13px}@media print{.bar{display:none}}'
-    +'</style></head><body>'
-    +'<div class="bar"><button onclick="window.print()" style="padding:6px 12px;font-size:13px;cursor:pointer">🖨️ Imprimir / Guardar PDF</button> &nbsp; '
-    +con.length+' código(s) de barra del libro · 50 mm de ancho'+(conCodigo?' · con el código del libro':'')
-    +(sin.length?' &nbsp;·&nbsp; <b>'+sin.length+' libro(s) quedaron fuera</b> porque no tienen código de barra ni ISBN':'')+'</div>'
-    +'<div class="wrap">'+celdas+'</div>'
-    +'<scr'+'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},350);}</scr'+'ipt>'
-    +'</body></html>';
-  const w=window.open('','_blank');
-  if(!w){showToast('Permite ventanas emergentes para descargar el PDF','del');return;}
-  w.document.open();w.document.write(html);w.document.close();
-  if(sin.length)showToast(sin.length+' libro(s) sin código de barra ni ISBN quedaron fuera del PDF','del');
+/* ═══════════════════════════════════════════════════════════════════════
+   EL CÓDIGO DE BARRA DE UN LIBRO · uno solo por libro
+   Por orden de preferencia:
+     1) el que trae impreso la editorial (se pasa el lector por la contratapa)
+     2) el creado a partir del ISBN, que es exactamente el mismo número
+     3) y solo si el libro no tiene ninguno de los dos, uno propio de la
+        biblioteca (su número interno de 10 cifras, en Code 128)
+   En `eb` van las cifras del código; en `ebo` de dónde salió:
+   'ed' editorial · 'is' del ISBN · 'bi' de la biblioteca.
+   `bc` NO es un código de barra: es el id permanente que usa el QR.
+   ═══════════════════════════════════════════════════════════════════════ */
+function _cbDe(b){return _eanLimpio(b&&b.eb);}
+function _cbValido(v){const s=String(v||'');return /^\d{10}$/.test(s)||_eanValido(s);}
+/* De dónde salió el código guardado (si no quedó anotado, se deduce) */
+function _cbOrigen(b){
+  const v=_cbDe(b);if(!v)return '';
+  const o=String((b&&b.ebo)||'');
+  if(o==='ed'||o==='is'||o==='bi')return o;
+  if(v.length===10)return 'bi';
+  const d=_eanDesdeISBN(_cg(b,'ib'));
+  return (d&&d===v)?'is':'ed';
 }
+/* El único código del libro. Si no hay ninguno guardado pero sí ISBN, sale de ahí.
+   Devuelve {v: cifras, o: origen, g: ya está guardado}. */
+function _cbEfectivo(b){
+  if(!b)return {v:'',o:'',g:false};
+  const v=_cbDe(b);
+  if(_cbValido(v))return {v:v,o:_cbOrigen(b),g:true};
+  const d=_eanDesdeISBN(_cg(b,'ib'));
+  if(d)return {v:d,o:'is',g:false};
+  return {v:'',o:'',g:false};
+}
+/* Las rayas: 13 cifras → EAN-13 (el de las contratapas); 10 → Code 128 */
+function _cbSVG(v,alto){const s=String(v||'');
+  if(/^\d{13}$/.test(s))return _eanSVG(s,alto);
+  if(/^\d{10}$/.test(s))return _bcSVG(s,alto);
+  return '';}
+function _cbTexto(v){const s=String(v||'');
+  return /^\d{13}$/.test(s)?(s.slice(0,1)+' '+s.slice(1,7)+' '+s.slice(7)):s;}
+function _cbEtiqueta(o){return o==='ed'?'de la editorial':o==='is'?'creado a partir del ISBN':o==='bi'?'propio de la biblioteca':'';}
+function _cbFaltan(list){return (list||[]).filter(b=>!_cbEfectivo(b).v);}
 /* ── El campo «Código de barra del libro» del formulario ── */
 function ceEBCambio(){
   const inp=$('ceEB'),av=$('ceEBAviso'),bt=$('ceEBCrear');
@@ -7558,14 +7685,15 @@ function ceEBCambio(){
   const v=limpio;
   if(!v){
     av.style.color='var(--ts)';
-    av.textContent=desdeISBN?'Este libro no tiene código de barra guardado. Pasa el lector por la contratapa, o créalo desde el ISBN.'
-                            :'Sin ISBN utilizable: este libro no puede tener código de barra de editorial. Igual conserva el de la biblioteca.';
+    av.textContent=desdeISBN?'Sin código guardado: se imprimirá el creado a partir del ISBN ('+desdeISBN+'). Si el libro trae uno impreso, pasa el lector por la contratapa.'
+                            :'Sin código y sin ISBN del que crearlo. Pasa el lector por la contratapa, o créale uno propio desde el botón «Código de barra» de la ficha.';
     return;
   }
   if(_eanValido(v)){av.style.color='var(--ok)';av.textContent='Código de barra correcto (13 cifras, dígito de control verificado).';return;}
+  if(/^\d{10}$/.test(v)){av.style.color='var(--ok)';av.textContent='Código propio de la biblioteca (10 cifras).';return;}
   if(/^\d{13}$/.test(v)){av.style.color='var(--er)';av.textContent='Las 13 cifras están, pero el dígito de control no cuadra: revisa que esté bien leído o bien copiado.';return;}
   av.style.color='var(--er)';
-  av.textContent='El código de barra de un libro tiene 13 cifras; llevas '+v.length+'.';
+  av.textContent='El código de la editorial tiene 13 cifras; llevas '+v.length+'.';
 }
 function ceCrearEAN(){
   const ib=$('ceIB')?$('ceIB').value:'';
@@ -7588,8 +7716,13 @@ function _openBookCard(b){
   const code=_cg(b,'code');
   $('biTitle').innerHTML=(code?`<span style="display:inline-block;font-size:12px;font-weight:700;font-family:ui-monospace,monospace;color:#fff;background:var(--bm);border-radius:6px;padding:2px 8px;margin-bottom:6px">${_esc(code)}</span><br>`:'')+_esc(_cg(b,'t'));
   $('biAuthor').innerHTML='<i class="ti ti-user" style="font-size:11px;vertical-align:-1px"></i> '+(_esc(_cg(b,'a'))||'—');
-  const rows=[['País','pais'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib'],['Código de barra','eb']];
-  $('biMeta').innerHTML=rows.filter(([,k])=>_cg(b,k)).map(([lbl,k])=>`<div style="color:var(--ts);font-weight:600">${lbl}</div><div style="color:var(--tm)">${_esc(_cg(b,k))}</div>`).join('');
+  const rows=[['País','pais'],['Idioma','id'],['Género','g'],['Subgénero','sg'],['Editorial','ed'],['Edición','ec'],['ISBN','ib']];
+  let _meta=rows.filter(([,k])=>_cg(b,k)).map(([lbl,k])=>`<div style="color:var(--ts);font-weight:600">${lbl}</div><div style="color:var(--tm)">${_esc(_cg(b,k))}</div>`).join('');
+  {const rcb=_cbEfectivo(b);
+   _meta+='<div style="color:var(--ts);font-weight:600">Código de barra</div><div style="color:var(--tm)">'
+     +(rcb.v?_esc(_cbTexto(rcb.v))+'<span style="color:var(--ts);font-size:11.5px"> · '+_cbEtiqueta(rcb.o)+'</span>'
+            :'<span style="color:var(--ts)">todavía no tiene · créalo en «Código de barra»</span>')+'</div>';}
+  $('biMeta').innerHTML=_meta;
   _renderBiCodeAlert(b);
   const desc=_cg(b,'d');
   $('biDescWrap').style.display=desc?'block':'none';
@@ -8176,10 +8309,20 @@ function saveCatEdit(){
   if(!sgv){showToast('Selecciona un subgénero','del');return;}
   let ib=_cln($('ceIB').value);if(ib==='-'||ib==='?')ib='';
   const eb=_eanLimpio($('ceEB')?$('ceEB').value:'');
-  const data={t,a,pais,g:gv,sg:sgv,id:_cln($('ceID').value),ib,eb,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
+  /* De dónde salió el código: se conserva si no cambió, y si no se deduce */
+  const _bAnt=_catAddMode?null:_biBook;
+  const _ebAnt=_bAnt?_eanLimpio(_bAnt.eb):'',_eboAnt=String((_bAnt&&_bAnt.ebo)||'');
+  let ebo='';
+  if(eb){
+    if(eb===_ebAnt&&_eboAnt)ebo=_eboAnt;
+    else if(eb===_eanDesdeISBN(ib))ebo='is';
+    else if(/^\d{10}$/.test(eb))ebo='bi';
+    else ebo='ed';
+  }
+  const data={t,a,pais,g:gv,sg:sgv,id:_cln($('ceID').value),ib,eb,ebo,ed:_cln($('ceED').value),ec:_cln($('ceEC').value),d:_cln($('ceD').value)};
   /* Aviso (no bloquea) si ese código de barra ya está en otro libro */
   if(/^\d{13}$/.test(eb)){
-    const otro=bookCatalog.find(x=>x!==_biBook&&_ebDe(x)===eb);
+    const otro=bookCatalog.find(x=>x!==_biBook&&_cbDe(x)===eb);
     if(otro)setTimeout(()=>showToast('Ojo: «'+_cg(otro,'t')+'» ya tiene ese mismo código de barra','del'),1100);
   }
   /* El código se genera solo. Si el nombre no permite saber cuál es el primer
@@ -8264,11 +8407,11 @@ function importCatalogXlsx(file){
     if(!books.length){showToast('No se encontraron libros (revisa la columna «Título»)','del');return;}
     /* Conservar los apellidos que el usuario ya confirmó a mano (mismo título y autor) */
     if(bookCatalog.length){
-      const prev={};bookCatalog.forEach(b=>{prev[_nm(b.t)+'|'+_nm(b.a)]={sx:b.sx,bc:b.bc,eb:b.eb};});
+      const prev={};bookCatalog.forEach(b=>{prev[_nm(b.t)+'|'+_nm(b.a)]={sx:b.sx,bc:b.bc,eb:b.eb,ebo:b.ebo};});
       books.forEach(b=>{const p=prev[_nm(b.t)+'|'+_nm(b.a)];if(!p)return;
         if(p.sx)b.sx=p.sx;
         if(p.bc)b.bc=p.bc;          /* el código de barra ya pegado en el libro NO cambia */
-        if(p.eb&&!b.eb)b.eb=p.eb;   /* ni el de la contratapa, si el Excel no lo trae */
+        if(p.eb&&!b.eb){b.eb=p.eb;b.ebo=p.ebo;}   /* ni el de la contratapa, si el Excel no lo trae */
       });
     }
     _codifyCatalog(books); /* corrige/completa códigos y numera correlativo */
@@ -8290,7 +8433,7 @@ function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function exportCatalogXlsx(){
   if(typeof XLSX==='undefined'){showToast('Librería XLSX no disponible','del');return;}
   if(!bookCatalog.length){showToast('El catálogo está vacío','del');return;}
-  const header=['Código','Título','Autor','País','Idioma','Género','Subgénero','Editorial','Edición','ISBN','Descripción','Código de barra del libro'];
+  const header=['Código','Título','Autor','País','Idioma','Género','Subgénero','Editorial','Edición','ISBN','Descripción','Código de barra'];
   const rows=bookCatalog.map(b=>[_cg(b,'code'),_cg(b,'t'),_cg(b,'a'),_cg(b,'pais'),_cg(b,'id'),_cg(b,'g'),_cg(b,'sg'),_cg(b,'ed'),_cg(b,'ec'),_cg(b,'ib'),_cg(b,'d'),_cg(b,'eb')]);
   const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
   ws['!cols']=[{wch:16},{wch:34},{wch:24},{wch:16},{wch:10},{wch:18},{wch:18},{wch:20},{wch:16},{wch:18},{wch:50}];
