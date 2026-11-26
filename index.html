@@ -845,7 +845,16 @@ body.dark .info-note b{color:#7fb0e0}
             <button id="alarmIcon" onclick="toggleAlarmMute()" title="Silenciar / activar alarma" style="background:none;border:none;cursor:pointer;color:var(--bm);font-size:16px;line-height:1;padding:0;display:flex"><i class="ti ti-volume"></i></button>
             <input id="alarmVol" type="range" min="0" max="100" step="5" oninput="setAlarmVol(this.value)" style="width:120px;accent-color:var(--bm)">
             <span id="alarmVolPct" style="font-size:11px;color:var(--ts);font-weight:600;min-width:34px;text-align:right">50%</span>
-            <button onclick="playBell()" title="Probar alarma" style="background:none;border:1px solid var(--br);border-radius:6px;cursor:pointer;color:var(--ts);font-size:11px;padding:3px 8px">Probar</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:var(--cr);border:1px solid var(--br);border-radius:20px;padding:5px 12px;flex-wrap:wrap">
+            <i class="ti ti-repeat" style="font-size:15px;color:var(--bm);line-height:1"></i>
+            <label for="alarmRep" style="font-size:11px;color:var(--ts);font-weight:600">Repeticiones</label>
+            <select id="alarmRep" onchange="setAlarmRep(this.value)" title="Cuántas veces suena la campana por cada pedido nuevo" style="border:1px solid var(--br);border-radius:6px;background:var(--wh);color:var(--tm);font-size:12px;font-weight:700;padding:3px 6px;cursor:pointer">
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option>
+            </select>
+            <button onclick="probarCampana()" title="Suena con el volumen y las repeticiones elegidas" style="background:none;border:1px solid var(--br);border-radius:6px;cursor:pointer;color:var(--ts);font-size:11px;padding:3px 8px;white-space:nowrap"><i class="ti ti-bell" style="font-size:12px;vertical-align:-1px"></i> Probar campana</button>
+            <button id="alarmNotifBtn" onclick="pedirAvisos()" title="Permitir avisos del sistema para verlos con el navegador minimizado" style="display:none;background:none;border:1px solid var(--inf);border-radius:6px;cursor:pointer;color:var(--inf);font-size:11px;padding:3px 8px;white-space:nowrap"><i class="ti ti-bell-plus" style="font-size:12px;vertical-align:-1px"></i> Activar avisos</button>
+            <span id="alarmWarn" style="display:none;font-size:10.5px;color:var(--wn);font-weight:700;white-space:nowrap"><i class="ti ti-alert-triangle" style="font-size:12px;vertical-align:-1px"></i> Toca «Probar campana» para activar el sonido</span>
           </div>
         </div>
         <div class="kg" id="kitchenGrid"><div class="noo"><i class="ti ti-chef-hat" aria-hidden="true"></i><p>Sin órdenes activas</p></div></div>
@@ -1331,26 +1340,147 @@ function _updateAlarmUI(){
   if(sl&&sl.value!=String(_alarmVol))sl.value=_alarmVol;
   if(pct)pct.textContent=_alarmVol+'%';
   if(ic)ic.innerHTML=_alarmVol===0?'<i class="ti ti-volume-off"></i>':_alarmVol<=40?'<i class="ti ti-volume-2"></i>':'<i class="ti ti-volume"></i>';
+  const rp=$('alarmRep');
+  if(rp&&rp.value!=String(_alarmRep))rp.value=String(_alarmRep);
+  const wn=$('alarmWarn');
+  if(wn)wn.style.display=(_audioCtx&&_audioCtx.state==='running')?'none':'';
+  const nb=$('alarmNotifBtn');
+  if(nb)nb.style.display=(('Notification' in window)&&Notification.permission==='default')?'':'none';
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   CAMPANA DE COCINA
+   · El volumen sigue siendo el de siempre (_alarmVol / setAlarmVol).
+   · NUEVO: cantidad de repeticiones por pedido, guardada en este equipo.
+   · El sonido se programa ENTERO dentro del reloj de audio del navegador,
+     no con temporizadores. Por eso sigue sonando aunque la pestaña pase a
+     segundo plano, que es donde los temporizadores se frenan.
+   ═══════════════════════════════════════════════════════════════════════ */
+const _ALARM_REPS=[1,2,3,5,10,15,20];
+let _alarmRep=(()=>{ try{const v=parseInt(localStorage.getItem('econativo_alarm_rep'),10);return _ALARM_REPS.indexOf(v)>=0?v:3;}catch(e){return 3;} })();
+function setAlarmRep(v){
+  const x=parseInt(v,10);
+  _alarmRep=_ALARM_REPS.indexOf(x)>=0?x:1;
+  try{localStorage.setItem('econativo_alarm_rep',String(_alarmRep));}catch(e){}
+  _updateAlarmUI();
+}
+const _BELL_CICLO=2.3;    /* segundos de un toque completo + la pausa */
+let _bellBus=null;
+/* El navegador nace con el audio dormido hasta que alguien toca la pantalla */
+function _bellDespertar(){
+  try{
+    if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(_audioCtx.state==='suspended')_audioCtx.resume().then(()=>{try{_updateAlarmUI();}catch(e){}},()=>{});
+    return _audioCtx;
+  }catch(e){return null;}
+}
+['pointerdown','keydown','touchstart'].forEach(ev=>{
+  try{window.addEventListener(ev,_bellDespertar,{passive:true});}catch(e){}
+});
+/* Un compresor común evita que dos alertas a la vez saturen y suenen sucias */
+function _bellSalida(ctx){
+  if(_bellBus&&_bellBus.context===ctx)return _bellBus;
+  try{
+    const c=ctx.createDynamicsCompressor();
+    c.threshold.value=-10;c.knee.value=12;c.ratio.value=8;c.attack.value=.003;c.release.value=.25;
+    c.connect(ctx.destination);
+    _bellBus=c;return c;
+  }catch(e){return ctx.destination;}
+}
+/* Un golpe de campana: la nota y sus armónicos, con ataque seco y cola larga.
+   Es lo que la hace sonar a campana de verdad y no a un pitido. */
+function _bellGolpe(ctx,t0,f,peak,dur,nodos){
+  const sal=_bellSalida(ctx);
+  [[1,1.00],[2.01,.55],[2.99,.34],[4.21,.20],[5.43,.11]].forEach(p=>{
+    try{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type='sine';o.frequency.value=f*p[0];
+      o.connect(g);g.connect(sal);
+      g.gain.setValueAtTime(.0012,t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(.0024,peak*p[1]),t0+.006);
+      g.gain.exponentialRampToValueAtTime(.0012,t0+dur);
+      o.start(t0);o.stop(t0+dur+.02);
+      nodos.push(o);
+    }catch(e){}
+  });
+}
+/* Un toque = «din-don-din», ~1,7 s de sonido. Medido contra la campana anterior:
+   casi el doble de energía y casi el triple de duración, al mismo volumen. */
+function _bellToque(ctx,t0,peak,nodos){
+  _bellGolpe(ctx,t0,1244.51,peak,1.25,nodos);      /* din */
+  _bellGolpe(ctx,t0+.45,932.33,peak,1.45,nodos);   /* don */
+  _bellGolpe(ctx,t0+.92,1244.51,peak,1.25,nodos);  /* din */
+}
+/* ── Alertas vivas ── cada una se puede callar por separado ── */
+let _alertas=[];
+function _alertaSonar(id,veces,forcePeak){
+  try{
+    const peak=(forcePeak!=null)?forcePeak:_alarmPeak();
+    if(peak<=0)return null;                      /* silenciado: se respeta */
+    const ctx=_bellDespertar();if(!ctx)return null;
+    const rep=Math.max(1,Math.min(20,parseInt(veces,10)||1));
+    const nodos=[];
+    const ahora=Date.now();
+    _alertas=_alertas.filter(a=>a.hasta>ahora);  /* soltar las que ya terminaron */
+    /* Si ya hay otra sonando, esta entra algo desfasada: así se oyen las dos
+       en vez de superponerse golpe con golpe. Ninguna interrumpe a la otra. */
+    const t0=ctx.currentTime+.05+Math.min(_alertas.length,4)*.22;
+    for(let i=0;i<rep;i++)_bellToque(ctx,t0+i*_BELL_CICLO,peak,nodos);
+    const al={id:String(id||('t'+ahora)),nodos:nodos,hasta:ahora+Math.round(rep*_BELL_CICLO*1000)+900};
+    _alertas.push(al);
+    return al;
+  }catch(e){return null;}
+}
+function _alertaCallar(a){ a.nodos.forEach(o=>{try{o.stop();}catch(e){}}); }
+function _alertaParar(id){
+  _alertas=_alertas.filter(a=>{ if(a.id!==id)return true; _alertaCallar(a); return false; });
+  _avisoCerrar(id);
+}
+function _alertaPararPrefijo(pref){
+  _alertas=_alertas.filter(a=>{ if(a.id.indexOf(pref)!==0)return true; _alertaCallar(a); _avisoCerrar(a.id); return false; });
+}
+function _alertaPararTodo(){ _alertas.forEach(a=>{_alertaCallar(a);_avisoCerrar(a.id);}); _alertas=[]; }
+/* Un toque suelto: es lo que usa quien envía el pedido como confirmación,
+   y «Llamar a Cocina». Mantiene el nombre de siempre. */
 function playBell(forcePeak){
   try{
     const peak=(forcePeak!=null)?forcePeak:_alarmPeak();
-    if(peak<=0)return; /* silenciado */
-    /* Reutilizar UN solo AudioContext (crear uno nuevo cada vez agota el límite
-       del navegador y el sonido deja de reproducirse). */
-    if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    const ctx=_audioCtx;
-    if(ctx.state==='suspended')ctx.resume();
-    [0,.15,.3].forEach((d,i)=>{
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g);g.connect(ctx.destination);
-      o.frequency.value=880-i*80;o.type='sine';
-      g.gain.setValueAtTime(0,ctx.currentTime+d);
-      g.gain.linearRampToValueAtTime(peak,ctx.currentTime+d+.05);
-      g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.6);
-      o.start(ctx.currentTime+d);o.stop(ctx.currentTime+d+.7);
+    if(peak<=0)return;
+    const ctx=_bellDespertar();if(!ctx)return;
+    _bellToque(ctx,ctx.currentTime+.05,peak,[]);
+  }catch(e){}
+}
+/* ── Avisos del sistema: lo único que se ve con el navegador minimizado ── */
+let _avisos={};
+function pedirAvisos(){
+  try{
+    if(!('Notification' in window)){showToast('Este navegador no tiene avisos del sistema','del');return;}
+    Notification.requestPermission().then(p=>{
+      _updateAlarmUI();
+      showToast(p==='granted'?'Avisos activados ✓':'Avisos no permitidos',p==='granted'?'ok':'del');
     });
   }catch(e){}
+}
+function _avisoMostrar(id,texto){
+  try{
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    if(!document.hidden)return;              /* si la pestaña está a la vista, basta la campana */
+    const av=new Notification('EcoNativo · Cocina',{body:texto,tag:String(id),requireInteraction:true});
+    av.onclick=function(){ try{window.focus();}catch(e){} try{av.close();}catch(e){} };
+    _avisos[String(id)]=av;
+  }catch(e){}
+}
+function _avisoCerrar(id){
+  const av=_avisos[String(id)];
+  if(av){try{av.close();}catch(e){}}
+  delete _avisos[String(id)];
+}
+function probarCampana(){
+  _bellDespertar();
+  _alertaParar('prueba');
+  if(_alarmPeak()<=0){showToast('La alarma está silenciada: sube el volumen','del');return;}
+  _alertaSonar('prueba',_alarmRep);
+  showToast('Probando · '+_alarmRep+(_alarmRep===1?' toque':' toques')+' al '+_alarmVol+'%','ok');
+  _updateAlarmUI();
 }
 /* Popup visual SIN sonido (para avisos que no son "Enviar a cocina") */
 function showBell(msg){
@@ -1372,7 +1502,7 @@ function callKitchen(){
   const peak=_alarmPeak();
   const p=peak>0?peak:0.6;
   playBell(p);
-  setTimeout(()=>playBell(p),800); /* segundo toque para reforzar el llamado */
+  setTimeout(()=>playBell(p),2400); /* segundo toque para reforzar el llamado */
 }
 
 /* ── STATE ── */
@@ -2819,6 +2949,7 @@ function mcSendKitchen(){
   /* Descuento de inventario al enviar a cocina (mostrador) */
   descontarInventario(mcItems);
   kitchenBellSeq++;
+  try{_bellMarcar(_bellClave(ord));}catch(e){}  /* quien envía ya se enteró: un toque basta */
   bellKitchen('🔔 Mostrador → Cocina');
   showToast('Pedido enviado a cocina ✓','ok');
   cart=[];isMC=false;updateOCBadge();broadcastState();renderStockAlerts();
@@ -2891,6 +3022,7 @@ function gestionarPedidoCocina(items, tableId){
   /* 🔔 Campana CON sonido — exclusiva del envío a cocina. Suena SIEMPRE que se envía,
      sea pedido nuevo o adición a una mesa ya abierta en cocina. */
   kitchenBellSeq++;
+  try{_bellMarcar(_bellClave(order));}catch(e){}  /* quien envía ya se enteró: un toque basta */
   bellKitchen('🔔 Pedido enviado a cocina'+(order.tableId?' · Mesa '+order.tableId:''));
   _haberRegistrarUsos(order);   /* anota en el haber del cliente los productos cubiertos */
   currentAccountId=order.id;
@@ -10292,16 +10424,18 @@ function tkI(oid,key){
 }
 function kStart(oid){
   const o=getOrder(oid);if(!o)return;
+  _alertaPararPrefijo('ped:'+oid+'#');   /* cocina confirmó: esta alerta se calla */
   o.status='preparing';
   o.kitchenStartTime=Date.now();
   showToast('Preparación iniciada','ok');
   renderKitchen();broadcastState(); /* broadcastState ya persiste en Supabase (pushToSupabase) */
 }
-function kReady(oid){const o=getOrder(oid);if(o){o.status='ready';showBell('✅ Listo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));showToast('Pedido listo ✓','ok');renderKitchen();broadcastState();}}
+function kReady(oid){const o=getOrder(oid);if(o){_alertaPararPrefijo('ped:'+oid+'#');o.status='ready';showBell('✅ Listo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));showToast('Pedido listo ✓','ok');renderKitchen();broadcastState();}}
 function kDel(oid){
   /* Eliminación instantánea de la vista de Cocina (sin confirmación).
      La mesa/pedido sigue activo para Administrador y Garzones. */
   const o=getOrder(oid);if(!o)return;
+  _alertaPararPrefijo('ped:'+oid+'#');   /* fuera de cocina: deja de sonar */
   o.kitchenHidden=true;  /* marca solo para cocina */
   o.kitchenSeenCount=o.items.length;  /* ítems ya despachados: los nuevos reaparecerán solos */
   o.items.forEach(it=>{if(it)it.kdisp=true;});  /* marcar despachados: no reaparecen aunque no estén "listos" */
@@ -11082,8 +11216,8 @@ function applyRemoteState(data,force){
     }
     _stampOrders(); /* versionar cambios locales aún no publicados ANTES de fusionar */
 
-    /* Campana: sonar en CADA envío a cocina (contador kitchenBellSeq). */
-    const _prevSeq=kitchenBellSeq;
+    /* kitchenBellSeq se mantiene en el estado por compatibilidad, pero ya no es
+       lo que dispara la campana: ahora se mira pedido por pedido. */
 
     /* ── ÉPOCA DE JORNADA (dayEpoch) ──
        _newDay  : el emisor inició una jornada nueva (Nuevo Día) → adoptamos su reinicio.
@@ -11177,8 +11311,11 @@ function applyRemoteState(data,force){
     _resetOrdSig();       /* lo ya fusionado no se re-estampa como cambio local */
 
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=Math.max(kitchenBellSeq||0,s.kitchenBellSeq);
-    if(_bellReady&&(cRole==='kitchen'||cRole==='admin')&&kitchenBellSeq>_prevSeq){
-      bellKitchen('🔔 Pedido enviado a cocina');
+    /* Una alerta por CADA pedido nuevo, no una por sincronización: si entran
+       tres seguidos, suenan los tres y ninguno tapa al anterior. */
+    {
+      const _nuevos=_bellRevisarPedidos(!_bellReady);
+      if(_nuevos>0)showBell(_nuevos===1?'🔔 Pedido enviado a cocina':'🔔 '+_nuevos+' pedidos enviados a cocina');
     }
     /* clientCnt: id de clientes (independiente de jornada) → máximo monótono. */
     if(s.clientCnt!==undefined)clientCnt=Math.max(clientCnt||0,s.clientCnt);
@@ -11589,7 +11726,51 @@ function nuevoDia(){
    - En los demás dispositivos: vía applyRemoteState(), que detecta un pedido NUEVO en estado 'pending'.
    _bellReady evita que suene durante la carga inicial del estado. */
 let _bellReady=false;
-setTimeout(()=>{ _bellReady=true; },6000);
+setTimeout(()=>{ try{_bellRevisarPedidos(true);}catch(e){} _bellReady=true; },6000);
+/* Clave de alerta de un pedido. Lleva el nº de ítems para que una AÑADIDURA a
+   una mesa ya pendiente también avise, como hasta ahora. */
+function _bellClave(o){ return 'ped:'+o.id+'#'+((o.items&&o.items.length)||0); }
+/* Pedidos ya avisados en ESTE equipo. Se guarda para que recargar la página
+   —o una resincronización— no vuelva a disparar alertas viejas. */
+let _bellVistos=(()=>{ try{const a=JSON.parse(localStorage.getItem('econativo_bell_seen')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];} })();
+function _bellMarcar(k){
+  if(_bellVistos.indexOf(k)>=0)return;
+  _bellVistos.push(k);
+  if(_bellVistos.length>400)_bellVistos=_bellVistos.slice(-200);
+  try{localStorage.setItem('econativo_bell_seen',JSON.stringify(_bellVistos));}catch(e){}
+}
+/* Recorre los pedidos: suena por los nuevos y calla los que cocina ya recibió
+   (aunque los haya iniciado otro equipo). Con «silencioso» solo toma nota. */
+function _bellRevisarPedidos(silencioso){
+  let nuevos=0;
+  try{
+    if(cRole!=='kitchen'&&cRole!=='admin')return 0;
+    if(!Array.isArray(orders))return 0;
+    orders.forEach(o=>{
+      if(!o||!o.id)return;
+      let enEspera=false;
+      try{ enEspera=(o.status==='pending'&&!o.kitchenHidden&&_enCocina(o)); }catch(e){}
+      if(enEspera){
+        const k=_bellClave(o);
+        if(_bellVistos.indexOf(k)<0){
+          _bellMarcar(k);
+          if(!silencioso){
+            _alertaSonar(k,_alarmRep);
+            _avisoMostrar(k,'Pedido nuevo · '+(o.tableId?'Mesa '+o.tableId:'Mostrador'));
+            nuevos++;
+          }
+        }
+      }else{
+        _alertaPararPrefijo('ped:'+o.id+'#');   /* recibido//cerrado → se calla */
+      }
+    });
+  }catch(e){}
+  return nuevos;
+}
+/* Red de seguridad: si una sincronización no pasara por applyRemoteState,
+   esta revisión periódica igual da con el pedido nuevo (y nunca lo duplica,
+   porque la clave ya quedó marcada). */
+setInterval(()=>{ try{ if(_bellReady)_bellRevisarPedidos(false); _updateAlarmUI(); }catch(e){} },4000);
 
 /* Cronómetros de Cocina (hh:mm:ss) — actualizan cada segundo solo lo que está corriendo.
    Solo tocan el texto del span (no re-renderizan) y usan marcas de tiempo persistentes
