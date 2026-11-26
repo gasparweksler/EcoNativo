@@ -1495,14 +1495,26 @@ function bellKitchen(msg){
   showBell(msg);
   playBell();
 }
-/* "Llamar a Cocina": hace sonar la campana de cocina de forma deliberada.
-   Suena aunque el volumen esté silenciado (usa 60% en ese caso) y repite el toque. */
+/* "Llamar a Cocina": hace sonar la campana en ESTE equipo y en todos los que
+   tengan abierta la sesión de Cocina. Suena aunque el volumen esté silenciado
+   (usa 60% en ese caso), porque es una llamada deliberada. */
+function _llamadaSonar(){
+  _bellDespertar();
+  const peak=_alarmPeak();
+  _alertaParar('llamada');
+  _alertaSonar('llamada',2,peak>0?peak:0.6);   /* dos toques, en el reloj de audio */
+}
 function callKitchen(){
   showBell('🔔 ¡Llamando a cocina!');
-  const peak=_alarmPeak();
-  const p=peak>0?peak:0.6;
-  playBell(p);
-  setTimeout(()=>playBell(p),2400); /* segundo toque para reforzar el llamado */
+  _llamadaSonar();
+  /* Aviso a los demás equipos: un contador que solo crece, con la hora de la
+     llamada. La hora importa: una llamada de hace rato ya no sirve de nada. */
+  kitchenCallSeq++;
+  kitchenCallTs=Date.now();
+  _llamadaVista=kitchenCallSeq;                /* quien llama ya la oyó */
+  try{localStorage.setItem('econativo_call_seen',String(_llamadaVista));}catch(e){}
+  broadcastState();
+  showToast('Llamada enviada a cocina ✓','ok');
 }
 
 /* ── STATE ── */
@@ -1600,6 +1612,10 @@ const tables=[
 let orders=[];
 let ordCnt=1;
 let kitchenBellSeq=0; /* se incrementa en CADA envío a cocina; dispara la campana en el dispositivo de cocina */
+/* «Llamar a Cocina»: contador y hora de la última llamada. Viajan en el estado
+   para que la campana suene en todos los equipos con sesión de Cocina abierta. */
+let kitchenCallSeq=0, kitchenCallTs=0;
+let _llamadaVista=(()=>{ try{return parseInt(localStorage.getItem('econativo_call_seen'),10)||0;}catch(e){return 0;} })();
 
 let closedSales=[];
 
@@ -11096,6 +11112,8 @@ function getSerializableState(){
     subcatUser:Array.isArray(_SUBCAT_USER)?_SUBCAT_USER.slice():[],
     bookSales:bookSales.map(b=>({...b})),bookCnt,
     kitchenBellSeq,
+    kitchenCallSeq,
+    kitchenCallTs,
     dayEpoch,
     delOrders,delClients,delBooks,bookClearTs,salesClearTs,delSales,delOrderUids,delMenu,
     ts:_nextTs()
@@ -11311,6 +11329,23 @@ function applyRemoteState(data,force){
     _resetOrdSig();       /* lo ya fusionado no se re-estampa como cambio local */
 
     if(s.kitchenBellSeq!==undefined)kitchenBellSeq=Math.max(kitchenBellSeq||0,s.kitchenBellSeq);
+    /* «Llamar a Cocina» desde otro equipo. Solo suena en las sesiones de Cocina,
+       una sola vez por llamada (el nº visto queda guardado, así que recargar o
+       resincronizar no la repite) y solo si la llamada es de hace menos de 2 min. */
+    if(s.kitchenCallSeq!==undefined){
+      const _seq=Math.max(kitchenCallSeq||0,s.kitchenCallSeq||0);
+      const _ts=Math.max(kitchenCallTs||0,s.kitchenCallTs||0);
+      const _esNueva=_seq>_llamadaVista;
+      kitchenCallSeq=_seq; kitchenCallTs=_ts;
+      if(_esNueva){
+        _llamadaVista=_seq;
+        try{localStorage.setItem('econativo_call_seen',String(_seq));}catch(e){}
+        if(_bellReady&&cRole==='kitchen'&&_ts&&(Date.now()-_ts)<120000){
+          showBell('🔔 ¡Te llaman desde el mostrador!');
+          _llamadaSonar();
+        }
+      }
+    }
     /* Una alerta por CADA pedido nuevo, no una por sincronización: si entran
        tres seguidos, suenan los tres y ninguno tapa al anterior. */
     {
